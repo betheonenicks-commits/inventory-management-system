@@ -1,0 +1,976 @@
+openapi: 3.0.3
+info:
+  title: IAMS API
+  description: >
+    Inventory Audit Management System REST API. Traces to IAMS-FRS-3.0 (functional
+    requirements), IAMS-SRS-3.0 (architecture/security), and IAMS-DD-1.0 (schema).
+    All endpoints are served on-premises; no endpoint has a mandatory external
+    dependency. Authorization is enforced server-side on every endpoint per
+    SRS Section 6.2 regardless of what the client UI hides.
+  version: "1.0.0"
+  contact:
+    name: IAMS Engineering
+servers:
+  - url: /api/v1
+    description: On-premises deployment, versioned base path
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+    description: FR-SEC-01, 02, 03 — authentication and session management
+  - name: Assets
+    description: FR-AST-01 through 15 — asset registration and management
+  - name: Organization
+    description: FR-ORG-01 through 06 — hierarchy and departments
+  - name: Lifecycle
+    description: FR-LIF-01 through 10 — procurement through disposal
+  - name: Inventory
+    description: FR-INV-01 through 09 — consumables and warehouses
+  - name: Audits
+    description: FR-AUD-01 through 21 — the core differentiator
+  - name: Reports
+    description: FR-RPT-01 through 13
+  - name: Dashboard
+    description: FR-DSH-01 through 07
+  - name: Users
+    description: FR-USR-01 through 05 — accounts, roles, offboarding
+  - name: Notifications
+    description: FR-NTF-01 through 05
+  - name: Search
+    description: FR-SRC-01 through 05
+  - name: Security
+    description: FR-SEC-04 through 14 — activity logs and integration security
+  - name: Migration
+    description: FR-MIG-01 through 04 — bulk import/export
+  - name: Integrations
+    description: FR-INT-01 through 05
+  - name: Compliance
+    description: FR-CMP-01 through 07 — retention, anonymization, legal hold
+  - name: Analytics
+    description: FR-ANL-01 through 04
+
+paths:
+  # ============== AUTH ==============
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate with local credentials
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  refresh_token: { type: string }
+                  user: { $ref: '#/components/schemas/UserAccount' }
+        '401': { description: Invalid credentials }
+        '429': { description: Rate limited — see NFR-API-01 }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Exchange a refresh token for a new access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200': { description: New access token issued }
+        '401': { description: Refresh token invalid or revoked }
+  /auth/sso/callback:
+    get:
+      tags: [Auth]
+      summary: SSO (SAML/OIDC) assertion callback — FR-INT-03
+      security: []
+      responses:
+        '302': { description: Redirect to application with session established }
+
+  # ============== ASSETS ==============
+  /assets:
+    get:
+      tags: [Assets]
+      summary: List assets (paginated, filterable) — FR-RPT-01 filters, NFR-SCALE-03
+      parameters:
+        - { name: category_id, in: query, schema: { type: string, format: uuid } }
+        - { name: department_id, in: query, schema: { type: string, format: uuid } }
+        - { name: location_node_id, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        '200':
+          description: Paginated asset list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Asset' } }
+                  total: { type: integer }
+                  page: { type: integer }
+    post:
+      tags: [Assets]
+      summary: Register a new asset — FR-AST-01, 02, 05, 06; see UC-AST-01
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssetCreateRequest' }
+      responses:
+        '201':
+          description: Asset created, QR code generated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Asset' }
+        '400': { description: Validation error — see Error schema }
+  /assets/{assetId}:
+    parameters:
+      - { name: assetId, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Assets]
+      summary: Get asset detail, including history and attachments — FR-AST-08 through 15
+      responses:
+        '200':
+          description: Asset detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssetDetail' }
+        '404': { description: Not found }
+    put:
+      tags: [Assets]
+      summary: Update asset (requires If-Match version header — NFR-CONC-01)
+      parameters:
+        - { name: If-Match, in: header, required: true, schema: { type: string }, description: "Current version, for optimistic locking" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssetUpdateRequest' }
+      responses:
+        '200': { description: Updated }
+        '409': { description: Version conflict — asset was modified concurrently }
+  /assets/{assetId}/history:
+    get:
+      tags: [Assets]
+      summary: Append-only change history — FR-AST-10
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: History entries, newest first
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/AssetHistoryEntry' } }
+  /assets/{assetId}/attachments:
+    post:
+      tags: [Assets]
+      summary: Upload a photo or file attachment — FR-AST-05, validated per SRS 6.7
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201': { description: Attachment stored in object store, reference saved }
+        '415': { description: Unsupported file type }
+  /assets/{assetId}/insurance:
+    put:
+      tags: [Assets]
+      summary: Set or update insurance policy details — FR-AST-13
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InsurancePolicy' }
+      responses:
+        '200': { description: Updated }
+  /assets/{assetId}/depreciation:
+    get:
+      tags: [Assets]
+      summary: Computed depreciation value — FR-AST-15, FR-CMP-07
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: Current book value
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  method: { type: string, enum: [straight_line, declining_balance] }
+                  current_value: { type: number }
+                  as_of_date: { type: string, format: date }
+  /asset-categories:
+    get:
+      tags: [Assets]
+      summary: List categories with custom field schemas — FR-AST-03, 06
+      responses:
+        '200':
+          description: Categories
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/AssetCategory' } }
+  /labels/print-queue:
+    post:
+      tags: [Assets]
+      summary: Batch-generate labels for a set of assets — FR-SCN-07, FR-RPT-11; see SCR-AST-04
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                asset_ids: { type: array, items: { type: string, format: uuid } }
+      responses:
+        '200': { description: Label sheet generated (PDF), Code128/QR per FR-SCN-07 }
+
+  # ============== ORGANIZATION ==============
+  /organization/nodes:
+    get:
+      tags: [Organization]
+      summary: Full hierarchy tree — FR-ORG-01, 05; see UC-ORG-01
+      responses:
+        '200':
+          description: Recursive tree
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrgNode' }
+    post:
+      tags: [Organization]
+      summary: Add a hierarchy node — FR-ORG-01, 02
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrgNodeCreateRequest' }
+      responses:
+        '201': { description: Node created }
+        '409': { description: Cannot delete/modify — dependent assets exist }
+  /departments:
+    get:
+      tags: [Organization]
+      summary: List departments — FR-ORG-03
+      responses:
+        '200':
+          description: Departments
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Department' } }
+    post:
+      tags: [Organization]
+      summary: Create a department
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Department' }
+      responses:
+        '201': { description: Created }
+
+  # ============== LIFECYCLE ==============
+  /purchase-requests:
+    post:
+      tags: [Lifecycle]
+      summary: Raise a purchase request — FR-LIF-01
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PurchaseRequest' }
+      responses:
+        '201': { description: Created, pending approval }
+  /purchase-orders:
+    get:
+      tags: [Lifecycle]
+      summary: List purchase orders — FR-LIF-02
+      responses:
+        '200':
+          description: POs
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/PurchaseOrder' } }
+    post:
+      tags: [Lifecycle]
+      summary: Create a purchase order
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PurchaseOrder' }
+      responses:
+        '201': { description: Created }
+  /purchase-orders/{poId}/receive:
+    post:
+      tags: [Lifecycle]
+      summary: Reconcile delivery against PO and register received assets — FR-LIF-03
+      parameters: [{ name: poId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Reconciled; assets registered and linked }
+  /assets/{assetId}/assign:
+    post:
+      tags: [Lifecycle]
+      summary: Assign asset to a user, department, or room — FR-LIF-04; see UC-LIF-01
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                assigned_to_user_id: { type: string, format: uuid, nullable: true }
+                location_node_id: { type: string, format: uuid, nullable: true }
+      responses:
+        '200': { description: Assigned }
+  /assets/{assetId}/transfer:
+    post:
+      tags: [Lifecycle]
+      summary: Request a transfer, routed for approval — FR-LIF-05; see UC-LIF-01
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LifecycleEventRequest' }
+      responses:
+        '202': { description: Transfer pending approval }
+  /lifecycle-events/{eventId}/approve:
+    post:
+      tags: [Lifecycle]
+      summary: Approve or reject a pending lifecycle event — separation of duties enforced (BRD 2.1)
+      parameters: [{ name: eventId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decision: { type: string, enum: [approved, rejected] }
+                reason: { type: string }
+      responses:
+        '200': { description: Decision recorded }
+        '403': { description: Approver is the same user who initiated the event }
+  /assets/{assetId}/repair:
+    post:
+      tags: [Lifecycle]
+      summary: Log a repair event — FR-LIF-06
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '201': { description: Repair logged }
+  /assets/{assetId}/retire:
+    post:
+      tags: [Lifecycle]
+      summary: Retire, dispose, or donate an asset — FR-LIF-09; see UC-LIF-02
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LifecycleEventRequest' }
+      responses:
+        '202': { description: Pending Administrator approval }
+        '409': { description: Open insurance claim must be resolved first }
+
+  # ============== INVENTORY ==============
+  /inventory/items:
+    get:
+      tags: [Inventory]
+      summary: List inventory items with stock levels — FR-INV-01, 03, 04
+      responses:
+        '200':
+          description: Items
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/InventoryItem' } }
+  /inventory/items/{itemId}/stock-in:
+    post:
+      tags: [Inventory]
+      summary: Stock In transaction — FR-INV-02
+      parameters: [{ name: itemId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '201': { description: Recorded }
+  /inventory/items/{itemId}/stock-out:
+    post:
+      tags: [Inventory]
+      summary: Stock Out transaction — FR-INV-02
+      parameters: [{ name: itemId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '201': { description: Recorded }
+  /inventory/items/{itemId}/transfer:
+    post:
+      tags: [Inventory]
+      summary: Transfer stock between warehouses — FR-INV-08; see UC-INV-01
+      parameters: [{ name: itemId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                from_warehouse_id: { type: string, format: uuid }
+                to_warehouse_id: { type: string, format: uuid }
+                quantity: { type: integer }
+      responses:
+        '200': { description: Transferred atomically }
+        '409': { description: Insufficient quantity at source warehouse }
+  /inventory/items/{itemId}/adjust:
+    post:
+      tags: [Inventory]
+      summary: Manual adjustment with mandatory reason — FR-INV-05
+      parameters: [{ name: itemId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '201': { description: Adjustment recorded, pending approver if configured }
+
+  # ============== AUDITS ==============
+  /audits:
+    get:
+      tags: [Audits]
+      summary: List audits — FR-AUD-01, 02
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Audits
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Audit' } }
+    post:
+      tags: [Audits]
+      summary: Create/schedule an audit, including sampling scope — FR-AUD-01, 02, 03, 20
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuditCreateRequest' }
+      responses:
+        '201': { description: Audit created with expected-asset list generated }
+  /audits/{auditId}:
+    get:
+      tags: [Audits]
+      summary: Audit detail with live Expected vs Verified counts — FR-AUD-07
+      parameters: [{ name: auditId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: Audit detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditDetail' }
+  /audits/{auditId}/scan:
+    post:
+      tags: [Audits]
+      summary: Verify an asset via scan during continuous scan mode — FR-AUD-04, 05; see UC-AUD-01
+      parameters: [{ name: auditId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                qr_code_value: { type: string }
+                device_id: { type: string }
+      responses:
+        '200':
+          description: Verified; live counters updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asset: { $ref: '#/components/schemas/Asset' }
+                  duplicate_scan: { type: boolean, description: "FR-SCN-04" }
+        '404': { description: Scanned code does not resolve to a known asset }
+  /audits/{auditId}/findings:
+    post:
+      tags: [Audits]
+      summary: Record a Missing/Damaged finding with evidence — FR-AUD-08, 09, 10, 11; see UC-AUD-02
+      parameters: [{ name: auditId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/AuditFindingCreateRequest' }
+      responses:
+        '201': { description: Finding recorded, immutable }
+  /audits/{auditId}/submit:
+    post:
+      tags: [Audits]
+      summary: Submit completed audit with digital signature — FR-AUD-12, 13
+      parameters: [{ name: auditId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '202': { description: Routed to Department Head for approval }
+  /audits/{auditId}/approve:
+    post:
+      tags: [Audits]
+      summary: Department Head approval, generates completion certificate — FR-AUD-12, 13, 14; see UC-AUD-03
+      parameters: [{ name: auditId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decision: { type: string, enum: [approved, clarification_requested] }
+      responses:
+        '200': { description: Audit finalized and made immutable, certificate generated }
+  /audits/{auditId}/exception-report:
+    get:
+      tags: [Audits]
+      summary: Missing/damaged asset report for this audit — FR-AUD-15
+      parameters: [{ name: auditId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Exception report }
+  /findings/{findingId}/reconcile:
+    post:
+      tags: [Audits]
+      summary: Resolve a previously-Missing finding — FR-AUD-21; see UC-AUD-04
+      parameters: [{ name: findingId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                current_location_node_id: { type: string, format: uuid }
+                note: { type: string }
+      responses:
+        '201': { description: New linked reconciliation record created; original finding unchanged }
+
+  # ============== REPORTS ==============
+  /reports/{reportType}:
+    get:
+      tags: [Reports]
+      summary: Generate a report — FR-RPT-01 through 10; see UC-RPT-01
+      parameters:
+        - { name: reportType, in: path, required: true, schema: { type: string, enum: [asset-register, missing-assets, damaged-assets, warranty-expiry, amc-expiry, insurance-expiry, purchase-history, vendor-report, asset-movement, audit-compliance, depreciation, maintenance-history] } }
+        - { name: format, in: query, schema: { type: string, enum: [json, pdf, xlsx, csv], default: json } }
+      responses:
+        '200': { description: Report data or file }
+        '202': { description: Large export queued as background job — NFR-PERF-04 }
+  /reports/scheduled:
+    post:
+      tags: [Reports]
+      summary: Schedule a recurring report — FR-RPT-13
+      responses:
+        '201': { description: Schedule created }
+
+  # ============== DASHBOARD ==============
+  /dashboard/executive:
+    get:
+      tags: [Dashboard]
+      summary: Executive dashboard metrics — FR-DSH-01, 03, 04
+      responses:
+        '200': { description: Metrics, scoped to caller's role/org-scope (FR-DSH-07) }
+  /dashboard/audits:
+    get:
+      tags: [Dashboard]
+      summary: Live audit progress across active audits — FR-DSH-02; see UC-DSH-01
+      responses:
+        '200': { description: In-progress audits with completion percentage }
+
+  # ============== USERS ==============
+  /users:
+    get:
+      tags: [Users]
+      summary: List users — FR-USR-01
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/UserAccount' } }
+    post:
+      tags: [Users]
+      summary: Provision a new user — FR-USR-01, 02
+      responses:
+        '201': { description: Created }
+  /users/{userId}/deactivate:
+    post:
+      tags: [Users]
+      summary: Offboarding — blocks until assigned assets are resolved — FR-USR-05; see UC-USR-01
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Deactivated }
+        '409':
+          description: Cannot deactivate — assets still assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  blocking_assets: { type: array, items: { $ref: '#/components/schemas/Asset' } }
+  /roles:
+    get:
+      tags: [Users]
+      summary: List roles and permission sets — FR-USR-01, 02
+      responses:
+        '200': { description: Roles }
+
+  # ============== NOTIFICATIONS ==============
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: In-app notifications for the current user — FR-NTF-03
+      responses:
+        '200': { description: Notifications }
+  /notifications/preferences:
+    get:
+      tags: [Notifications]
+      summary: Current user's notification preferences — FR-NTF-05
+      responses:
+        '200': { description: Preferences }
+    put:
+      tags: [Notifications]
+      summary: Update preferences (locked/mandatory types rejected) — FR-NTF-05
+      responses:
+        '200': { description: Updated }
+        '403': { description: Attempted to modify an Administrator-locked notification type }
+
+  # ============== SEARCH ==============
+  /search:
+    get:
+      tags: [Search]
+      summary: Global search across assets, people, vendors, POs — FR-SRC-01, 02, 03
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Ranked results across entity types }
+  /search/saved:
+    post:
+      tags: [Search]
+      summary: Save a search — FR-SRC-04
+      responses:
+        '201': { description: Saved }
+
+  # ============== SECURITY ==============
+  /security/activity-log:
+    get:
+      tags: [Security]
+      summary: Security activity log — FR-SEC-04; see UC-SEC-01
+      parameters:
+        - { name: user_id, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Log entries, immutable }
+
+  # ============== MIGRATION ==============
+  /migration/import:
+    post:
+      tags: [Migration]
+      summary: Bulk import with dry-run mode — FR-MIG-01, 03; see UC-MIG-01
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                entity_type: { type: string, enum: [asset, user, vendor, department] }
+                dry_run: { type: boolean, default: true }
+                file: { type: string, format: binary }
+      responses:
+        '200': { description: Dry-run validation report (no changes committed) }
+        '201': { description: Import committed, reconciliation report generated }
+  /migration/export:
+    get:
+      tags: [Migration]
+      summary: Bulk export — FR-MIG-02
+      parameters:
+        - { name: entity_type, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Export file }
+
+  # ============== INTEGRATIONS ==============
+  /integrations:
+    get:
+      tags: [Integrations]
+      summary: List integrations and their enabled state — FR-INT-05
+      responses:
+        '200': { description: Integrations }
+  /integrations/{integrationType}:
+    put:
+      tags: [Integrations]
+      summary: Enable/configure an integration — requires Super Administrator + Compliance Officer review (BRD 6.5)
+      parameters: [{ name: integrationType, in: path, required: true, schema: { type: string, enum: [ldap, sso, accounting, webhook, sms] } }]
+      responses:
+        '200': { description: Updated }
+        '403': { description: Requires elevated approval workflow, not a direct API grant }
+
+  # ============== COMPLIANCE ==============
+  /compliance/retention-policy:
+    get:
+      tags: [Compliance]
+      summary: Retention policy per entity type — FR-CMP-01
+      responses:
+        '200': { description: Policies }
+    put:
+      tags: [Compliance]
+      summary: Update retention policy — Compliance Officer only
+      responses:
+        '200': { description: Updated }
+  /compliance/anonymization-queue:
+    get:
+      tags: [Compliance]
+      summary: Records eligible for anonymization — FR-CMP-02; see UC-CMP-01
+      responses:
+        '200': { description: Queue }
+  /compliance/anonymization-queue/{itemId}/approve:
+    post:
+      tags: [Compliance]
+      summary: Approve anonymization (blocked if legal hold present) — FR-CMP-02, 06
+      parameters: [{ name: itemId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Anonymized, logged immutably }
+        '409': { description: Blocked by an active legal hold }
+  /compliance/legal-holds:
+    post:
+      tags: [Compliance]
+      summary: Apply a legal hold to an asset or audit — FR-CMP-06
+      responses:
+        '201': { description: Hold applied }
+
+  # ============== ANALYTICS ==============
+  /analytics/usage:
+    get:
+      tags: [Analytics]
+      summary: Feature usage report — FR-ANL-01, 03; see UC-ANL-01
+      responses:
+        '200': { description: Usage by module/role, local data only (FR-ANL-02) }
+  /analytics/feedback:
+    post:
+      tags: [Analytics]
+      summary: Submit in-app feedback — FR-ANL-04
+      responses:
+        '201': { description: Feedback recorded }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: FR-SEC-01. Service accounts for integrations use scoped credentials per SRS Section 6.6, never a shared administrative token.
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object }
+
+    OrgNode:
+      type: object
+      properties:
+        node_id: { type: string, format: uuid }
+        parent_node_id: { type: string, format: uuid, nullable: true }
+        node_type: { type: string, enum: [Campus, Building, Floor, Room, Laboratory, Classroom] }
+        name: { type: string }
+        label_override: { type: string, nullable: true }
+        children: { type: array, items: { $ref: '#/components/schemas/OrgNode' } }
+
+    OrgNodeCreateRequest:
+      type: object
+      required: [node_type, name]
+      properties:
+        parent_node_id: { type: string, format: uuid, nullable: true }
+        node_type: { type: string }
+        name: { type: string }
+        label_override: { type: string }
+
+    Department:
+      type: object
+      properties:
+        department_id: { type: string, format: uuid }
+        name: { type: string }
+        cost_center: { type: string }
+        head_user_id: { type: string, format: uuid, nullable: true }
+        org_node_id: { type: string, format: uuid, nullable: true }
+
+    AssetCategory:
+      type: object
+      properties:
+        category_id: { type: string, format: uuid }
+        name: { type: string }
+        custom_field_schema: { type: object, description: "JSON Schema for custom_fields validation" }
+
+    Asset:
+      type: object
+      properties:
+        asset_id: { type: string, format: uuid }
+        asset_number: { type: string, example: "AST-00482" }
+        name: { type: string }
+        category_id: { type: string, format: uuid }
+        status: { type: string, enum: [In Use, In Storage, Under Repair, Missing, Retired, Disposed] }
+        location_node_id: { type: string, format: uuid }
+        department_id: { type: string, format: uuid }
+        assigned_to_user_id: { type: string, format: uuid, nullable: true }
+        qr_code_value: { type: string }
+        version: { type: integer, description: "Optimistic locking — NFR-CONC-01" }
+
+    AssetDetail:
+      allOf:
+        - $ref: '#/components/schemas/Asset'
+        - type: object
+          properties:
+            manufacturer_id: { type: string, format: uuid, nullable: true }
+            vendor_id: { type: string, format: uuid, nullable: true }
+            purchase_cost: { type: number }
+            currency: { type: string, example: USD }
+            purchase_date: { type: string, format: date }
+            warranty_expiry: { type: string, format: date, nullable: true }
+            amc_expiry: { type: string, format: date, nullable: true }
+            custom_fields: { type: object }
+            insurance_policy: { $ref: '#/components/schemas/InsurancePolicy' }
+            attachments: { type: array, items: { type: object, properties: { attachment_id: { type: string }, object_store_key: { type: string } } } }
+
+    AssetCreateRequest:
+      type: object
+      required: [name, category_id, location_node_id, department_id]
+      properties:
+        name: { type: string }
+        category_id: { type: string, format: uuid }
+        manufacturer_id: { type: string, format: uuid }
+        vendor_id: { type: string, format: uuid }
+        location_node_id: { type: string, format: uuid }
+        department_id: { type: string, format: uuid }
+        purchase_cost: { type: number }
+        currency: { type: string }
+        purchase_date: { type: string, format: date }
+        custom_fields: { type: object }
+
+    AssetUpdateRequest:
+      type: object
+      properties:
+        name: { type: string }
+        status: { type: string }
+        custom_fields: { type: object }
+
+    AssetHistoryEntry:
+      type: object
+      properties:
+        history_id: { type: string, format: uuid }
+        event_type: { type: string }
+        field_changed: { type: string, nullable: true }
+        old_value: { type: string, nullable: true }
+        new_value: { type: string, nullable: true }
+        changed_by: { type: string, format: uuid }
+        changed_at: { type: string, format: date-time }
+
+    InsurancePolicy:
+      type: object
+      properties:
+        insurer: { type: string }
+        policy_number: { type: string }
+        coverage_amount: { type: number }
+        expiry: { type: string, format: date }
+
+    PurchaseRequest:
+      type: object
+      properties:
+        pr_id: { type: string, format: uuid }
+        department_id: { type: string, format: uuid }
+        status: { type: string }
+
+    PurchaseOrder:
+      type: object
+      properties:
+        po_id: { type: string, format: uuid }
+        po_number: { type: string }
+        vendor_id: { type: string, format: uuid }
+        status: { type: string, enum: [Draft, Pending Delivery, Received] }
+        total: { type: number }
+
+    LifecycleEventRequest:
+      type: object
+      properties:
+        event_type: { type: string, enum: [assign, transfer, repair, maintenance, retire, dispose, donate] }
+        to_location_id: { type: string, format: uuid, nullable: true }
+        to_user_id: { type: string, format: uuid, nullable: true }
+        reason: { type: string }
+        disposal_method: { type: string, nullable: true }
+
+    InventoryItem:
+      type: object
+      properties:
+        item_id: { type: string, format: uuid }
+        name: { type: string }
+        warehouse_id: { type: string, format: uuid }
+        quantity_on_hand: { type: integer }
+        reorder_level: { type: integer }
+        expiry_date: { type: string, format: date, nullable: true }
+
+    Audit:
+      type: object
+      properties:
+        audit_id: { type: string, format: uuid }
+        audit_code: { type: string, example: "AUD-2026-Q3-014" }
+        audit_type: { type: string, enum: [Quarterly, Annual, Department, Room, Building, Campus, Surprise] }
+        status: { type: string, enum: [Scheduled, In Progress, Completed] }
+        expected_count: { type: integer, nullable: true }
+        verified_count: { type: integer }
+
+    AuditDetail:
+      allOf:
+        - $ref: '#/components/schemas/Audit'
+        - type: object
+          properties:
+            scope_node_id: { type: string, format: uuid }
+            sampling_method: { type: string, nullable: true }
+            auditor_user_id: { type: string, format: uuid }
+            legal_hold: { type: boolean }
+            findings: { type: array, items: { $ref: '#/components/schemas/AuditFinding' } }
+
+    AuditCreateRequest:
+      type: object
+      required: [audit_type, scope_node_id]
+      properties:
+        audit_type: { type: string }
+        scope_node_id: { type: string, format: uuid }
+        sampling_method: { type: string, nullable: true, description: "Null = 100% verification, FR-AUD-20" }
+        auditor_user_id: { type: string, format: uuid }
+        due_date: { type: string, format: date }
+
+    AuditFinding:
+      type: object
+      properties:
+        finding_id: { type: string, format: uuid }
+        asset_id: { type: string, format: uuid }
+        finding_type: { type: string, enum: [Verified, Missing, Damaged] }
+        condition: { type: string, enum: [Good, Fair, Minor Damage, Major Damage, Unusable], nullable: true }
+        remark: { type: string, nullable: true }
+        reconciled: { type: boolean }
+
+    AuditFindingCreateRequest:
+      type: object
+      required: [asset_id, finding_type]
+      properties:
+        asset_id: { type: string, format: uuid }
+        finding_type: { type: string, enum: [Missing, Damaged] }
+        condition: { type: string }
+        remark: { type: string }
+        evidence: { type: string, format: binary }
+
+    UserAccount:
+      type: object
+      properties:
+        user_id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        role_id: { type: string, format: uuid }
+        department_id: { type: string, format: uuid }
+        status: { type: string, enum: [Active, Offboarding, Anonymized] }

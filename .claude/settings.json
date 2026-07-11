@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(pip install *)",
+      "Bash(mkdir -p /c/Users/Renju/AppData/Local/Temp/claude/c--My-Projects-Inventory-Management-System/cdb15799-4869-4b1f-a339-08ac4b67a02f/scratchpad/dd /c/Users/Renju/AppData/Local/Temp/claude/c--My-Projects-Inventory-Management-System/cdb15799-4869-4b1f-a339-08ac4b67a02f/scratchpad/arch)",
+      "Bash(unzip -o -q 'Data Dictinary Open API BRD files.zip' -d /c/Users/Renju/AppData/Local/Temp/claude/c--My-Projects-Inventory-Management-System/cdb15799-4869-4b1f-a339-08ac4b67a02f/scratchpad/dd)",
+      "Bash(unzip -o -q 'files/Architecture and BRD.zip' -d /c/Users/Renju/AppData/Local/Temp/claude/c--My-Projects-Inventory-Management-System/cdb15799-4869-4b1f-a339-08ac4b67a02f/scratchpad/arch)",
+      "Bash(mkdir -p /c/Users/Renju/AppData/Local/Temp/claude/c--My-Projects-Inventory-Management-System/cdb15799-4869-4b1f-a339-08ac4b67a02f/scratchpad/dd_xml)",
+      "Bash(unzip -o -q /c/Users/Renju/AppData/Local/Temp/claude/c--My-Projects-Inventory-Management-System/cdb15799-4869-4b1f-a339-08ac4b67a02f/scratchpad/dd/Data_Dictionary.docx -d .)",
+      "Read(//c//**)",
+      "Bash(xxd)",
+      "Bash(python3 -c ' *)",
+      "Bash(awk ' *)",
+      "Bash(mkdir -p /tmp/rtm_extract)",
+      "Bash(unzip -o -q IAMS_RTM_and_Progress.xlsx -d __TRACKED_VAR__/rtm_extract)",
+      "Bash(unzip -o -q IAMS_RTM_and_Progress.xlsx -d /tmp/rtm_extract)",
+      "Read(//tmp/rtm_extract/xl/**)",
+      "Bash(cd /tmp/rtm_extract && grep -o '<dimension ref=\"[^\"]*\"' xl/worksheets/sheet1.xml xl/worksheets/sheet2.xml xl/worksheets/sheet3.xml xl/worksheets/sheet4.xml *)",
+      "Read(//tmp/**)",
+      "Read(//c/Users/Renju/AppData/Local/Temp/**)",
+      "Bash(java -version)",
+      "Bash(mvn -version)",
+      "Bash(npm -v)",
+      "Bash(docker -v)",
+      "Bash(docker compose *)",
+      "Bash(mvn compile *)"
+    ]
+  }
+}

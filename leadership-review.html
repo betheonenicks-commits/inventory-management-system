@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory Management System - Leadership Review</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f5f7fb; color: #1f2937; }
+    .page { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    h1, h2, h3 { color: #0f172a; }
+    .hero { background: linear-gradient(135deg, #0f4c81, #2563eb); color: white; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+    .pill { display: inline-block; background: #e0f2fe; color: #0369a1; padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: bold; margin: 4px 4px 4px 0; }
+    .wireframe { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+    .panel { border: 1px dashed #94a3b8; border-radius: 10px; padding: 12px; background: #fbfdff; }
+    .panel .row { margin: 8px 0; padding: 8px; background: #eef2ff; border-radius: 6px; font-size: 13px; }
+    .wireframe-layout { border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #ffffff; }
+    .wf-header { background: #0f4c81; color: white; padding: 10px 14px; font-weight: bold; }
+    .wf-body { display: grid; grid-template-columns: 220px 1fr; min-height: 360px; }
+    .wf-sidebar { background: #e2e8f0; padding: 12px; }
+    .wf-sidebar div { padding: 8px 0; border-bottom: 1px solid #cbd5e1; font-size: 13px; }
+    .wf-main { padding: 12px; background: #f8fafc; }
+    .wf-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .wf-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; min-height: 80px; }
+    .wf-card strong { display: block; margin-bottom: 6px; }
+    .wf-table { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .wf-box { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; min-height: 100px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+    th { background: #f3f4f6; }
+    ul { padding-left: 18px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card hero">
+      <h1>Inventory Management System</h1>
+      <h2>Leadership Review Presentation</h2>
+      <p>This initiative will centralize asset and inventory operations, improve audit readiness, and provide leadership with real-time visibility into operations and compliance.</p>
+    </div>
+
+    <div class="card">
+      <h2>Executive Summary</h2>
+      <p>The proposed system will replace fragmented manual processes with a secure, auditable, and scalable platform for managing assets, stock, workflows, audits, and reports. It will improve operational accountability and support faster, more confident decision-making at the leadership level.</p>
+      <div class="grid">
+        <div><strong>Business Value</strong><br/>Higher traceability, stronger control, and faster audits</div>
+        <div><strong>Primary Users</strong><br/>Administrators, Inventory Managers, Auditors, Department Heads</div>
+        <div><strong>Core Outcome</strong><br/>One platform for asset and inventory visibility</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Key Objectives</h2>
+      <ul>
+        <li>Centralize asset and inventory records</li>
+        <li>Improve stock accuracy and asset accountability</li>
+        <li>Accelerate audit planning and execution</li>
+        <li>Strengthen reporting and management oversight</li>
+        <li>Support role-based security and compliance</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Scope Overview</h2>
+      <div class="grid">
+        <div>
+          <h3>In Scope</h3>
+          <ul>
+            <li>Asset registration and lifecycle</li>
+            <li>Inventory and stock movement</li>
+            <li>Audit management</li>
+            <li>Barcode and QR scanning</li>
+            <li>Dashboards and reports</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Out of Scope</h3>
+          <ul>
+            <li>Full ERP financial accounting</li>
+            <li>Payroll and HR processing</li>
+            <li>Advanced AI forecasting</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Persona Summary</h2>
+      <div class="grid">
+        <div>
+          <h3>Super Administrator</h3>
+          <p>Manages users, roles, and system settings.</p>
+        </div>
+        <div>
+          <h3>Inventory Manager</h3>
+          <p>Tracks stock movement, vendors, and reorder levels.</p>
+        </div>
+        <div>
+          <h3>Auditor</h3>
+          <p>Conducts audits using mobile and batch scanning.</p>
+        </div>
+        <div>
+          <h3>Department Head</h3>
+          <p>Reviews department assets and maintenance status.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Capability Inventory</h2>
+      <p>The BRD defines the following business capabilities that will be delivered through the platform.</p>
+      <table>
+        <tr><th>Capability</th><th>Description</th><th>Leadership Value</th></tr>
+        <tr><td>Asset Registration</td><td>Register and identify every asset with a unique code and supporting metadata.</td><td>Improves accountability and reduces lost or duplicate assets.</td></tr>
+        <tr><td>Asset Lifecycle Tracking</td><td>Track assignment, transfer, maintenance, repair, retirement, donation, and disposal.</td><td>Provides full traceability from acquisition to end-of-life.</td></tr>
+        <tr><td>Inventory Management</td><td>Manage stock levels, stock-in/out movements, warehouses, shelves, and bins.</td><td>Reduces discrepancies and improves stock visibility.</td></tr>
+        <tr><td>Organization Structure Management</td><td>Model campuses, buildings, floors, rooms, departments, and cost centers.</td><td>Supports structured reporting and ownership by unit.</td></tr>
+        <tr><td>Purchase &amp; Receiving Workflows</td><td>Support request, approval, purchase order, and receiving activities.</td><td>Connects operational activity to buying and receiving controls.</td></tr>
+        <tr><td>Audit Management</td><td>Create audits, record findings, capture evidence, and generate completion certificates.</td><td>Accelerates compliance and audit readiness.</td></tr>
+        <tr><td>Barcode &amp; QR Scanning</td><td>Support mobile and bulk scanning for fast identification of assets and stock.</td><td>Improves speed and accuracy during field and audit activities.</td></tr>
+        <tr><td>Reporting &amp; Dashboards</td><td>Show trends, pending actions, low-stock conditions, and audit progress.</td><td>Enables executive oversight and faster decisions.</td></tr>
+        <tr><td>User Management &amp; Security</td><td>Provide role-based access, audit logs, and controlled permissions.</td><td>Protects data and enforces governance.</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Mock Wireframe</h2>
+      <p>The following conceptual layout illustrates how the core leadership and operations experience may look in the application.</p>
+      <div class="wireframe-layout">
+        <div class="wf-header">Inventory Management System | Dashboard</div>
+        <div class="wf-body">
+          <div class="wf-sidebar">
+            <div>Dashboard</div>
+            <div>Assets</div>
+            <div>Inventory</div>
+            <div>Audits</div>
+            <div>Reports</div>
+            <div>Settings</div>
+          </div>
+          <div class="wf-main">
+            <div class="wf-cards">
+              <div class="wf-card"><strong>Assets</strong>1,240 registered</div>
+              <div class="wf-card"><strong>Low Stock</strong>17 items need reorder</div>
+              <div class="wf-card"><strong>Pending Audits</strong>6 audits in progress</div>
+            </div>
+            <div class="wf-table">
+              <div class="wf-box">
+                <strong>Recent Activity</strong>
+                <ul>
+                  <li>Asset transferred to Finance Department</li>
+                  <li>Stock counted at Warehouse B</li>
+                  <li>Audit evidence uploaded</li>
+                </ul>
+              </div>
+              <div class="wf-box">
+                <strong>Quick Actions</strong>
+                <ul>
+                  <li>Add Asset</li>
+                  <li>Stock In/Out</li>
+                  <li>Start Audit</li>
+                  <li>Generate Report</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Proposed Solution View</h2>
+      <div class="wireframe">
+        <div class="panel">
+          <h3>Dashboard Wireframe</h3>
+          <div class="row">Header: Logo | Search | Notifications | User Menu</div>
+          <div class="row">Sidebar: Dashboard | Assets | Inventory | Audits | Reports | Settings</div>
+          <div class="row">Summary Cards: Total Assets, Low Stock, Pending Audits, Warranty Expiry</div>
+          <div class="row">Charts: Assets by Category, Audit Completion %, Recent Activity</div>
+        </div>
+        <div class="panel">
+          <h3>Asset Register Wireframe</h3>
+          <div class="row">Toolbar: Add Asset | Scan QR | Bulk Upload | Export</div>
+          <div class="row">Filter Bar: Category | Department | Status | Location</div>
+          <div class="row">Grid: Asset Name | Barcode | Custodian | Status | Condition</div>
+          <div class="row">Detail Pane: Attachments, Warranty, Maintenance History</div>
+        </div>
+      </div>
+      <div class="wireframe" style="margin-top: 16px;">
+        <div class="panel">
+          <h3>Audit Module Wireframe</h3>
+          <div class="row">Audit List: Quarterly, Annual, Surprise, Department Audit</div>
+          <div class="row">Scan Panel: Barcode/QR Scan | Continuous Scan | Duplicate Check</div>
+          <div class="row">Findings Panel: Missing | Damaged | Remarks | Photo Evidence</div>
+          <div class="row">Actions: Save Draft | Submit | Generate Certificate</div>
+        </div>
+        <div class="panel">
+          <h3>Reporting Wireframe</h3>
+          <div class="row">Report Selector: Inventory Summary | Asset Register | Audit Compliance</div>
+          <div class="row">Filter Controls: Date Range | Department | Building | Vendor</div>
+          <div class="row">Preview Table and Export Buttons</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Business Benefits</h2>
+      <div class="grid">
+        <div><span class="pill">Efficiency</span><br/>Less manual work and faster transactions</div>
+        <div><span class="pill">Accountability</span><br/>Clear ownership, movement, and lifecycle history</div>
+        <div><span class="pill">Compliance</span><br/>Stronger audit evidence and traceability</div>
+        <div><span class="pill">Visibility</span><br/>Leadership dashboards and executive reporting</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Recommended Implementation Phases</h2>
+      <table>
+        <tr><th>Phase</th><th>Focus</th><th>Outcome</th></tr>
+        <tr><td>1</td><td>Core asset and inventory registration</td><td>Foundational data management</td></tr>
+        <tr><td>2</td><td>User roles, approvals, and security</td><td>Controlled and secure access</td></tr>
+        <tr><td>3</td><td>Audit module and scanning</td><td>Operational transformation in audits</td></tr>
+        <tr><td>4</td><td>Reporting and dashboards</td><td>Leadership visibility and decision support</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Leadership Decision Request</h2>
+      <p>Approve the initiative to proceed with solution design and phased implementation, starting with the core asset and inventory module followed by the audit and reporting enhancements.</p>
+    </div>
+  </div>
+</body>
+</html>

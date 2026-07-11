@@ -1,0 +1,642 @@
+{
+  "AST": {
+    "name": "Asset Management",
+    "requirements": [
+      {
+        "id": "FR-AST-01",
+        "text": "The system shall allow registration of a new asset with a system-generated unique asset number.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AST-02",
+        "text": "The system shall generate a barcode and/or QR code for each registered asset, renderable and printable as a label.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AST-03",
+        "text": "The system shall support assignment of assets to one or more configurable categories and groups.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AST-04",
+        "text": "The system shall support parent-child relationships between assets (e.g., a laptop and its charger, or a computer lab bundle).",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-AST-05",
+        "text": "The system shall allow upload of one or more images and file attachments (invoices, manuals, warranty cards) per asset.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AST-06",
+        "text": "The system shall support organization-defined custom fields per asset category without requiring code changes, supporting at minimum text, number, date, single-select, and multi-select field types.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AST-07",
+        "text": "The system shall track asset status (e.g., In Use, In Storage, Under Repair, Missing, Retired, Disposed) with a configurable status list.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AST-08",
+        "text": "The system shall track warranty start/end dates and AMC (Annual Maintenance Contract) periods per asset.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AST-09",
+        "text": "The system shall record manufacturer, vendor, purchase date, purchase cost, and purchase order reference per asset.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AST-10",
+        "text": "The system shall maintain a complete, append-only history of all changes to an asset (status, location, assignment, condition).",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AST-11",
+        "text": "The system shall maintain a movement history log recording every change of physical location for an asset.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AST-12",
+        "text": "The system shall provide an architecture-level extension point for RFID tag identifiers, without requiring RFID hardware for Phase 1.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-AST-13",
+        "text": "The system shall support bulk asset import from a defined CSV/Excel template, producing a pre-commit validation report and a post-import reconciliation log entry per FR-AST-10.",
+        "priority": "Must Have"
+      }
+    ]
+  },
+  "INV": {
+    "name": "Inventory Management",
+    "requirements": [
+      {
+        "id": "FR-INV-01",
+        "text": "The system shall track quantity-on-hand for consumable and spare-part inventory items, separate from individually tracked assets.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-INV-02",
+        "text": "The system shall support Stock In and Stock Out transactions with reason codes and responsible user.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-INV-03",
+        "text": "The system shall support multiple warehouses/storage locations, each with shelf/bin-level sub-locations.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-INV-04",
+        "text": "The system shall support configurable reorder levels per inventory item and flag items below threshold.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-INV-05",
+        "text": "The system shall support manual inventory adjustments with mandatory reason and approver.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-INV-06",
+        "text": "The system shall compute inventory valuation using a configurable costing method (e.g., weighted average).",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-INV-07",
+        "text": "The system shall maintain vendor records and link purchase history to inventory items.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-INV-08",
+        "text": "The system shall support full CRUD management of Vendor records (name, contact details, status) independent of any single inventory item, including deactivation of an obsolete vendor.",
+        "priority": "Must Have"
+      }
+    ]
+  },
+  "ORG": {
+    "name": "Organization Management",
+    "requirements": [
+      {
+        "id": "FR-ORG-01",
+        "text": "The system shall support a configurable, multi-level organizational hierarchy (e.g., Campus > Building > Floor > Room, or Ministry > Department).",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-ORG-02",
+        "text": "The system shall allow administrators to relabel hierarchy level names to match the organization's terminology (e.g., “Campus” vs. “Campus Site” vs. “Parish”).",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-ORG-03",
+        "text": "The system shall support Department / Cost Center entities independent of physical location.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-ORG-04",
+        "text": "The system shall maintain Employee/Volunteer records, including role and department/ministry affiliation.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-ORG-05",
+        "text": "The system shall allow any asset, audit, or user to be scoped to one or more nodes in the organizational hierarchy.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-ORG-06",
+        "text": "The system shall support specialized location types (Classroom, Laboratory) as configurable variants of the generic “Room” entity.",
+        "priority": "Should Have"
+      }
+    ]
+  },
+  "LIF": {
+    "name": "Asset Lifecycle Management",
+    "requirements": [
+      {
+        "id": "FR-LIF-01",
+        "text": "The system shall support creation and approval of Purchase Requests prior to Purchase Order issuance.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-LIF-02",
+        "text": "The system shall support Purchase Order creation, tracking, and linkage to received assets.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-LIF-03",
+        "text": "The system shall support a Receiving step that reconciles delivered items against a Purchase Order before asset registration.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-LIF-04",
+        "text": "The system shall support Assignment of an asset to an employee, volunteer, department, or room.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-LIF-05",
+        "text": "The system shall support Transfer of an asset between locations, departments, or holders, with approval where configured.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-LIF-06",
+        "text": "The system shall support logging of Repair events, including vendor, cost, and downtime.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-LIF-07",
+        "text": "The system shall support scheduling and logging of Preventive Maintenance on a recurring basis.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-LIF-08",
+        "text": "The system shall support logging of Corrective Maintenance events triggered by faults or audit findings.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-LIF-09",
+        "text": "The system shall support Retirement, Disposal, and Donation workflows, each capturing reason, approver, and disposition date.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-LIF-10",
+        "text": "The system shall retain a complete, immutable transaction history for every lifecycle event on an asset.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-LIF-11",
+        "text": "The system shall support Rejection of a pending Transfer, Disposal, or Audit-exception request by the designated approver, with a mandatory reason, notification to the requester, and return of the request to draft status for resubmission.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-LIF-12",
+        "text": "The system shall support Restore of a Retired or Disposed asset to active status within a configurable time window, restricted to Administrator/Super Administrator roles and recorded as a new immutable event per FR-AST-10.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-LIF-13",
+        "text": "The system shall define approval-trigger rules for Transfers (e.g., cross-department movement or value above a configurable threshold) and an escalation path that reassigns a pending approval to an alternate approver after a configurable number of days of inaction.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-LIF-14",
+        "text": "The system shall block erasure/anonymization of an Employee/Volunteer record (FR-SEC-10) while assets remain assigned to it; the assigned assets must first be Transferred or Unassigned to another holder, department, or room.",
+        "priority": "Must Have"
+      }
+    ]
+  },
+  "AUD": {
+    "name": "Audit Management",
+    "requirements": [
+      {
+        "id": "FR-AUD-01",
+        "text": "The system shall support creation of an audit scoped by type: Quarterly, Annual, Department, Room, Building, Campus, or Surprise.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-02",
+        "text": "The system shall support Bulk Audits covering multiple scopes in a single coordinated audit exercise.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-AUD-03",
+        "text": "The system shall generate an expected-asset list for an audit based on its defined scope at the time of audit creation.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-04",
+        "text": "The system shall support asset verification via barcode/QR scan, recording verifier, timestamp, and device.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-05",
+        "text": "The system shall support Continuous Scan Mode allowing an auditor to scan a sequence of assets without repeated manual confirmation steps.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-06",
+        "text": "The system shall support Batch Scanning for auditing multiple co-located assets in a single operation.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-AUD-07",
+        "text": "The system shall compute and display, in real time, Expected vs. Verified asset counts for an in-progress audit.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-08",
+        "text": "The system shall classify unverified expected assets as Missing at audit closure.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-09",
+        "text": "The system shall allow an auditor to flag a verified asset as Damaged and record a structured condition assessment.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-10",
+        "text": "The system shall allow attachment of photo evidence to any audit finding.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-11",
+        "text": "The system shall allow the auditor to record free-text remarks against any audit finding.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-12",
+        "text": "The system shall capture a digital signature from the auditor upon audit submission.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-13",
+        "text": "The system shall route completed audits to the relevant Department Head for approval before finalization; if the assigned Department Head takes no action within a configurable number of days, the pending approval escalates to an alternate approver per the mechanism defined in FR-LIF-13.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-14",
+        "text": "The system shall generate an Audit Completion Certificate upon final approval of an audit.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-15",
+        "text": "The system shall generate an Exception Report listing all Missing and Damaged assets identified in an audit.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-16",
+        "text": "The system shall provide an Audit Dashboard showing progress (percent verified) for all in-progress audits.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-17",
+        "text": "The system shall provide Audit Analytics comparing results across audit cycles (e.g., missing-asset trend over time).",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-AUD-18",
+        "text": "The system shall treat all submitted audit records as immutable; corrections shall be recorded as new, linked entries rather than edits to history.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-AUD-19",
+        "text": "The system shall support an offline scan queue that stores scans locally on the device and synchronizes when connectivity to the on-premises server resumes.",
+        "priority": "Should Have"
+      }
+    ]
+  },
+  "SCN": {
+    "name": "Barcode/QR/RFID Scanning",
+    "requirements": [
+      {
+        "id": "FR-SCN-01",
+        "text": "The system shall support scanning input from USB barcode scanners (keyboard-wedge mode).",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SCN-02",
+        "text": "The system shall support scanning input from Bluetooth barcode scanners.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SCN-03",
+        "text": "The system shall support scanning via device camera on Android, iPhone, and laptop webcam through the browser.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SCN-04",
+        "text": "The system shall detect and warn on duplicate scans of the same asset within a single audit or scan session.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SCN-05",
+        "text": "The system shall resolve a scanned code to an asset record and display it within 1 second under normal network conditions.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SCN-06",
+        "text": "The scanning subsystem shall be designed with an abstraction layer allowing an RFID reader to be added as an additional input source without redesigning the scan workflow.",
+        "priority": "Should Have"
+      }
+    ]
+  },
+  "RPT": {
+    "name": "Reporting",
+    "requirements": [
+      {
+        "id": "FR-RPT-01",
+        "text": "The system shall provide a full Asset Register report, filterable by category, department, location, and status.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-RPT-02",
+        "text": "The system shall provide Department, Room, and Building Inventory reports.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-RPT-03",
+        "text": "The system shall provide an Employee Asset List report showing all assets currently assigned to a given person.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-RPT-04",
+        "text": "The system shall provide Missing Assets, Lost Assets, and Damaged Assets reports sourced from audit findings.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-RPT-05",
+        "text": "The system shall provide Warranty Expiry and AMC Expiry reports with configurable lookahead windows.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-RPT-06",
+        "text": "The system shall provide Purchase History and Vendor reports.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-RPT-07",
+        "text": "The system shall provide an Asset Movement report showing location/assignment changes over a date range.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-RPT-08",
+        "text": "The system shall provide Audit Compliance and Audit Summary reports across one or more audit cycles.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-RPT-09",
+        "text": "The system shall provide a Depreciation report using a configurable depreciation method.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-RPT-10",
+        "text": "The system shall provide a Maintenance History report.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-RPT-11",
+        "text": "The system shall support label printing (barcode/QR + asset metadata) in batch for a filtered set of assets.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-RPT-12",
+        "text": "All reports shall be exportable to PDF, Excel, and CSV, and shall support direct printing.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-RPT-13",
+        "text": "The system shall support scheduling of recurring reports for automatic generation and delivery.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-RPT-14",
+        "text": "The system shall expose the Security & Access Log (FR-SEC-11) as a standard report, filterable by user, action type, and date range, and exportable per FR-RPT-12.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-RPT-15",
+        "text": "The system shall support an ad hoc report/query builder allowing combination of standard filters (category, status, location, department, date range) into a saved custom report, without requiring code changes.",
+        "priority": "Could Have"
+      }
+    ]
+  },
+  "DSH": {
+    "name": "Dashboard",
+    "requirements": [
+      {
+        "id": "FR-DSH-01",
+        "text": "The system shall display total asset count, and breakdowns by category, department, building, campus, and status.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-DSH-02",
+        "text": "The system shall display audit completion percentage for all active audits.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-DSH-03",
+        "text": "The system shall display upcoming warranty expirations and maintenance due items.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-DSH-04",
+        "text": "The system shall display low-stock alerts for inventory items below reorder level.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-DSH-05",
+        "text": "The system shall display a recent activity feed and an audit calendar view.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-DSH-06",
+        "text": "The system shall present configurable KPIs using interactive charts.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-DSH-07",
+        "text": "Dashboard content shall be filtered according to the viewing user's role and organizational scope.",
+        "priority": "Must Have"
+      }
+    ]
+  },
+  "USR": {
+    "name": "User Management & RBAC",
+    "requirements": [
+      {
+        "id": "FR-USR-01",
+        "text": "The system shall support the following default roles: Super Administrator, Administrator, System Operator, Inventory Manager, Auditor, Read-only Auditor, Department Head, Volunteer, Viewer. The System Operator role maps to the IT/Infrastructure Team stakeholder and is scoped to technical configuration only (see FR-USR-05).",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-USR-02",
+        "text": "The system shall allow an Administrator to define custom roles with a configurable permission set.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-USR-03",
+        "text": "The system shall enforce permission checks at both the API and UI layer for every protected action.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-USR-04",
+        "text": "The system shall allow scoping of a role's access to specific organizational hierarchy nodes (e.g., a Department Head sees only their department).",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-USR-05",
+        "text": "The system shall scope the System Operator role to technical configuration (backups, integrations, system health, LDAP/AD settings) without granting access to business data (asset valuations, personal records) beyond what operating the system requires.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-USR-06",
+        "text": "The system shall enforce a separation-of-duties rule preventing a user from approving a transfer, disposal, or audit-exception request that they themselves submitted.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-USR-07",
+        "text": "The system shall use a flat, non-inheriting role model at initial release; each user is assigned exactly one primary role plus optional supplementary organizational-scope restrictions (FR-USR-04).",
+        "priority": "Should Have"
+      }
+    ]
+  },
+  "NTF": {
+    "name": "Notifications",
+    "requirements": [
+      {
+        "id": "FR-NTF-01",
+        "text": "The system shall send email notifications for audit reminders, warranty/AMC expiry, low stock, and pending approvals.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-NTF-02",
+        "text": "The system shall support optional SMS notifications for the same event types, where an SMS gateway is configured.",
+        "priority": "Could Have"
+      },
+      {
+        "id": "FR-NTF-03",
+        "text": "The system shall display in-app notifications with read/unread state.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-NTF-04",
+        "text": "The system shall notify relevant users on assignment and transfer of an asset.",
+        "priority": "Must Have"
+      }
+    ]
+  },
+  "SRC": {
+    "name": "Search",
+    "requirements": [
+      {
+        "id": "FR-SRC-01",
+        "text": "The system shall provide a global search across assets, employees, vendors, and purchase orders.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SRC-02",
+        "text": "The system shall support direct lookup by barcode, QR value, serial number, or asset number.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SRC-03",
+        "text": "The system shall provide advanced search with combinable filters (category, status, location, department, date range).",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SRC-04",
+        "text": "The system shall allow users to save and re-run frequently used searches.",
+        "priority": "Should Have"
+      },
+      {
+        "id": "FR-SRC-05",
+        "text": "The system architecture shall reserve a search field for RFID identifiers for future use.",
+        "priority": "Could Have"
+      }
+    ]
+  },
+  "SEC": {
+    "name": "Security",
+    "requirements": [
+      {
+        "id": "FR-SEC-01",
+        "text": "The system shall authenticate users via JWT-based session tokens.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SEC-02",
+        "text": "The system shall optionally integrate with LDAP or Active Directory for authentication.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SEC-03a",
+        "text": "The system shall enforce mandatory two-factor authentication (MFA) for Super Administrator and Administrator accounts.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SEC-03b",
+        "text": "The system shall support optional two-factor authentication (MFA) for all roles other than Super Administrator and Administrator.",
+        "priority": "Could Have"
+      },
+      {
+        "id": "FR-SEC-04",
+        "text": "The system shall maintain a complete log of user activity, including login history.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SEC-05",
+        "text": "The system shall enforce configurable password policies (minimum length, complexity, expiry).",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SEC-06",
+        "text": "The system shall support configurable session timeout.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SEC-07",
+        "text": "The system shall support optional IP-based access restrictions.",
+        "priority": "Could Have"
+      },
+      {
+        "id": "FR-SEC-08",
+        "text": "The system shall encrypt sensitive data (e.g., credentials, personal data) at rest and in transit.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SEC-09",
+        "text": "The system shall lock a user account for a configurable cool-down period after N consecutive failed login attempts (default 5), logging the lockout event and requiring administrator or self-service unlock.",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SEC-10",
+        "text": "The system shall support configurable data-subject export and erasure/anonymization of an Employee/Volunteer record, subject to retention holds on linked financial and audit records, and subject to FR-LIF-14 (an Employee/Volunteer record with assets still assigned may not be erased until those assets are reassigned or unassigned).",
+        "priority": "Must Have"
+      },
+      {
+        "id": "FR-SEC-11",
+        "text": "The system shall provide a Security & Access Log covering login history, permission changes, and data exports, searchable and filterable by an Administrator.",
+        "priority": "Must Have"
+      }
+    ]
+  }
+}

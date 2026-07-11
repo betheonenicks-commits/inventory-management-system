@@ -1,0 +1,334 @@
+
+
+Business Requirements Document
+Inventory Audit Management System (IAMS)
+Enterprise On-Premises Asset & Audit Platform
+Document Version: 1.2
+Status: Revised Draft for Review
+Date: 2026-07-06
+
+
+Document Control
+Revision History
+Version
+Date
+Author
+Description
+0.1
+2026-07-05
+Product Architecture Team
+Initial draft derived from master project charter
+1.0
+2026-07-05
+Product Architecture Team
+First complete BRD for stakeholder review
+1.1
+2026-07-06
+Product Architecture Team
+Incorporated findings from independent BRD/FRS/SRS review: regulatory/compliance requirements, quantified business objectives, mandatory MFA for privileged roles, bulk-migration requirement, accessibility/DR commitments, and stakeholder-to-role mapping.
+1.2
+2026-07-06
+Product Architecture Team
+Incorporated findings from the 1.1 follow-up review: delivery sequencing, product vision/UX principles, offboarding asset-reassignment rule, audit-approval escalation, consolidated glossary terms (FERPA/GDPR), consistent ID numbering and priority language, and stale cross-reference cleanup.
+
+Related Documents
+Functional Requirements Specification (FRS) — IAMS-FRS
+Software Requirements Specification (SRS) — IAMS-SRS
+(Planned) Database ER Diagram & Data Dictionary
+(Planned) REST API Specification (OpenAPI/Swagger)
+
+
+1. Introduction
+1.1 Purpose
+This Business Requirements Document (BRD) defines the business case, objectives, scope, and stakeholder needs for the Inventory Audit Management System (IAMS) — an on-premises platform for managing physical assets and conducting comprehensive audits across organizations such as schools, colleges, universities, churches, non-profits, and corporate offices.
+This document is intentionally organization-type agnostic: it defines a single configurable data model and workflow set capable of serving any of the target sectors without sector-specific forks. Where a requirement differs by sector, it is expressed as a configuration option rather than a separate feature.
+1.2 Business Background
+Organizations that manage significant physical inventory — computers, furniture, lab equipment, musical instruments, AV equipment, vehicles, tools, consumables — routinely struggle with three problems:
+Asset visibility: nobody has a reliable, current answer to “what do we own, and where is it?”
+Audit rigor: periodic physical verification is manual, paper-based, or spreadsheet-driven, is time-consuming, and produces no durable evidence trail.
+Loss and accountability: assets go missing, get damaged, or are transferred informally, with no record connecting the asset to a person, location, or point in time.
+These problems compound with scale. An organization with a few hundred assets can survive on spreadsheets; one with 50,000–100,000+ assets across multiple buildings and departments cannot. IAMS is built to work at both ends of that range, but is optimized for the larger end, since that is where existing tools and manual processes fail most visibly.
+A further constraint drives the entire architecture: many target organizations (schools, churches, non-profits) operate on constrained IT budgets and are often required, by policy or by network restriction, to keep sensitive asset and financial data inside their own network. IAMS is therefore designed for full on-premises deployment with no mandatory external/internet dependency.
+1.3 Business Objectives
+ID
+Objective
+Success Measure
+BO-01
+Establish a single source of truth for all physical assets
+100% of tracked assets registered with unique identifiers within 90 days of rollout
+BO-02
+Reduce asset loss and shrinkage
+Reduce missing/unaccounted assets from the organization’s measured baseline (captured at its first full audit) by ≥50% within three subsequent audit cycles.
+BO-03
+Make periodic audits fast, evidence-based, and auditable
+Audit cycle time reduced by ≥30% versus the organization’s measured current-process baseline; every audit produces a signed completion certificate and exception report.
+BO-04
+Improve financial and operational reporting
+Management can generate an accurate asset register, depreciation, and compliance report without developer assistance, on demand and within 5 minutes of request.
+BO-05
+Operate entirely within the organization's network
+Zero mandatory outbound internet dependency for core functionality
+BO-06
+Scale from small to very large deployments without redesign
+Verified performance targets met at both ~500 assets and 100,000+ assets
+BO-07
+Operate within applicable data-protection regulations for each deployment’s sector/jurisdiction
+Documented compliance mapping (Section 8) completed and zero unresolved Critical compliance findings prior to go-live
+
+1.4 Scope
+Deployment and tenancy model: one IAMS instance serves exactly one deploying organization, which may itself span multiple campuses, sites, or ministries represented within its own configurable organizational hierarchy (FR-ORG-01). IAMS is not a multi-tenant SaaS platform; each organization operates its own isolated on-premises instance.
+1.4.1 In Scope
+Asset registration, categorization, and lifecycle tracking
+Inventory (quantity-based) tracking for consumables and spare parts
+Configurable organizational hierarchy (campus/building/department/etc.)
+Full asset lifecycle workflows: procurement through disposal/donation
+Comprehensive audit module: planning, execution, verification, exception handling, sign-off, and reporting
+Barcode/QR code generation and scanning (with an architecture that accommodates RFID later)
+Role-based access control, including LDAP/Active Directory integration
+Reporting, dashboards, and notifications
+On-premises deployment via Docker Compose on Linux or Windows Server
+Regulatory/compliance configuration (data retention limits, data-subject export/erasure) appropriate to the deploying organization’s sector and jurisdiction (see Section 8)
+1.4.2 Out of Scope (Phase 1)
+Native mobile applications (a responsive/PWA web app is in scope; native iOS/Android apps are a future roadmap item)
+GIS/floor-plan mapping (future roadmap item)
+AI-assisted inventory analytics beyond standard reporting (future roadmap item)
+Physical RFID hardware integration (architecture will support it; hardware integration is future roadmap item)
+Payroll, general ledger, or full financial ERP functionality — IAMS produces asset valuation/depreciation reports but is not a general ledger system
+1.4.3 Delivery Sequencing
+Phase 1 is delivered as three internal releases rather than a single all-or-nothing rollout, so the audit workflow — the system's core differentiator — is validated with real users before the full module set is built out:
+Release 1 (MVP): Organization Management, Asset Management, core Audit Management (FR-AUD-01 through FR-AUD-16), Scanning, User Management & RBAC, Security.
+Release 2: Asset Lifecycle Management, Inventory Management, Notifications, Search.
+Release 3: full Reporting and Dashboard modules, Audit Analytics (FR-AUD-17), offline scan queue (FR-AUD-19), and remaining Should/Could Have requirements.
+Each release has a target milestone set jointly with the deploying organization during implementation planning; the module groupings above are indicative, not contractual, and may be re-sequenced per FRS §1.1 module codes.
+1.5 Product Vision & UX Principles
+IAMS commits to one shared design system expressed through two purpose-built experiences: a field-first audit-scanning UX (fast, one-handed, optimized for a phone or scanner in motion) and a desk-first administrative UX (dense information, keyboard- and mouse-friendly, optimized for configuration and reporting). Both experiences share the same visual language, component library, and terminology so that a user moving between roles never has to re-learn the product.
+
+
+2. Stakeholders
+Stakeholder
+Interest / Role
+Super Administrator
+Owns system configuration, security policy, and organizational hierarchy setup
+Administrator
+Manages users, day-to-day configuration, and cross-department operations
+Inventory Manager
+Owns asset registration, procurement linkage, warehouse/stock operations
+Auditor
+Plans and executes audits, records findings, submits exception reports
+Read-only Auditor
+Reviews audit data and evidence without edit rights (e.g. external/compliance reviewer)
+Department Head
+Approves audits and transfers for their department; reviews department-level reports
+Employee/Volunteer
+Is assigned assets; participates in acknowledgment/assignment workflows
+Viewer
+Read-only access to reports and dashboards (e.g. board member, finance officer)
+IT / Infrastructure Team
+Owns on-premises deployment, backups, upgrades, and integration with LDAP/AD. Maps to the System Operator role (FR-USR-01) — scoped to technical configuration, backups, and integrations, distinct from and narrower than Super Administrator.
+
+
+3. Current State and Problem Statement
+Most target organizations currently rely on a combination of spreadsheets, paper tags, and informal knowledge to track assets. This produces the following recurring issues, which IAMS is designed to directly address:
+Current State Pain Point
+Business Impact
+IAMS Response
+No unique, durable asset identifiers
+Assets cannot be reliably matched across records; duplicate or ambiguous entries
+Mandatory unique asset numbers with barcode/QR generation at registration
+Audits are annual, manual, and paper-based
+Low audit frequency; findings are not comparable across cycles; no evidence retained
+Structured audit module supporting quarterly/annual/surprise audits with photo evidence and immutable history
+No visibility into who has what
+Assets “walk off” with staff/volunteers with no accountability trail
+Assignment and transfer workflows tied to employee/volunteer records
+Maintenance and warranty tracked informally or not at all
+Preventable failures, missed warranty claims, unplanned costs
+Warranty/AMC tracking with automated expiry notifications
+Reporting requires manual spreadsheet compilation
+Slow, error-prone board/management reporting
+On-demand and scheduled reports (PDF/Excel/CSV) across all modules
+Data sensitivity concerns with cloud tools
+Some organizations are unable or unwilling to store asset/financial data off-premises
+Fully on-premises deployment, no mandatory internet dependency
+
+
+4. Business Requirements Overview
+The following table summarizes business-level requirements. Each maps to detailed functional requirements in the FRS. Requirement IDs use the prefix BR.
+ID
+Business Requirement
+Priority
+BR-01
+Provide a single system of record for all physical assets across the organization
+Must Have
+BR-02
+Support configurable organizational hierarchy appropriate to the deploying organization's structure
+Must Have
+BR-03
+Provide barcode and QR code generation and scanning for asset identification, with an architecture extensible to RFID
+Must Have
+BR-04
+Provide a full asset lifecycle: procurement, receiving, registration, assignment, transfer, maintenance, retirement, disposal, donation
+Must Have
+BR-05
+Provide a comprehensive audit module supporting multiple audit types, evidence capture, exception handling, and sign-off
+Must Have
+BR-06
+Provide quantity-based inventory tracking for consumables and spare parts across multiple warehouses
+Must Have
+BR-07
+Provide role-based access control with LDAP/Active Directory integration
+Must Have
+BR-08
+Provide dashboards and reports covering assets, audits, maintenance, and compliance, exportable to PDF/Excel/CSV
+Must Have
+BR-09
+Provide notifications for audits, warranty/AMC expiry, low stock, approvals, and transfers
+Should Have
+BR-10
+Support offline-friendly audit workflows for environments with intermittent network access within the facility
+Should Have
+BR-11
+Be deployable entirely on-premises via Docker Compose on Linux or Windows Server, without mandatory internet access
+Must Have
+BR-12
+Scale to 100,000+ assets and multiple concurrent users without architectural redesign
+Must Have
+BR-13
+Maintain complete, immutable audit trails for asset history and audit activity
+Must Have
+BR-14
+Support future extensibility: RFID, native mobile apps, GIS mapping, AI-assisted analytics
+Could Have (roadmap)
+BR-15
+Support configurable regulatory/compliance postures, including data-subject export/erasure for personal data
+Must Have
+BR-16
+Enforce mandatory multi-factor authentication for Super Administrator and Administrator roles
+Must Have
+BR-17
+Provide a defined, auditable path for bulk initial data migration from spreadsheets/legacy systems
+Must Have
+BR-18
+Conform to WCAG 2.1 AA accessibility standards
+Must Have
+BR-19
+Define disaster-recovery objectives (RTO/RPO) appropriate to each deployment’s risk tolerance
+Must Have
+
+
+5. Assumptions, Constraints, and Dependencies
+5.1 Assumptions
+Deploying organizations have at least a basic internal network (LAN/Wi-Fi) covering the facilities where assets are located.
+Organizations performing audits have access to smartphones, tablets, laptops, or dedicated barcode scanners for scanning during audits.
+An organization's existing LDAP/Active Directory (if any) can be reached from the on-premises server hosting IAMS.
+Initial asset data (if migrating from spreadsheets) will be provided in a structured, importable format.
+5.2 Constraints
+The system must run fully on-premises; no feature may have a hard dependency on an internet connection.
+The technology stack is fixed: Java 21 / Spring Boot 3 backend, React/Material UI frontend, PostgreSQL database, Docker Compose deployment.
+The system must support both Linux and Windows Server hosts.
+Budget and IT staffing at many target organizations (schools, churches, non-profits) is limited, so operational complexity (backup, upgrades) must be kept low.
+5.3 Dependencies
+Availability of organizational structure data (departments, buildings, rooms) before go-live configuration.
+Availability of barcode/QR scanning hardware or camera-equipped devices for audit execution.
+For LDAP/AD integration: availability of a service account and connection details from the organization's IT team.
+
+
+5.4 Data Governance & Retention
+Master data (assets, vendors, employees/volunteers, organizational hierarchy) is owned by the Administrator and Inventory Manager roles, who are accountable for data quality and duplicate resolution.
+Audit trail and history records (FR-AST-10, FR-LIF-10, FR-AUD-18) are retained indefinitely while an asset is active; disposed/retired asset records are archived — not deleted — after 3 years of inactivity, per the organization’s configurable retention policy.
+Automated backups are retained for a minimum of 12 months on a rolling basis, per NFR-AVAIL-02.
+All record-level input is validated against required-field and format rules defined per entity in the Data Dictionary (planned downstream artifact).
+6. Business Risks
+ID
+Risk
+Impact
+Mitigation
+R-01
+Low user adoption of scanning workflows during audits
+Audits revert to manual/paper, undermining core value proposition
+Support multiple scanning methods (USB, Bluetooth, camera) and offline scan queueing to minimize friction
+R-02
+Data migration from legacy spreadsheets is incomplete or inconsistent
+Inaccurate asset register at go-live
+Provide import tooling, validation, and a reconciliation audit as part of rollout
+R-03
+Organization lacks IT staff to operate on-premises infrastructure
+Deployment stalls or system is not maintained (patches, backups)
+Docker Compose packaging to minimize operational complexity; clear Administrator/Installation Guides
+R-04
+Very large deployments (100,000+ assets) reveal performance bottlenecks
+Slow audits, poor user experience at scale
+Performance testing at target scale is a defined non-functional requirement; indexing/pagination designed in from the start
+R-05
+Sector diversity (schools vs. churches vs. corporate) leads to feature bloat or a confusing generic UI
+Poor usability for any single sector
+Configurable hierarchy/terminology and dynamic custom fields rather than sector-specific hardcoded features
+R-06
+Undocumented regulatory posture blocks go-live in a regulated sector (e.g., a school district under FERPA, or an EU-based organization under GDPR)
+Deployment stalls or is rejected during procurement/legal review
+Regulatory compliance mapping completed per Section 8 prior to contract sign-off; configurable compliance-mode settings available at deployment time
+
+
+7. Success Criteria / Definition of Done (Business Level)
+All physical assets above the organization's capitalization/tagging threshold are registered in IAMS with a unique barcode/QR code.
+At least one full audit cycle (e.g., one department or building) has been completed end-to-end using the system, producing a completion certificate and exception report.
+Role-based access is configured and, where applicable, integrated with the organization's LDAP/Active Directory.
+Management can produce, without developer assistance, the core reports: asset register, missing/damaged assets, audit compliance, warranty/AMC expiry.
+The system is deployed and operating entirely within the organization's internal network.
+The system demonstrates acceptable performance at the organization's actual or projected asset count, up to the 100,000+ asset design target.
+The organization’s applicable regulatory obligations have been documented and addressed per Section 8 prior to go-live.
+
+
+8. Regulatory & Compliance Requirements
+Because IAMS serves educational institutions, non-profits/churches, and corporate organizations across potentially multiple jurisdictions, the system must support configurable compliance postures rather than assuming a single regulatory regime.
+Compliance framework mapping (Must Have): prior to go-live, the deploying organization’s applicable regulatory obligations (e.g., FERPA for U.S. education-sector student-linked data, GDPR for EU-based organizations or data subjects, applicable state/local public-records requirements) shall be identified and documented against the system’s data handling.
+Data subject rights (Must Have): the system shall support export and erasure/anonymization of an individual Employee/Volunteer record on request, subject to retention obligations for financial and audit records (see FR-SEC-10).
+Consent and purpose limitation (Should Have): where personal data is collected for Employee/Volunteer records, its use is limited to asset assignment, notification, and audit-accountability purposes stated in this BRD.
+Compliance mode (Should Have): Administrators can enable stricter data-handling defaults (e.g., shorter retention windows, mandatory encryption) for deployments with heightened regulatory requirements.
+9. Glossary
+Term
+Definition
+Asset
+A discrete physical item tracked by the system, identified by a unique asset number and (usually) a barcode/QR code.
+AMC
+Annual Maintenance Contract — a recurring service agreement for an asset, tracked for expiry/renewal.
+Audit
+A structured, time-boxed exercise to verify the existence, location, and condition of a defined set of expected assets.
+Exception
+An audit finding where an asset's actual state (missing, damaged, wrong location) differs from its expected state.
+Organizational Hierarchy
+The configurable tree of locations/units (e.g., Campus > Building > Floor > Room, or Ministry > Department) used to scope assets and audits.
+On-premises
+Deployed and run entirely within the organization's own network infrastructure, without dependency on external/internet services.
+RBAC
+Role-Based Access Control — permissions granted based on a user's assigned role rather than individually.
+MFA
+Multi-Factor Authentication — authentication requiring two or more independent verification factors; mandatory for Super Administrator and Administrator roles.
+RTO / RPO
+Recovery Time Objective / Recovery Point Objective — the maximum acceptable downtime and data loss, respectively, following a disaster or outage.
+WCAG
+Web Content Accessibility Guidelines — the accessibility conformance standard (target: 2.1 AA) the web application is designed to meet.
+FERPA
+Family Educational Rights and Privacy Act — a U.S. federal law restricting disclosure of education records containing personally identifiable student information; relevant where asset assignment intersects with student-linked data.
+GDPR
+General Data Protection Regulation — the European Union's data-protection law governing collection, storage, and erasure of personal data for EU-based organizations or data subjects.
+JWT
+JSON Web Token — the signed, compact token format used for authenticated session credentials (see FR-SEC-01).
+LDAP / AD
+Lightweight Directory Access Protocol / Active Directory — an organization's existing directory service, optionally used as an authentication source (see FR-SEC-02).
+DDD
+Domain-Driven Design — a software design approach organizing the backend into bounded contexts per business domain (Asset, Audit, Inventory, etc.); see SRS §2.1.
+PWA
+Progressive Web App — a responsive web application installable on a device, used for the mobile audit-scanning experience.
+SPA
+Single-Page Application — a web application that loads once and updates its content dynamically without full page reloads.
+HID
+Human Interface Device — the USB/Bluetooth keyboard-wedge input mode used by barcode scanners (see FR-SCN-01, FR-SCN-02).
+EAV
+Entity-Attribute-Value — a schema pattern used to implement organization-defined custom fields without code changes (see FR-AST-06, SRS §6).
+NTP
+Network Time Protocol — an optional time-synchronization source for on-premises servers.
+KPI
+Key Performance Indicator — a measurable value presented on dashboards to track operational or business performance (see FR-DSH-06).
+Data Steward
+The role (Administrator or Inventory Manager) accountable for the quality, accuracy, and de-duplication of a given master data entity.

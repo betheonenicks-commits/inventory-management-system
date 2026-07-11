@@ -1,0 +1,468 @@
+
+
+Functional Requirements Specification
+Inventory Audit Management System (IAMS)
+Module-by-Module Functional Requirements
+Document Version: 1.2    |    Status: Revised Draft for Review    |    Date: 2026-07-06
+
+
+1. Introduction
+This Functional Requirements Specification (FRS) decomposes the business requirements defined in the BRD (IAMS-BRD) into concrete, testable functional requirements, organized by system module. Each requirement is assigned a unique ID of the form FR-<MODULE>-<NUMBER> to support direct traceability into epics, user stories, and test cases.
+Priority uses the MoSCoW scale: Must Have, Should Have, Could Have. Unless stated otherwise, all requirements apply uniformly regardless of the deploying organization's sector (education, church/non-profit, corporate); sector-specific variation is handled through configuration (organizational hierarchy labels, custom fields), not through separate requirements.
+1.1 Requirement ID Convention
+Module Code
+Module
+AST
+Asset Management
+INV
+Inventory Management
+ORG
+Organization Management
+LIF
+Asset Lifecycle Management
+AUD
+Audit Management
+SCN
+Barcode/QR/RFID Scanning
+RPT
+Reporting
+DSH
+Dashboard
+USR
+User Management & RBAC
+NTF
+Notifications
+SRC
+Search
+SEC
+Security
+
+
+2. Functional Requirements by Module
+2.1 Asset Management (AST)
+Covers registration and ongoing management of individually tracked physical assets.
+ID
+Requirement
+Priority
+FR-AST-01
+The system shall allow registration of a new asset with a system-generated unique asset number.
+Must Have
+FR-AST-02
+The system shall generate a barcode and/or QR code for each registered asset, renderable and printable as a label.
+Must Have
+FR-AST-03
+The system shall support assignment of assets to one or more configurable categories and groups.
+Must Have
+FR-AST-04
+The system shall support parent-child relationships between assets (e.g., a laptop and its charger, or a computer lab bundle).
+Should Have
+FR-AST-05
+The system shall allow upload of one or more images and file attachments (invoices, manuals, warranty cards) per asset.
+Must Have
+FR-AST-06
+The system shall support organization-defined custom fields per asset category without requiring code changes, supporting at minimum text, number, date, single-select, and multi-select field types.
+Must Have
+FR-AST-07
+The system shall track asset status (e.g., In Use, In Storage, Under Repair, Missing, Retired, Disposed) with a configurable status list.
+Must Have
+FR-AST-08
+The system shall track warranty start/end dates and AMC (Annual Maintenance Contract) periods per asset.
+Must Have
+FR-AST-09
+The system shall record manufacturer, vendor, purchase date, purchase cost, and purchase order reference per asset.
+Must Have
+FR-AST-10
+The system shall maintain a complete, append-only history of all changes to an asset (status, location, assignment, condition).
+Must Have
+FR-AST-11
+The system shall maintain a movement history log recording every change of physical location for an asset.
+Must Have
+FR-AST-12
+The system shall provide an architecture-level extension point for RFID tag identifiers, without requiring RFID hardware for Phase 1.
+Should Have
+FR-AST-13
+The system shall support bulk asset import from a defined CSV/Excel template, producing a pre-commit validation report and a post-import reconciliation log entry per FR-AST-10.
+Must Have
+
+2.2 Inventory Management (INV)
+Covers quantity-based tracking of consumables, spare parts, and stock rather than individually tagged assets.
+ID
+Requirement
+Priority
+FR-INV-01
+The system shall track quantity-on-hand for consumable and spare-part inventory items, separate from individually tracked assets.
+Must Have
+FR-INV-02
+The system shall support Stock In and Stock Out transactions with reason codes and responsible user.
+Must Have
+FR-INV-03
+The system shall support multiple warehouses/storage locations, each with shelf/bin-level sub-locations.
+Must Have
+FR-INV-04
+The system shall support configurable reorder levels per inventory item and flag items below threshold.
+Must Have
+FR-INV-05
+The system shall support manual inventory adjustments with mandatory reason and approver.
+Must Have
+FR-INV-06
+The system shall compute inventory valuation using a configurable costing method (e.g., weighted average).
+Should Have
+FR-INV-07
+The system shall maintain vendor records and link purchase history to inventory items.
+Must Have
+FR-INV-08
+The system shall support full CRUD management of Vendor records (name, contact details, status) independent of any single inventory item, including deactivation of an obsolete vendor.
+Must Have
+
+2.3 Organization Management (ORG)
+Covers the configurable organizational hierarchy used to scope assets, audits, and users.
+ID
+Requirement
+Priority
+FR-ORG-01
+The system shall support a configurable, multi-level organizational hierarchy (e.g., Campus > Building > Floor > Room, or Ministry > Department).
+Must Have
+FR-ORG-02
+The system shall allow administrators to relabel hierarchy level names to match the organization's terminology (e.g., “Campus” vs. “Campus Site” vs. “Parish”).
+Must Have
+FR-ORG-03
+The system shall support Department / Cost Center entities independent of physical location.
+Must Have
+FR-ORG-04
+The system shall maintain Employee/Volunteer records, including role and department/ministry affiliation.
+Must Have
+FR-ORG-05
+The system shall allow any asset, audit, or user to be scoped to one or more nodes in the organizational hierarchy.
+Must Have
+FR-ORG-06
+The system shall support specialized location types (Classroom, Laboratory) as configurable variants of the generic “Room” entity.
+Should Have
+
+2.4 Asset Lifecycle Management (LIF)
+Covers the end-to-end lifecycle of an asset from procurement through disposal.
+ID
+Requirement
+Priority
+FR-LIF-01
+The system shall support creation and approval of Purchase Requests prior to Purchase Order issuance.
+Should Have
+FR-LIF-02
+The system shall support Purchase Order creation, tracking, and linkage to received assets.
+Must Have
+FR-LIF-03
+The system shall support a Receiving step that reconciles delivered items against a Purchase Order before asset registration.
+Should Have
+FR-LIF-04
+The system shall support Assignment of an asset to an employee, volunteer, department, or room.
+Must Have
+FR-LIF-05
+The system shall support Transfer of an asset between locations, departments, or holders, with approval where configured.
+Must Have
+FR-LIF-06
+The system shall support logging of Repair events, including vendor, cost, and downtime.
+Must Have
+FR-LIF-07
+The system shall support scheduling and logging of Preventive Maintenance on a recurring basis.
+Should Have
+FR-LIF-08
+The system shall support logging of Corrective Maintenance events triggered by faults or audit findings.
+Must Have
+FR-LIF-09
+The system shall support Retirement, Disposal, and Donation workflows, each capturing reason, approver, and disposition date.
+Must Have
+FR-LIF-10
+The system shall retain a complete, immutable transaction history for every lifecycle event on an asset.
+Must Have
+FR-LIF-11
+The system shall support Rejection of a pending Transfer, Disposal, or Audit-exception request by the designated approver, with a mandatory reason, notification to the requester, and return of the request to draft status for resubmission.
+Must Have
+FR-LIF-12
+The system shall support Restore of a Retired or Disposed asset to active status within a configurable time window, restricted to Administrator/Super Administrator roles and recorded as a new immutable event per FR-AST-10.
+Should Have
+FR-LIF-13
+The system shall define approval-trigger rules for Transfers (e.g., cross-department movement or value above a configurable threshold) and an escalation path that reassigns a pending approval to an alternate approver after a configurable number of days of inaction.
+Should Have
+FR-LIF-14
+The system shall block erasure/anonymization of an Employee/Volunteer record (FR-SEC-10) while assets remain assigned to it; the assigned assets must first be Transferred or Unassigned to another holder, department, or room.
+Must Have
+
+2.5 Audit Management (AUD) — Core Differentiator
+The audit module is the primary differentiator of IAMS and is held to the highest completeness and traceability standard.
+ID
+Requirement
+Priority
+FR-AUD-01
+The system shall support creation of an audit scoped by type: Quarterly, Annual, Department, Room, Building, Campus, or Surprise.
+Must Have
+FR-AUD-02
+The system shall support Bulk Audits covering multiple scopes in a single coordinated audit exercise.
+Should Have
+FR-AUD-03
+The system shall generate an expected-asset list for an audit based on its defined scope at the time of audit creation.
+Must Have
+FR-AUD-04
+The system shall support asset verification via barcode/QR scan, recording verifier, timestamp, and device.
+Must Have
+FR-AUD-05
+The system shall support Continuous Scan Mode allowing an auditor to scan a sequence of assets without repeated manual confirmation steps.
+Must Have
+FR-AUD-06
+The system shall support Batch Scanning for auditing multiple co-located assets in a single operation.
+Should Have
+FR-AUD-07
+The system shall compute and display, in real time, Expected vs. Verified asset counts for an in-progress audit.
+Must Have
+FR-AUD-08
+The system shall classify unverified expected assets as Missing at audit closure.
+Must Have
+FR-AUD-09
+The system shall allow an auditor to flag a verified asset as Damaged and record a structured condition assessment.
+Must Have
+FR-AUD-10
+The system shall allow attachment of photo evidence to any audit finding.
+Must Have
+FR-AUD-11
+The system shall allow the auditor to record free-text remarks against any audit finding.
+Must Have
+FR-AUD-12
+The system shall capture a digital signature from the auditor upon audit submission.
+Must Have
+FR-AUD-13
+The system shall route completed audits to the relevant Department Head for approval before finalization; if the assigned Department Head takes no action within a configurable number of days, the pending approval escalates to an alternate approver per the mechanism defined in FR-LIF-13.
+Must Have
+FR-AUD-14
+The system shall generate an Audit Completion Certificate upon final approval of an audit.
+Must Have
+FR-AUD-15
+The system shall generate an Exception Report listing all Missing and Damaged assets identified in an audit.
+Must Have
+FR-AUD-16
+The system shall provide an Audit Dashboard showing progress (percent verified) for all in-progress audits.
+Must Have
+FR-AUD-17
+The system shall provide Audit Analytics comparing results across audit cycles (e.g., missing-asset trend over time).
+Should Have
+FR-AUD-18
+The system shall treat all submitted audit records as immutable; corrections shall be recorded as new, linked entries rather than edits to history.
+Must Have
+FR-AUD-19
+The system shall support an offline scan queue that stores scans locally on the device and synchronizes when connectivity to the on-premises server resumes.
+Should Have
+
+2.6 Barcode/QR/RFID Scanning (SCN)
+Covers the identification and scanning subsystem used across Asset Management and Audit Management.
+ID
+Requirement
+Priority
+FR-SCN-01
+The system shall support scanning input from USB barcode scanners (keyboard-wedge mode).
+Must Have
+FR-SCN-02
+The system shall support scanning input from Bluetooth barcode scanners.
+Must Have
+FR-SCN-03
+The system shall support scanning via device camera on Android, iPhone, and laptop webcam through the browser.
+Must Have
+FR-SCN-04
+The system shall detect and warn on duplicate scans of the same asset within a single audit or scan session.
+Must Have
+FR-SCN-05
+The system shall resolve a scanned code to an asset record and display it within 1 second under normal network conditions.
+Must Have
+FR-SCN-06
+The scanning subsystem shall be designed with an abstraction layer allowing an RFID reader to be added as an additional input source without redesigning the scan workflow.
+Should Have
+
+2.7 Reporting (RPT)
+Covers all standard and ad hoc reports across modules.
+ID
+Requirement
+Priority
+FR-RPT-01
+The system shall provide a full Asset Register report, filterable by category, department, location, and status.
+Must Have
+FR-RPT-02
+The system shall provide Department, Room, and Building Inventory reports.
+Must Have
+FR-RPT-03
+The system shall provide an Employee Asset List report showing all assets currently assigned to a given person.
+Must Have
+FR-RPT-04
+The system shall provide Missing Assets, Lost Assets, and Damaged Assets reports sourced from audit findings.
+Must Have
+FR-RPT-05
+The system shall provide Warranty Expiry and AMC Expiry reports with configurable lookahead windows.
+Must Have
+FR-RPT-06
+The system shall provide Purchase History and Vendor reports.
+Should Have
+FR-RPT-07
+The system shall provide an Asset Movement report showing location/assignment changes over a date range.
+Must Have
+FR-RPT-08
+The system shall provide Audit Compliance and Audit Summary reports across one or more audit cycles.
+Must Have
+FR-RPT-09
+The system shall provide a Depreciation report using a configurable depreciation method.
+Should Have
+FR-RPT-10
+The system shall provide a Maintenance History report.
+Must Have
+FR-RPT-11
+The system shall support label printing (barcode/QR + asset metadata) in batch for a filtered set of assets.
+Must Have
+FR-RPT-12
+All reports shall be exportable to PDF, Excel, and CSV, and shall support direct printing.
+Must Have
+FR-RPT-13
+The system shall support scheduling of recurring reports for automatic generation and delivery.
+Should Have
+FR-RPT-14
+The system shall expose the Security & Access Log (FR-SEC-11) as a standard report, filterable by user, action type, and date range, and exportable per FR-RPT-12.
+Must Have
+FR-RPT-15
+The system shall support an ad hoc report/query builder allowing combination of standard filters (category, status, location, department, date range) into a saved custom report, without requiring code changes.
+Could Have
+
+2.8 Dashboard (DSH)
+Covers executive/operational dashboards providing at-a-glance visibility. "Executive," "Operational," and "Inventory" dashboards referenced elsewhere in project materials are configured widget presets of this single Dashboard module (FR-DSH-01–07), not separate modules.
+ID
+Requirement
+Priority
+FR-DSH-01
+The system shall display total asset count, and breakdowns by category, department, building, campus, and status.
+Must Have
+FR-DSH-02
+The system shall display audit completion percentage for all active audits.
+Must Have
+FR-DSH-03
+The system shall display upcoming warranty expirations and maintenance due items.
+Must Have
+FR-DSH-04
+The system shall display low-stock alerts for inventory items below reorder level.
+Must Have
+FR-DSH-05
+The system shall display a recent activity feed and an audit calendar view.
+Should Have
+FR-DSH-06
+The system shall present configurable KPIs using interactive charts.
+Should Have
+FR-DSH-07
+Dashboard content shall be filtered according to the viewing user's role and organizational scope.
+Must Have
+
+2.9 User Management & RBAC (USR)
+Covers user accounts, roles, and permission management.
+ID
+Requirement
+Priority
+FR-USR-01
+The system shall support the following default roles: Super Administrator, Administrator, System Operator, Inventory Manager, Auditor, Read-only Auditor, Department Head, Volunteer, Viewer. The System Operator role maps to the IT/Infrastructure Team stakeholder and is scoped to technical configuration only (see FR-USR-05).
+Must Have
+FR-USR-02
+The system shall allow an Administrator to define custom roles with a configurable permission set.
+Should Have
+FR-USR-03
+The system shall enforce permission checks at both the API and UI layer for every protected action.
+Must Have
+FR-USR-04
+The system shall allow scoping of a role's access to specific organizational hierarchy nodes (e.g., a Department Head sees only their department).
+Must Have
+FR-USR-05
+The system shall scope the System Operator role to technical configuration (backups, integrations, system health, LDAP/AD settings) without granting access to business data (asset valuations, personal records) beyond what operating the system requires.
+Must Have
+FR-USR-06
+The system shall enforce a separation-of-duties rule preventing a user from approving a transfer, disposal, or audit-exception request that they themselves submitted.
+Must Have
+FR-USR-07
+The system shall use a flat, non-inheriting role model at initial release; each user is assigned exactly one primary role plus optional supplementary organizational-scope restrictions (FR-USR-04).
+Should Have
+
+2.10 Notifications (NTF)
+Covers proactive alerts delivered to users.
+ID
+Requirement
+Priority
+FR-NTF-01
+The system shall send email notifications for audit reminders, warranty/AMC expiry, low stock, and pending approvals.
+Must Have
+FR-NTF-02
+The system shall support optional SMS notifications for the same event types, where an SMS gateway is configured.
+Could Have
+FR-NTF-03
+The system shall display in-app notifications with read/unread state.
+Must Have
+FR-NTF-04
+The system shall notify relevant users on assignment and transfer of an asset.
+Must Have
+
+2.11 Search (SRC)
+Covers system-wide search capability.
+ID
+Requirement
+Priority
+FR-SRC-01
+The system shall provide a global search across assets, employees, vendors, and purchase orders.
+Must Have
+FR-SRC-02
+The system shall support direct lookup by barcode, QR value, serial number, or asset number.
+Must Have
+FR-SRC-03
+The system shall provide advanced search with combinable filters (category, status, location, department, date range).
+Must Have
+FR-SRC-04
+The system shall allow users to save and re-run frequently used searches.
+Should Have
+FR-SRC-05
+The system architecture shall reserve a search field for RFID identifiers for future use.
+Could Have
+
+2.12 Security (SEC)
+Covers authentication, authorization, and audit logging of the system itself (distinct from asset audits).
+ID
+Requirement
+Priority
+FR-SEC-01
+The system shall authenticate users via JWT-based session tokens.
+Must Have
+FR-SEC-02
+The system shall optionally integrate with LDAP or Active Directory for authentication.
+Must Have
+FR-SEC-03a
+The system shall enforce mandatory two-factor authentication (MFA) for Super Administrator and Administrator accounts.
+Must Have
+FR-SEC-03b
+The system shall support optional two-factor authentication (MFA) for all roles other than Super Administrator and Administrator.
+Could Have
+FR-SEC-04
+The system shall maintain a complete log of user activity, including login history.
+Must Have
+FR-SEC-05
+The system shall enforce configurable password policies (minimum length, complexity, expiry).
+Must Have
+FR-SEC-06
+The system shall support configurable session timeout.
+Must Have
+FR-SEC-07
+The system shall support optional IP-based access restrictions.
+Could Have
+FR-SEC-08
+The system shall encrypt sensitive data (e.g., credentials, personal data) at rest and in transit.
+Must Have
+FR-SEC-09
+The system shall lock a user account for a configurable cool-down period after N consecutive failed login attempts (default 5), logging the lockout event and requiring administrator or self-service unlock.
+Must Have
+FR-SEC-10
+The system shall support configurable data-subject export and erasure/anonymization of an Employee/Volunteer record, subject to retention holds on linked financial and audit records, and subject to FR-LIF-14 (an Employee/Volunteer record with assets still assigned may not be erased until those assets are reassigned or unassigned).
+Must Have
+FR-SEC-11
+The system shall provide a Security & Access Log covering login history, permission changes, and data exports, searchable and filterable by an Administrator.
+Must Have
+
+
+
+3. Traceability
+Each functional requirement in this document traces back to one or more business requirements (BR-xx) defined in the BRD, and forward to the epics, user stories, and API endpoints to be defined in the SRS and subsequent technical artifacts. A full traceability matrix (BR → FR → Epic → User Story → API → Test Case) will be maintained as a living artifact once the backlog is created, rather than duplicated statically in this document.
+4. Acceptance Criteria Approach
+As an interim control prior to full backlog creation, every Must Have requirement in this FRS shall receive at least a minimal Given/When/Then acceptance-criteria stub (one happy-path and one exception-path scenario) before it is scheduled into a development sprint. Should Have and Could Have requirements may defer to full backlog-level acceptance criteria.
+Detailed Given/When/Then acceptance criteria are defined at the user story level once the product backlog is created (see Development Approach in the project charter). This FRS defines the requirement scope and priority; the SRS defines the non-functional envelope; user stories will define testable acceptance criteria for each FR.

@@ -1,0 +1,209 @@
+
+
+Software Requirements Specification
+Inventory Audit Management System (IAMS)
+Architecture, Non-Functional Requirements & Technical Constraints
+Document Version: 1.2    |    Status: Revised Draft for Review    |    Date: 2026-07-06
+
+
+1. Introduction
+1.1 Purpose
+This Software Requirements Specification (SRS) defines the technical architecture, non-functional requirements, system constraints, and interface requirements for the Inventory Audit Management System (IAMS). It complements the BRD (business intent) and FRS (functional scope) with the engineering detail needed to begin architecture and database design.
+1.2 Scope
+This document covers system architecture, technology stack, data architecture principles, non-functional requirements (performance, scalability, security, availability, maintainability), external interface requirements, and deployment requirements. Detailed API contracts and the full database schema are separate downstream artifacts (OpenAPI specification, ER diagram, and data dictionary).
+
+
+2. System Architecture Overview
+2.1 Architectural Style
+IAMS shall follow a layered, modular monolith architecture at initial release, organized internally by Domain-Driven Design (DDD) principles — bounded contexts per functional module (Asset, Inventory, Audit, Organization, etc.) — rather than a distributed microservices architecture. This choice favors operational simplicity for on-premises deployment by small IT teams, while the internal module boundaries are kept clean enough to extract services later if a deployment's scale genuinely requires it.
+2.2 Logical Layers
+Presentation Layer: React SPA (Material UI), consuming REST APIs, packaged as a Progressive Web App.
+API Layer: Spring Boot REST controllers, versioned (/api/v1/...), documented via OpenAPI/Swagger.
+Application/Service Layer: use-case orchestration, transaction boundaries, authorization checks.
+Domain Layer: entities, value objects, domain services, per DDD bounded context (Asset, Audit, Inventory, Organization, Lifecycle, Security).
+Persistence Layer: Spring Data JPA / Hibernate repositories over PostgreSQL.
+Cross-Cutting: Spring Security (authN/authZ, JWT, LDAP/AD), centralized logging/exception handling, notification dispatch, audit-trail interceptors.
+2.3 High-Level Component View
+At a component level, the backend is organized into the following modules, each corresponding to a bounded context and to the FR module codes used in the FRS: Asset (AST), Inventory (INV), Organization (ORG), Lifecycle (LIF), Audit (AUD), Scanning (SCN), Reporting (RPT), Dashboard (DSH), User/RBAC (USR), Notification (NTF), Search (SRC), Security (SEC). Modules communicate through well-defined service interfaces within the same deployable unit; no module directly accesses another module's database tables.
+2.4 Deployment Architecture
+The system shall be packaged as a set of Docker containers orchestrated via Docker Compose:
+iams-backend: Spring Boot application (Java 21), exposing REST APIs.
+iams-frontend: React application served via a lightweight web server (e.g., Nginx), or served statically by the backend if simpler for small deployments.
+iams-db: PostgreSQL database with a persistent volume for data.
+iams-reverse-proxy (optional): Nginx/Traefik for TLS termination and routing, recommended for production.
+The Compose stack shall run on both Linux and Windows Server hosts with Docker/Docker Desktop or a Windows-compatible container runtime. No component shall require outbound internet access for core functionality; the only acceptable outbound dependencies are optional, explicitly configured ones (e.g., an external SMS gateway for optional SMS notifications, or an NTP time source).
+
+
+2.5 Eventing & Asynchronous Processing
+Cross-module reactions — e.g., notifying a user on asset assignment (FR-NTF-04), or triggering background report generation (NFR-PERF-04) — are implemented via an in-process domain-event mechanism (Spring’s ApplicationEventPublisher) backed by a transactional outbox table, ensuring at-least-once delivery without introducing an external message broker at initial release. A message broker (e.g., RabbitMQ) is a documented future option if a deployment’s scale or integration needs exceed what in-process eventing can support.
+3. Technology Stack
+Layer
+Technology
+Backend Language/Runtime
+Java 21
+Backend Framework
+Spring Boot 3
+Security
+Spring Security, JWT, optional LDAP/Active Directory
+Persistence
+Spring Data JPA, Hibernate
+Build Tool
+Maven
+API Style / Docs
+REST, OpenAPI 3 / Swagger UI
+Frontend Framework
+React
+UI Component Library
+Material UI
+Frontend Routing
+React Router
+HTTP Client
+Axios
+Frontend Delivery
+Responsive design, Progressive Web App (PWA) with offline-friendly audit scanning
+Database
+PostgreSQL
+Containerization
+Docker, Docker Compose
+Target Hosts
+Linux servers, Windows Server
+
+
+4. Non-Functional Requirements
+4.1 Performance
+ID
+Requirement
+NFR-PERF-01
+Standard list/search API responses shall return within 500ms (p95) for a database containing up to 100,000 assets, given appropriate indexing.
+NFR-PERF-02
+Barcode/QR scan-to-resolution during an audit shall complete within 1 second (p95) under normal on-premises network conditions.
+NFR-PERF-03
+Bulk operations (e.g., generating labels for 1,000+ assets, bulk import) shall run asynchronously with progress reporting rather than blocking the request thread.
+NFR-PERF-04
+Report generation for large exports (e.g., full 100,000-asset register) shall be handled via background/streaming generation to avoid timeouts and excessive memory use.
+4.2 Scalability
+ID
+Requirement
+NFR-SCALE-01
+The data model and API layer shall support at least 100,000 asset records and 1,000,000+ historical transaction/audit-trail records without redesign.
+NFR-SCALE-02
+The system shall support at least 100 concurrent active users per deployment at initial release, with a documented scaling path (vertical scaling, connection pool tuning, read replicas) beyond that.
+NFR-SCALE-03
+Database schema shall use appropriate indexing, and pagination shall be mandatory (not optional) on all list endpoints returning asset-scale collections.
+4.3 Availability & Reliability
+ID
+Requirement
+NFR-AVAIL-01
+The system shall target 99.5% uptime during an organization's defined operating hours, excluding scheduled maintenance windows.
+NFR-AVAIL-02
+The system shall support automated database backups on a configurable schedule, with a documented restore procedure.
+NFR-AVAIL-03
+The offline audit scan queue shall persist scans locally on the client device and guarantee eventual synchronization without data loss when connectivity to the on-premises server is restored.
+NFR-AVAIL-04
+The system shall define a Recovery Point Objective (RPO) of 24 hours and a Recovery Time Objective (RTO) of 8 hours for a single-node on-premises deployment restoring from backup. A documented high-availability option (replicated database, redundant application containers) is available as a future upgrade path for deployments requiring tighter objectives.
+NFR-AVAIL-05
+The system shall expose a health-check endpoint suitable for container orchestration and lightweight external monitoring, and shall emit basic operational metrics (request rate, error rate, background job queue depth) for on-premises monitoring tooling.
+4.4 Security
+ID
+Requirement
+NFR-SEC-01
+All authentication shall use JWT tokens with configurable expiry and refresh; passwords shall be hashed using a strong, salted algorithm (e.g., bcrypt/Argon2).
+NFR-SEC-02
+All authorization checks shall be enforced server-side; the frontend's role-based UI hiding is a UX convenience only, not a security control.
+NFR-SEC-03
+Sensitive data (credentials, personal data of employees/volunteers) shall be encrypted at rest and all network traffic shall be servable over TLS.
+NFR-SEC-04
+All security-relevant events (login, permission changes, data export, audit submission) shall be written to an immutable, centrally reviewable log.
+NFR-SEC-05
+The system shall support LDAP/Active Directory as an optional authentication source without making it a hard dependency for standalone deployments.
+NFR-SEC-06
+The system shall enforce mandatory multi-factor authentication for Super Administrator and Administrator accounts (see FR-SEC-03a).
+NFR-SEC-07
+The system shall lock an account after a configurable number of consecutive failed login attempts (see FR-SEC-09).
+NFR-SEC-08
+The system shall support configurable compliance postures (data retention limits, mandatory encryption, data-subject export/erasure) selectable per deployment to satisfy sector- or jurisdiction-specific regulatory requirements (see BRD Section 8).
+NFR-SEC-09
+Secrets (DB credentials, JWT signing keys, LDAP service-account passwords, SMTP/SMS credentials) shall be sourced from Docker secrets, a mounted file with restricted host permissions, or an external secrets manager — never committed to the Compose file or version control alongside application configuration. The JWT signing key shall support rotation via a documented procedure without requiring a full redeployment.
+4.5 Maintainability
+ID
+Requirement
+NFR-MAINT-01
+Backend code shall follow SOLID principles and the module/bounded-context boundaries defined in Section 2.3.
+NFR-MAINT-02
+Database schema changes shall be managed through automated, version-controlled migrations (e.g., Flyway or Liquibase), never manual schema edits in production.
+NFR-MAINT-03
+The codebase shall maintain automated unit, integration, and end-to-end test coverage sufficient to safely refactor core modules (specific coverage targets to be defined per module in the engineering backlog).
+NFR-MAINT-04
+Centralized exception handling and structured logging (with correlation IDs) shall be implemented at the API gateway/controller layer.
+4.6 Usability & Accessibility
+ID
+Requirement
+NFR-UX-01
+The web application shall be fully responsive across desktop, tablet, and mobile browser viewports.
+NFR-UX-02
+Audit scanning screens shall be optimized for one-handed mobile use, given that auditors are frequently walking through facilities while scanning.
+NFR-UX-03
+The application shall be installable as a Progressive Web App on supporting devices for a more native audit-scanning experience.
+NFR-UX-04
+The web application shall conform to WCAG 2.1 AA.
+NFR-UX-05
+User-facing strings shall be externalized (not hardcoded) to support future localization, even though Phase 1 ships English-only.
+NFR-UX-06
+The application shall officially support the latest two stable versions of Chrome, Edge, Firefox, and Safari on desktop, and the default browser on current-generation Android and iOS.
+4.7 Portability / Deployment
+ID
+Requirement
+NFR-DEPLOY-01
+The full stack shall deploy via a single `docker compose up` on both Linux and Windows Server hosts.
+NFR-DEPLOY-02
+The system shall function with zero mandatory outbound internet connectivity; any optional integration requiring internet access (e.g., SMS gateway) shall degrade gracefully when unavailable.
+NFR-DEPLOY-03
+Configuration (DB credentials, LDAP settings, notification settings) shall be externalized via environment variables / config files, not hardcoded; secret values within that configuration are subject to the handling requirements of NFR-SEC-09.
+
+
+5. External Interface Requirements
+5.1 User Interfaces
+The primary user interface is the React/Material UI single-page application described in Section 3. Two experience modes are required: a full administrative/desktop experience (asset management, configuration, reporting) and a streamlined mobile/PWA audit-scanning experience optimized for rapid barcode/QR verification in the field.
+5.2 Hardware Interfaces
+USB barcode scanners operating in keyboard-wedge (HID) mode — requires no special driver integration, captured as standard keyboard input by the browser.
+Bluetooth barcode scanners paired at the OS level, also typically operating in HID mode.
+Device cameras (Android, iOS, laptop webcam) accessed via the browser's media capture APIs for QR/barcode decoding client-side.
+Future: RFID readers, integrated via a defined scanning-abstraction interface (see FR-SCN-06).
+5.3 Software Interfaces
+Interface
+Purpose
+Nature
+LDAP / Active Directory
+Optional authentication source
+Optional, on-premises
+SMTP Server
+Email notification delivery
+On-premises or organization-provided relay
+SMS Gateway
+Optional SMS notifications
+Optional, may require internet; system must degrade gracefully without it
+OpenAPI/Swagger UI
+API documentation and third-party integration point
+Exposed on-premises
+5.4 Communication Interfaces
+All communication between the frontend and backend occurs over HTTPS REST calls within the organization's internal network. No component of the core system requires a connection outside that network.
+
+
+6. Data Architecture Principles
+Every business entity (Asset, Audit, Transaction) carries immutable audit-relevant fields: created_by, created_at, updated_by, updated_at.
+History/trail data (asset history, audit findings, movement log) is append-only; corrections are new records referencing the original, never in-place edits.
+Custom fields (FR-AST-06) are implemented via a flexible schema extension mechanism (e.g., an EAV table or JSONB column per category) so new fields do not require migrations for every organization's configuration.
+Organizational hierarchy (FR-ORG-01) is modeled as a generic, recursive tree structure rather than fixed columns, so it can represent Campus/Building/Room or Ministry/Department equally.
+A full Database ER Diagram and Data Dictionary is produced as a separate downstream artifact building directly on these principles.
+The organizational hierarchy (FR-ORG-01) shall be persisted using a closure-table (or equivalent materialized-path) representation rather than a naive adjacency list, so that "all assets under this node and its descendants" queries remain performant at the 100,000+ asset / NFR-SCALE-01 target.
+Historical and audit-trail data follows the retention tiers defined in the BRD (Section 5.4): active data is retained indefinitely, backups are retained a minimum of 12 months, and disposed-asset records are archived after 3 years of inactivity.
+Employee/Volunteer personal-data fields are tagged in the schema to support the export/erasure operations required by FR-SEC-10, without requiring deletion of linked financial or audit-trail records under retention hold.
+7. Constraints
+Technology stack is fixed per Section 3 and may not be substituted without stakeholder re-approval.
+The system must not introduce a hard runtime dependency on any external SaaS or cloud service.
+The system must support restoring full functionality from an on-premises backup without vendor involvement.
+8. Assumptions
+The organization provides a host (physical or virtual machine) capable of running Docker with sufficient CPU/RAM/storage for its asset volume; sizing guidance will be provided in the Installation Guide.
+The organization's network provides reliable connectivity between client devices and the on-premises server within its own facilities; the offline scan queue (NFR-AVAIL-03) covers only short, localized connectivity gaps, not fully disconnected operation for extended periods.
+9. Appendix: Requirement Traceability Note
+Non-functional requirements in this SRS apply globally across all functional requirements defined in the FRS. Where a specific FR has an unusually strict performance or security requirement beyond the global NFRs (for example, the sub-1-second scan resolution in FR-SCN-05, matched by NFR-PERF-02), that linkage is called out explicitly; all other FRs are governed by the general NFRs in Section 4 by default.
