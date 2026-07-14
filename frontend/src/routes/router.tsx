@@ -11,6 +11,7 @@ import { UserListPage } from '../features/users/UserListPage'
 import { RoleListPage } from '../features/roles/RoleListPage'
 import { AuditListPage } from '../features/audits/AuditListPage'
 import { AuditDetailPage } from '../features/audits/AuditDetailPage'
+import { CompliancePage } from '../features/compliance/CompliancePage'
 import { NotFoundPage } from '../components/common/NotFoundPage'
 
 export const router = createBrowserRouter([
@@ -31,6 +32,7 @@ export const router = createBrowserRouter([
           { path: 'roles', element: <RoleListPage /> },
           { path: 'audits', element: <AuditListPage /> },
           { path: 'audits/:auditId', element: <AuditDetailPage /> },
+          { path: 'compliance', element: <CompliancePage /> },
         ],
       },
     ],

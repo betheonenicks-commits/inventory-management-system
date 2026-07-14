@@ -10,10 +10,11 @@ import {
 import type { AuditCreatePayload } from '../../../api/audits/auditApi'
 import type { AuditStatus } from '../types'
 
-export function useAuditsQuery(status?: AuditStatus) {
+export function useAuditsQuery(status?: AuditStatus, enabled = true) {
   return useQuery({
     queryKey: ['AUD', 'audits', status ?? null],
     queryFn: () => fetchAudits(status),
+    enabled,
   })
 }
 
