@@ -15,6 +15,7 @@ import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUser;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.compliance.application.LegalHoldService;
 import com.iams.lifecycle.domain.AssetTransferRequest;
 import com.iams.lifecycle.domain.AssetTransferRequestRepository;
 import com.iams.lifecycle.domain.LifecycleRequestStatus;
@@ -47,6 +48,7 @@ class TransferServiceTest {
     @Mock private CurrentUserProvider currentUserProvider;
     @Mock private OrgScopeGuard scopeGuard;
     @Mock private LifecycleProperties lifecycleProperties;
+    @Mock private LegalHoldService legalHoldService;
 
     private TransferService service;
     private UUID actorId;
@@ -61,7 +63,7 @@ class TransferServiceTest {
     void setUp() {
         service = new TransferService(transferRepository, assetRepository, orgNodeRepository, historyRecorder,
                 assignmentService, routingService, auditScopeChangeService, appUserRepository, currentUserProvider,
-                scopeGuard, lifecycleProperties);
+                scopeGuard, lifecycleProperties, legalHoldService);
         actorId = UUID.randomUUID();
         assetId = UUID.randomUUID();
         toOrgNodeId = UUID.randomUUID();
@@ -129,6 +131,20 @@ class TransferServiceTest {
         assertThat(result.getStatus()).isEqualTo(LifecycleRequestStatus.APPROVED);
         assertThat(asset.getOrgNode()).isEqualTo(toNode);
         org.mockito.Mockito.verify(auditScopeChangeService).flagIfInActiveAudit(asset);
+    }
+
+    @Test
+    void approve_blocksWhenAssetUnderActiveLegalHold() {
+        AssetTransferRequest request = pendingRequest();
+        when(transferRepository.findByIdWithAssociations(request.getId())).thenReturn(Optional.of(request));
+        when(currentUserProvider.current()).thenReturn(new CurrentUser(approverId, "depthead", Set.of("DEPARTMENT_HEAD")));
+        when(routingService.resolveEffectiveApprover(approverId)).thenReturn(approverId);
+        org.mockito.Mockito.doThrow(new com.iams.compliance.application.LegalHoldActiveException(com.iams.compliance.domain.LegalHoldScopeType.ASSET))
+                .when(legalHoldService).requireNoActiveHold(com.iams.compliance.domain.LegalHoldScopeType.ASSET, assetId);
+
+        assertThatThrownBy(() -> service.approve(request.getId()))
+                .isInstanceOf(com.iams.compliance.application.LegalHoldActiveException.class);
+        assertThat(asset.getOrgNode()).isEqualTo(fromNode);
     }
 
     @Test

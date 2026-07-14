@@ -10,6 +10,8 @@ import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.compliance.application.LegalHoldService;
+import com.iams.compliance.domain.LegalHoldScopeType;
 import com.iams.lifecycle.domain.AssetTransferRequest;
 import com.iams.lifecycle.domain.AssetTransferRequestRepository;
 import com.iams.lifecycle.domain.LifecycleRequestStatus;
@@ -48,13 +50,14 @@ public class TransferService {
     private final CurrentUserProvider currentUserProvider;
     private final OrgScopeGuard scopeGuard;
     private final LifecycleProperties lifecycleProperties;
+    private final LegalHoldService legalHoldService;
 
     public TransferService(AssetTransferRequestRepository transferRepository, AssetRepository assetRepository,
                             OrgNodeRepository orgNodeRepository, AssetHistoryRecorder historyRecorder,
                             AssetAssignmentService assignmentService, ApprovalRoutingService routingService,
                             AuditScopeChangeService auditScopeChangeService, AppUserRepository appUserRepository,
                             CurrentUserProvider currentUserProvider, OrgScopeGuard scopeGuard,
-                            LifecycleProperties lifecycleProperties) {
+                            LifecycleProperties lifecycleProperties, LegalHoldService legalHoldService) {
         this.transferRepository = transferRepository;
         this.assetRepository = assetRepository;
         this.orgNodeRepository = orgNodeRepository;
@@ -66,6 +69,7 @@ public class TransferService {
         this.currentUserProvider = currentUserProvider;
         this.scopeGuard = scopeGuard;
         this.lifecycleProperties = lifecycleProperties;
+        this.legalHoldService = legalHoldService;
     }
 
     @Transactional
@@ -120,6 +124,10 @@ public class TransferService {
         AssetTransferRequest request = requireStatus(id, LifecycleRequestStatus.PENDING);
         UUID actor = currentUserProvider.current().id();
         requireIsRoutedApprover(request, actor);
+        // AC-CMP-06-H: a legal hold on this asset blocks transfer, same as disposal - found
+        // as a real, exploitable gap by an adversarial review (a held asset could otherwise
+        // be moved away, defeating the hold's purpose for anything except disposal).
+        legalHoldService.requireNoActiveHold(LegalHoldScopeType.ASSET, request.getAsset().getId());
 
         Asset asset = request.getAsset();
         String fromCode = request.getFromOrgNode() != null ? request.getFromOrgNode().getCode() : null;

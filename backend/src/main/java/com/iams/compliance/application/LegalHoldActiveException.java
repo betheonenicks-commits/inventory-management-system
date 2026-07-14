@@ -7,14 +7,17 @@ import com.iams.compliance.domain.LegalHoldScopeType;
  * hold is lifted" - a distinct HTTP status from a plain 409 conflict, same
  * reasoning AccountLockedException already established for US-SEC-09's
  * lockout state (a real, different condition from a generic state conflict,
- * not folded into ConflictException).
+ * not folded into ConflictException). Also wired into TransferService.approve()
+ * (an adversarial-review finding: a held asset could otherwise be transferred
+ * away, defeating the hold for anything except disposal) - "transferred" is
+ * named in the message alongside the AC's own "purged/disposed/anonymized".
  */
 public class LegalHoldActiveException extends RuntimeException {
 
     private final LegalHoldScopeType scopeType;
 
     public LegalHoldActiveException(LegalHoldScopeType scopeType) {
-        super("This " + scopeType + " is under an active legal hold and cannot be purged, disposed, or anonymized until it is lifted");
+        super("This " + scopeType + " is under an active legal hold and cannot be purged, disposed, transferred, or anonymized until it is lifted");
         this.scopeType = scopeType;
     }
 
