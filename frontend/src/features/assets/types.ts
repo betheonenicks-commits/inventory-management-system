@@ -19,6 +19,10 @@ export interface AssetCategory {
   active: boolean
   version: number
   customFields: CustomFieldDefinition[]
+  requiresVehicleFields: boolean
+  defaultDepreciationMethod: DepreciationMethod | null
+  defaultUsefulLifeMonths: number | null
+  defaultSalvageValuePct: number | null
 }
 
 export interface AssetStatus {
@@ -35,6 +39,7 @@ export interface Asset {
   name: string
   categoryId: string
   categoryName: string
+  categoryRequiresVehicleFields: boolean
   status: AssetStatus
   orgNodeId: string
   orgNodeName: string
@@ -52,6 +57,7 @@ export interface Asset {
   purchaseCost: number | null
   warrantyStartDate: string | null
   warrantyEndDate: string | null
+  rfidTagId: string | null
   customFields: Record<string, unknown>
   createdBy: string
   createdAt: string
@@ -87,4 +93,52 @@ export interface AssetListFilters {
   categoryId?: string
   statusId?: string
   q?: string
+}
+
+export interface AssetInsurance {
+  id: string
+  version: number
+  assetId: string
+  insurerName: string | null
+  policyNumber: string | null
+  coverageAmount: number | null
+  coverageCurrency: string | null
+  policyStartDate: string | null
+  policyExpiryDate: string | null
+  expired: boolean
+}
+
+export interface VehicleDetail {
+  id: string
+  version: number
+  assetId: string
+  vin: string | null
+  registrationNumber: string | null
+  odometerReading: number | null
+  odometerUnit: string
+  registrationExpiryDate: string | null
+  insuranceExpiryDate: string | null
+}
+
+export type DepreciationMethod = 'STRAIGHT_LINE' | 'DECLINING_BALANCE'
+
+export interface DepreciationResult {
+  status: 'COMPUTED' | 'NOT_DEPRECIATED'
+  method: DepreciationMethod | null
+  usefulLifeMonths: number | null
+  salvageValue: number | null
+  monthlyDepreciation: number | null
+  accumulatedDepreciation: number | null
+  netBookValue: number | null
+  asOf: string
+}
+
+export interface DepreciationOverride {
+  id: string
+  version: number
+  assetId: string
+  method: DepreciationMethod | null
+  usefulLifeMonths: number | null
+  salvageValuePct: number | null
+  depreciationStartDate: string | null
 }

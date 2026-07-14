@@ -14,9 +14,11 @@ import { LoadingSkeleton } from '../../components/common/LoadingSkeleton'
 import { AssetTable } from './components/AssetTable'
 import { useAssetsQuery } from './hooks/useAssetsQuery'
 import { useAssetCategoriesQuery } from './hooks/useAssetCategoriesQuery'
+import { useAuthStore, hasPermission } from '../../auth/authStore'
 
 export function AssetListPage() {
   const navigate = useNavigate()
+  const canWrite = hasPermission(useAuthStore((s) => s.user), 'assets:write')
   const [searchParams, setSearchParams] = useSearchParams()
   const [searchInput, setSearchInput] = useState(searchParams.get('q') ?? '')
   const debouncedQuery = useDebouncedValue(searchInput, 300)
@@ -52,9 +54,11 @@ export function AssetListPage() {
       <PageHeader
         title="Asset Register"
         actions={
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/assets/new')}>
-            Register New Asset
-          </Button>
+          canWrite && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/assets/new')}>
+              Register New Asset
+            </Button>
+          )
         }
       />
 
@@ -95,9 +99,11 @@ export function AssetListPage() {
           title="No assets registered yet"
           description="Get started by registering your first asset."
           action={
-            <Button variant="contained" onClick={() => navigate('/assets/new')}>
-              Register your first asset
-            </Button>
+            canWrite ? (
+              <Button variant="contained" onClick={() => navigate('/assets/new')}>
+                Register your first asset
+              </Button>
+            ) : undefined
           }
         />
       )}

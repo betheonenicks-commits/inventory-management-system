@@ -91,4 +91,7 @@ public class Asset extends BaseEntity {
 
     @Column(name = "warranty_end_date")
     private LocalDate warrantyEndDate;
+
+    @Column(name = "rfid_tag_id", unique = true)
+    private String rfidTagId;
 }

@@ -1,11 +1,13 @@
 package com.iams.asset.api;
 
+import com.iams.asset.api.dto.LabelConfigResponse;
 import com.iams.asset.application.AssetQueryService;
 import com.iams.asset.domain.Asset;
 import com.iams.asset.infrastructure.label.LabelFormat;
 import com.iams.asset.infrastructure.label.LabelProperties;
 import com.iams.asset.infrastructure.label.LabelRenderService;
 import com.iams.common.exception.ValidationFailedException;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -67,5 +69,16 @@ public class AssetLabelController {
                 .contentType(MediaType.parseMediaType(labelFormat.contentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .body(body);
+    }
+
+    @GetMapping("/labels/config")
+    public LabelConfigResponse labelConfig() {
+        List<LabelConfigResponse.SymbologyInfo> symbologies = List.of(
+                new LabelConfigResponse.SymbologyInfo("CODE_128", null),
+                new LabelConfigResponse.SymbologyInfo("QR", "M"));
+        List<LabelConfigResponse.LabelSizeResponse> sizes = labelRenderService.availableSizes().stream()
+                .map(s -> new LabelConfigResponse.LabelSizeResponse(s.getKey(), s.getWidthMm(), s.getHeightMm()))
+                .toList();
+        return new LabelConfigResponse(symbologies, sizes);
     }
 }

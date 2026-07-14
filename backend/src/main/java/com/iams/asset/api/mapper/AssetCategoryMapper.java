@@ -17,7 +17,11 @@ public class AssetCategoryMapper {
                 category.getCode(),
                 category.isActive(),
                 category.getVersion(),
-                fields.stream().map(this::toFieldResponse).toList()
+                fields.stream().map(this::toFieldResponse).toList(),
+                category.isRequiresVehicleFields(),
+                category.getDefaultDepreciationMethod(),
+                category.getDefaultUsefulLifeMonths(),
+                category.getDefaultSalvageValuePct()
         );
     }
 

@@ -39,6 +39,7 @@ public class JwtService {
                 .subject(user.id().toString())
                 .claim("username", user.username())
                 .claim("roles", List.copyOf(user.roles()))
+                .claim("permissions", List.copyOf(user.permissions()))
                 .issuer("iams-dev")
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(expirationMinutes, ChronoUnit.MINUTES)))
@@ -62,10 +63,14 @@ public class JwtService {
             @SuppressWarnings("unchecked")
             List<String> roles = claims.get("roles", List.class);
             Set<String> roleSet = roles == null ? new HashSet<>() : new HashSet<>(roles);
+            @SuppressWarnings("unchecked")
+            List<String> permissions = claims.get("permissions", List.class);
+            Set<String> permissionSet = permissions == null ? new HashSet<>() : new HashSet<>(permissions);
             return Optional.of(new CurrentUser(
                     UUID.fromString(claims.getSubject()),
                     claims.get("username", String.class),
-                    roleSet
+                    roleSet,
+                    permissionSet
             ));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();

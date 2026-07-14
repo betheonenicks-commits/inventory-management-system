@@ -11,5 +11,11 @@ import org.springframework.data.domain.Pageable;
  */
 public interface AssetRepositoryCustom {
 
-    Page<Asset> search(UUID categoryId, UUID statusId, String query, Pageable pageable);
+    /**
+     * scopePathPrefix, when non-null, restricts results to assets whose
+     * orgNode.path starts with it - the scope node itself or any descendant
+     * (FR-USR-04). Null means unrestricted - callers resolve that via
+     * OrgScopeGuard.currentScopePathPrefix(), not here.
+     */
+    Page<Asset> search(UUID categoryId, UUID statusId, String query, String scopePathPrefix, Pageable pageable);
 }

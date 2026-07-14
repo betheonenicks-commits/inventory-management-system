@@ -7,6 +7,8 @@ import { AssetRegisterWizardPage } from '../features/assets/AssetRegisterWizardP
 import { AssetDetailPage } from '../features/assets/AssetDetailPage'
 import { AssetEditPage } from '../features/assets/AssetEditPage'
 import { CategoryConfigPage } from '../features/assets/CategoryConfigPage'
+import { UserListPage } from '../features/users/UserListPage'
+import { RoleListPage } from '../features/roles/RoleListPage'
 import { NotFoundPage } from '../components/common/NotFoundPage'
 
 export const router = createBrowserRouter([
@@ -23,6 +25,8 @@ export const router = createBrowserRouter([
           { path: 'assets/categories', element: <CategoryConfigPage /> },
           { path: 'assets/:assetId', element: <AssetDetailPage /> },
           { path: 'assets/:assetId/edit', element: <AssetEditPage /> },
+          { path: 'users', element: <UserListPage /> },
+          { path: 'roles', element: <RoleListPage /> },
         ],
       },
     ],

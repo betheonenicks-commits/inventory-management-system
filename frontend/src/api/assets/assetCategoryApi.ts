@@ -15,6 +15,10 @@ export interface AssetCategoryPayload {
   active?: boolean
   version?: number
   customFields?: CustomFieldDefinitionPayload[]
+  requiresVehicleFields?: boolean
+  defaultDepreciationMethod?: 'STRAIGHT_LINE' | 'DECLINING_BALANCE'
+  defaultUsefulLifeMonths?: number
+  defaultSalvageValuePct?: number
 }
 
 export function fetchAssetCategories() {

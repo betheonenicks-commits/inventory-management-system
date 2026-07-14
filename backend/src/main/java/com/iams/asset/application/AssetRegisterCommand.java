@@ -21,6 +21,7 @@ public record AssetRegisterCommand(
         UUID orgNodeId,
         LocalDate warrantyStartDate,
         LocalDate warrantyEndDate,
+        String rfidTagId,
         Map<String, Object> customFields
 ) {
 }

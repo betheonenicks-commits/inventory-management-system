@@ -44,7 +44,7 @@ public class AssetStatusService {
 
     @Transactional
     public Asset changeStatus(UUID assetId, UUID newStatusId, long expectedVersion) {
-        Asset asset = assetRepository.findById(assetId).orElseThrow(() -> NotFoundException.of("Asset", assetId));
+        Asset asset = assetRepository.findByIdWithAssociations(assetId).orElseThrow(() -> NotFoundException.of("Asset", assetId));
 
         if (asset.getVersion() != expectedVersion) {
             throw new OptimisticLockConflictException(expectedVersion, asset.getVersion(), asset);
@@ -64,7 +64,7 @@ public class AssetStatusService {
         try {
             asset = assetRepository.saveAndFlush(asset);
         } catch (OptimisticLockingFailureException e) {
-            Asset current = assetRepository.findById(assetId).orElseThrow(() -> NotFoundException.of("Asset", assetId));
+            Asset current = assetRepository.findByIdWithAssociations(assetId).orElseThrow(() -> NotFoundException.of("Asset", assetId));
             throw new OptimisticLockConflictException(expectedVersion, current.getVersion(), current);
         }
 

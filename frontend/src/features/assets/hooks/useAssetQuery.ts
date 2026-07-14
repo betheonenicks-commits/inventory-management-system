@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchAsset, fetchAssetHistory } from '../../../api/assets/assetApi'
+import { fetchAsset, fetchAssetHistory, fetchAssetMovements } from '../../../api/assets/assetApi'
 
 export function useAssetQuery(id: string | undefined) {
   return useQuery({
@@ -13,6 +13,14 @@ export function useAssetHistoryQuery(id: string | undefined, page = 0, size = 20
   return useQuery({
     queryKey: ['AST', 'assetHistory', id, page, size],
     queryFn: () => fetchAssetHistory(id as string, page, size),
+    enabled: !!id,
+  })
+}
+
+export function useAssetMovementsQuery(id: string | undefined, page = 0, size = 20) {
+  return useQuery({
+    queryKey: ['AST', 'assetMovements', id, page, size],
+    queryFn: () => fetchAssetMovements(id as string, page, size),
     enabled: !!id,
   })
 }

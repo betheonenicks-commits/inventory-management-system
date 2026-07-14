@@ -5,15 +5,20 @@ import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.OptimisticLockConflictException;
 import com.iams.common.exception.ValidationErrorItem;
 import com.iams.common.exception.ValidationFailedException;
+import com.iams.common.security.AccountLockedException;
 import com.iams.common.security.InvalidCredentialsException;
+import com.iams.common.security.InvalidRefreshTokenException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -34,6 +39,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
     private static final String PROBLEM_BASE = "https://iams.internal/problems/";
 
     @ExceptionHandler(ValidationFailedException.class)
@@ -81,7 +87,12 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ProblemDetail> handleConflict(ConflictException ex, HttpServletRequest req) {
-        ProblemDetail pd = build(HttpStatus.CONFLICT, "conflict", "Conflict", ex.getMessage(), ex.getErrorCode(), req);
+        // type slug is derived from errorCode (e.g. USER_HAS_OUTSTANDING_ASSIGNMENTS ->
+        // user-has-outstanding-assignments) rather than a single generic "conflict" slug,
+        // matching the per-scenario `type` URIs the API spec documents (Section 4.5).
+        String typeSlug = ex.getErrorCode().toLowerCase().replace('_', '-');
+        ProblemDetail pd = build(HttpStatus.CONFLICT, typeSlug, ex.getTitle(), ex.getMessage(), ex.getErrorCode(), req);
+        ex.getExtraProperties().forEach(pd::setProperty);
         return ResponseEntity.status(HttpStatus.CONFLICT).body(pd);
     }
 
@@ -90,6 +101,39 @@ public class ApiExceptionHandler {
         ProblemDetail pd = build(HttpStatus.UNAUTHORIZED, "invalid-credentials", "Invalid Credentials",
                 ex.getMessage(), "AUTH_INVALID_CREDENTIALS", req);
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(pd);
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidRefreshToken(InvalidRefreshTokenException ex, HttpServletRequest req) {
+        ProblemDetail pd = build(HttpStatus.UNAUTHORIZED, "invalid-refresh-token", "Invalid Refresh Token",
+                ex.getMessage(), "AUTH_INVALID_REFRESH_TOKEN", req);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(pd);
+    }
+
+    @ExceptionHandler(AccountLockedException.class)
+    public ResponseEntity<ProblemDetail> handleAccountLocked(AccountLockedException ex, HttpServletRequest req) {
+        ProblemDetail pd = build(HttpStatus.LOCKED, "account-locked", "Account Locked", ex.getMessage(), "ACCOUNT_LOCKED", req);
+        pd.setProperty("lockedUntil", ex.getLockedUntil());
+        return ResponseEntity.status(HttpStatus.LOCKED).body(pd);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
+        // Covers both org.springframework.security.authorization.AuthorizationDeniedException
+        // (@PreAuthorize denials) and this plain AccessDeniedException thrown directly by
+        // application code (OrgScopeGuard.requireWithinScope) - the former extends the
+        // latter, so one handler catches both. Either way, the denial is thrown from
+        // inside the handler method invocation (AOP around @PreAuthorize, or a plain
+        // method call for OrgScopeGuard), so DispatcherServlet's own exception resolution
+        // (this @RestControllerAdvice) catches it before it ever reaches the filter chain -
+        // JsonAccessDeniedHandler (which handles filter-chain-level denials, per its own
+        // comment) never sees either case. Without this handler they fell through to
+        // handleGeneric() below and returned a 500, not a 403 - found via live
+        // click-testing for the OrgScopeGuard case specifically (the @PreAuthorize case
+        // was caught and fixed earlier the same day).
+        ProblemDetail pd = build(HttpStatus.FORBIDDEN, "forbidden", "Forbidden",
+                "You do not have permission to perform this action.", "FORBIDDEN", req);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(pd);
     }
 
     @ExceptionHandler(NotFoundException.class)
@@ -110,6 +154,8 @@ public class ApiExceptionHandler {
     public ResponseEntity<ProblemDetail> handleGeneric(Exception ex, HttpServletRequest req) {
         ProblemDetail pd = build(HttpStatus.INTERNAL_SERVER_ERROR, "internal-error", "Internal Server Error",
                 "An unexpected error occurred.", "INTERNAL_ERROR", req);
+        log.error("Unhandled exception for {} {} (traceId={})", req.getMethod(), req.getRequestURI(),
+                pd.getProperties().get("traceId"), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(pd);
     }
 

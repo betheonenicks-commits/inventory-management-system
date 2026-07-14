@@ -5,10 +5,12 @@ import com.iams.asset.domain.AssetCategoryRepository;
 import com.iams.asset.domain.AssetCustomFieldDefinition;
 import com.iams.asset.domain.AssetCustomFieldDefinitionRepository;
 import com.iams.asset.domain.AssetRepository;
+import com.iams.asset.domain.DepreciationMethod;
 import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.OptimisticLockConflictException;
 import com.iams.common.security.CurrentUserProvider;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -54,13 +56,19 @@ public class AssetCategoryService {
     }
 
     @Transactional
-    public AssetCategory create(String name, String code, List<CustomFieldSpec> fields) {
+    public AssetCategory create(String name, String code, List<CustomFieldSpec> fields, Boolean requiresVehicleFields,
+                                 DepreciationMethod defaultDepreciationMethod,
+                                 Integer defaultUsefulLifeMonths, BigDecimal defaultSalvageValuePct) {
         UUID actor = currentUserProvider.current().id();
 
         AssetCategory category = new AssetCategory();
         category.setName(name);
         category.setCode(code);
         category.setActive(true);
+        category.setRequiresVehicleFields(Boolean.TRUE.equals(requiresVehicleFields));
+        category.setDefaultDepreciationMethod(defaultDepreciationMethod);
+        category.setDefaultUsefulLifeMonths(defaultUsefulLifeMonths);
+        category.setDefaultSalvageValuePct(defaultSalvageValuePct);
         category.setCreatedBy(actor);
         category = categoryRepository.save(category);
 
@@ -69,7 +77,11 @@ public class AssetCategoryService {
     }
 
     @Transactional
-    public AssetCategory update(UUID id, String name, String code, Boolean active, List<CustomFieldSpec> fields, long expectedVersion) {
+    public AssetCategory update(UUID id, String name, String code, Boolean active, List<CustomFieldSpec> fields,
+                                 Boolean requiresVehicleFields,
+                                 DepreciationMethod defaultDepreciationMethod,
+                                 Integer defaultUsefulLifeMonths, BigDecimal defaultSalvageValuePct,
+                                 long expectedVersion) {
         AssetCategory category = get(id);
         try {
             if (name != null) {
@@ -80,6 +92,18 @@ public class AssetCategoryService {
             }
             if (active != null) {
                 category.setActive(active);
+            }
+            if (requiresVehicleFields != null) {
+                category.setRequiresVehicleFields(requiresVehicleFields);
+            }
+            if (defaultDepreciationMethod != null) {
+                category.setDefaultDepreciationMethod(defaultDepreciationMethod);
+            }
+            if (defaultUsefulLifeMonths != null) {
+                category.setDefaultUsefulLifeMonths(defaultUsefulLifeMonths);
+            }
+            if (defaultSalvageValuePct != null) {
+                category.setDefaultSalvageValuePct(defaultSalvageValuePct);
             }
             category.setUpdatedBy(currentUserProvider.current().id());
             category = categoryRepository.saveAndFlush(category);
@@ -99,7 +123,10 @@ public class AssetCategoryService {
     public void delete(UUID id) {
         AssetCategory category = get(id);
         if (assetRepository.existsByCategoryId(id)) {
-            throw new ConflictException("ORG_NODE_HAS_DEPENDENTS",
+            // Was mislabeled ORG_NODE_HAS_DEPENDENTS (copy-paste from a template written
+            // before EPIC-ORG existed) - that literal code is AC-ORG-01-X's, for actual
+            // org-node deletion, not this resource.
+            throw new ConflictException("CATEGORY_HAS_DEPENDENTS",
                     "Category '" + category.getName() + "' is still referenced by one or more assets and cannot be deleted.");
         }
         fieldDefinitionRepository.deleteAll(fieldDefinitionRepository.findByCategoryIdOrderByDisplayOrder(id));

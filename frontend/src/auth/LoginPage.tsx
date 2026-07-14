@@ -12,7 +12,7 @@ import { useAuthStore } from './authStore'
 import { decodeJwtPayload } from './decodeJwt'
 
 export function LoginPage() {
-  const [username, setUsername] = useState('admin')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -24,9 +24,13 @@ export function LoginPage() {
     setError(null)
     setSubmitting(true)
     try {
-      const { accessToken } = await login(username, password)
+      const { accessToken, refreshToken } = await login(username, password)
       const claims = decodeJwtPayload(accessToken)
-      setSession(accessToken, { username: claims?.username ?? username, roles: claims?.roles ?? [] })
+      setSession(accessToken, refreshToken, {
+        username: claims?.username ?? username,
+        roles: claims?.roles ?? [],
+        permissions: claims?.permissions ?? [],
+      })
       navigate('/assets', { replace: true })
     } catch (err) {
       if (isApiProblem(err)) {
@@ -44,9 +48,6 @@ export function LoginPage() {
       <Paper elevation={3} sx={{ p: 4, width: 360 }} component="form" onSubmit={handleSubmit}>
         <Typography variant="h5" gutterBottom>
           IAMS Sign In
-        </Typography>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Development mode - single administrator account
         </Typography>
         {error && (
           <Alert severity="error" sx={{ my: 2 }}>

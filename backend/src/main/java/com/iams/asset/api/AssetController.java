@@ -33,9 +33,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Asset register endpoints (FR-AST-01/07/09/10, US-AST-01/07/09/10). Every
- * list/detail read is implicitly org-scoped in the full system (FR-USR-04) -
- * that filtering is not yet wired here since EPIC-USR/SEC hasn't landed;
- * the dev-stub's single SUPER_ADMIN user has no scope restriction to apply.
+ * list/detail read is org-scoped (FR-USR-04) via AssetQueryService, which
+ * resolves the acting user's scope through UserScopeResolver - exact-node
+ * match only for now, since OrgNode has no parent/child hierarchy yet.
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -57,13 +57,13 @@ public class AssetController {
     }
 
     @PostMapping("/assets")
-    @PreAuthorize("hasAnyRole('INVENTORY_MANAGER','ADMIN','SUPER_ADMIN')")
+    @PreAuthorize("@perm.has('assets:write')")
     public ResponseEntity<AssetResponse> create(@Valid @RequestBody AssetCreateRequest request) {
         AssetRegisterCommand command = new AssetRegisterCommand(
                 request.categoryId(), request.name(), request.manufacturer(), request.model(),
                 request.serialNumber(), request.vendorName(), request.purchaseOrderReference(),
                 request.purchaseDate(), request.purchaseCost(), request.orgNodeId(),
-                request.warrantyStartDate(), request.warrantyEndDate(), request.customFields());
+                request.warrantyStartDate(), request.warrantyEndDate(), request.rfidTagId(), request.customFields());
         Asset asset = registrationService.register(command);
         AssetResponse response = mapper.toResponse(asset);
         return ResponseEntity.created(URI.create("/api/v1/assets/" + asset.getId())).body(response);
@@ -86,18 +86,18 @@ public class AssetController {
     }
 
     @PatchMapping("/assets/{id}")
-    @PreAuthorize("hasAnyRole('INVENTORY_MANAGER','ADMIN','SUPER_ADMIN')")
+    @PreAuthorize("@perm.has('assets:write')")
     public AssetResponse update(@PathVariable UUID id, @Valid @RequestBody AssetUpdateRequest request) {
         AssetUpdateCommand command = new AssetUpdateCommand(
                 request.version(), request.name(), request.manufacturer(), request.model(),
                 request.serialNumber(), request.vendorName(), request.purchaseOrderReference(),
                 request.purchaseDate(), request.purchaseCost(), request.orgNodeId(),
-                request.warrantyStartDate(), request.warrantyEndDate(), request.customFields());
+                request.warrantyStartDate(), request.warrantyEndDate(), request.rfidTagId(), request.customFields());
         return mapper.toResponse(registrationService.update(id, command));
     }
 
     @PatchMapping("/assets/{id}/status")
-    @PreAuthorize("hasAnyRole('INVENTORY_MANAGER','ADMIN','SUPER_ADMIN')")
+    @PreAuthorize("@perm.has('assets:write')")
     public AssetResponse changeStatus(@PathVariable UUID id, @Valid @RequestBody AssetStatusChangeRequest request) {
         Asset asset = statusService.changeStatus(id, request.statusId(), request.version());
         return mapper.toResponse(asset);
@@ -107,6 +107,14 @@ public class AssetController {
     public PageResponse<AssetHistoryEventResponse> history(@PathVariable UUID id,
                                                              @PageableDefault(size = 20) Pageable pageable) {
         var page = queryService.history(id, pageable);
+        List<AssetHistoryEventResponse> data = page.getContent().stream().map(mapper::toHistoryResponse).collect(Collectors.toList());
+        return new PageResponse<>(data, new PageResponse.PageMeta(page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages()), List.of("createdAt,DESC"));
+    }
+
+    @GetMapping("/assets/{id}/movements")
+    public PageResponse<AssetHistoryEventResponse> movements(@PathVariable UUID id,
+                                                               @PageableDefault(size = 20) Pageable pageable) {
+        var page = queryService.movements(id, pageable);
         List<AssetHistoryEventResponse> data = page.getContent().stream().map(mapper::toHistoryResponse).collect(Collectors.toList());
         return new PageResponse<>(data, new PageResponse.PageMeta(page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages()), List.of("createdAt,DESC"));
     }

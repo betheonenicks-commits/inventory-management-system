@@ -23,6 +23,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import { PageHeader } from '../../components/common/PageHeader'
 import { ErrorPanel } from '../../components/common/ErrorPanel'
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton'
+import { useAuthStore, hasPermission } from '../../auth/authStore'
 import { isApiProblem } from '../../api/errors'
 import {
   useAssetCategoriesQuery,
@@ -42,11 +43,16 @@ export function CategoryConfigPage() {
   const categoriesQuery = useAssetCategoriesQuery()
   const createCategory = useCreateAssetCategoryMutation()
   const deleteCategory = useDeleteAssetCategoryMutation()
+  const canWrite = hasPermission(useAuthStore((s) => s.user), 'asset-categories:write')
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [fields, setFields] = useState<CustomFieldDefinitionPayload[]>([])
+  const [requiresVehicleFields, setRequiresVehicleFields] = useState(false)
+  const [depreciationMethod, setDepreciationMethod] = useState<'' | 'STRAIGHT_LINE' | 'DECLINING_BALANCE'>('')
+  const [usefulLifeMonths, setUsefulLifeMonths] = useState('')
+  const [salvageValuePct, setSalvageValuePct] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [deleteBlockedMessage, setDeleteBlockedMessage] = useState<string | null>(null)
 
@@ -54,6 +60,10 @@ export function CategoryConfigPage() {
     setName('')
     setCode('')
     setFields([])
+    setRequiresVehicleFields(false)
+    setDepreciationMethod('')
+    setUsefulLifeMonths('')
+    setSalvageValuePct('')
     setError(null)
     setDialogOpen(true)
   }
@@ -65,7 +75,15 @@ export function CategoryConfigPage() {
   async function handleCreate() {
     setError(null)
     try {
-      await createCategory.mutateAsync({ name, code, customFields: fields })
+      await createCategory.mutateAsync({
+        name,
+        code,
+        customFields: fields,
+        requiresVehicleFields,
+        defaultDepreciationMethod: depreciationMethod || undefined,
+        defaultUsefulLifeMonths: usefulLifeMonths ? Number(usefulLifeMonths) : undefined,
+        defaultSalvageValuePct: salvageValuePct ? Number(salvageValuePct) : undefined,
+      })
       setDialogOpen(false)
     } catch (err) {
       setError(isApiProblem(err) ? err.detail : 'Failed to save category')
@@ -88,9 +106,11 @@ export function CategoryConfigPage() {
       <PageHeader
         title="Asset Categories"
         actions={
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openDialog}>
-            New Category
-          </Button>
+          canWrite && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={openDialog}>
+              New Category
+            </Button>
+          )
         }
       />
 
@@ -111,16 +131,20 @@ export function CategoryConfigPage() {
                 key={category.id}
                 divider
                 secondaryAction={
-                  <IconButton edge="end" onClick={() => handleDelete(category.id)}>
-                    <DeleteIcon />
-                  </IconButton>
+                  canWrite && (
+                    <IconButton edge="end" onClick={() => handleDelete(category.id)}>
+                      <DeleteIcon />
+                    </IconButton>
+                  )
                 }
               >
                 <ListItemText
                   primary={category.name}
+                  slotProps={{ secondary: { component: 'div' } }}
                   secondary={
                     <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
                       <Chip size="small" label={category.code} variant="outlined" />
+                      {category.requiresVehicleFields && <Chip size="small" color="info" label="Vehicle" />}
                       {category.customFields.map((f) => (
                         <Chip key={f.id} size="small" label={`${f.label} (${f.dataType.toLowerCase()})`} />
                       ))}
@@ -144,6 +168,42 @@ export function CategoryConfigPage() {
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField label="Name" fullWidth required value={name} onChange={(e) => setName(e.target.value)} />
             <TextField label="Code" fullWidth required value={code} onChange={(e) => setCode(e.target.value)} />
+            <FormControlLabel
+              control={
+                <Checkbox checked={requiresVehicleFields} onChange={(e) => setRequiresVehicleFields(e.target.checked)} />
+              }
+              label="Requires vehicle fields (VIN, registration, odometer)"
+            />
+
+            <Typography variant="subtitle2">Depreciation Defaults</Typography>
+            <Stack direction="row" spacing={1}>
+              <TextField
+                select
+                label="Method"
+                size="small"
+                sx={{ minWidth: 160 }}
+                value={depreciationMethod}
+                onChange={(e) => setDepreciationMethod(e.target.value as typeof depreciationMethod)}
+              >
+                <MenuItem value="">None</MenuItem>
+                <MenuItem value="STRAIGHT_LINE">Straight Line</MenuItem>
+                <MenuItem value="DECLINING_BALANCE">Declining Balance</MenuItem>
+              </TextField>
+              <TextField
+                label="Useful Life (months)"
+                size="small"
+                type="number"
+                value={usefulLifeMonths}
+                onChange={(e) => setUsefulLifeMonths(e.target.value)}
+              />
+              <TextField
+                label="Salvage Value %"
+                size="small"
+                type="number"
+                value={salvageValuePct}
+                onChange={(e) => setSalvageValuePct(e.target.value)}
+              />
+            </Stack>
 
             <Typography variant="subtitle2">Custom Fields</Typography>
             {fields.map((field, index) => (

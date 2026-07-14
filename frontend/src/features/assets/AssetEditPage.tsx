@@ -24,6 +24,7 @@ type FormState = {
   purchaseOrderReference: string
   purchaseCost: string
   warrantyEndDate: string
+  rfidTagId: string
 }
 
 function toFormState(asset: Asset): FormState {
@@ -36,6 +37,7 @@ function toFormState(asset: Asset): FormState {
     purchaseOrderReference: asset.purchaseOrderReference ?? '',
     purchaseCost: asset.purchaseCost != null ? String(asset.purchaseCost) : '',
     warrantyEndDate: asset.warrantyEndDate ?? '',
+    rfidTagId: asset.rfidTagId ?? '',
   }
 }
 
@@ -80,6 +82,7 @@ export function AssetEditPage() {
         purchaseOrderReference: form.purchaseOrderReference || undefined,
         purchaseCost: form.purchaseCost ? Number(form.purchaseCost) : undefined,
         warrantyEndDate: form.warrantyEndDate || undefined,
+        rfidTagId: form.rfidTagId || undefined,
       })
       navigate(`/assets/${asset.id}`)
     } catch (err) {
@@ -187,6 +190,14 @@ export function AssetEditPage() {
               slotProps={{ inputLabel: { shrink: true } }}
               value={form.warrantyEndDate}
               onChange={(e) => setForm({ ...form, warrantyEndDate: e.target.value })}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="RFID Tag ID"
+              value={form.rfidTagId}
+              onChange={(e) => setForm({ ...form, rfidTagId: e.target.value })}
             />
           </Grid>
         </Grid>

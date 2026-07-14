@@ -1,0 +1,14 @@
+-- Bug found by live click-testing (first attempt to create an audit scoped
+-- by an explicit asset list, with no org node or category, failed with a 500
+-- - ConstraintViolationException on chk_audit_scope_present). V27's CHECK
+-- constraint only accounted for two of the three scoping mechanisms
+-- AuditService.create() actually validates: it required scope_org_node_id OR
+-- scope_category_id, but never accounted for "assetIds provided, both those
+-- columns null" (US-AUD-01's third scope option, "asset list"). The real
+-- "at least one scoping criterion" rule already lives correctly in
+-- AuditService.create() (which checks scopeOrgNodeId/scopeCategoryId/assetIds
+-- together, including asset-list-only) - a DB CHECK constraint can't see the
+-- resulting audit_expected_asset rows, so it can only ever be a stricter,
+-- wrong subset of that rule. Dropped rather than widened to something
+-- unenforceable.
+ALTER TABLE audit DROP CONSTRAINT chk_audit_scope_present;

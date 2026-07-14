@@ -57,6 +57,8 @@ iams:
     jwt:
       secret: ${IAMS_JWT_SECRET:dev-only-please-change-32-bytes-minimum-secret-value}
       expiration-minutes: 480
+      refresh-expiration-minutes: 43200
+      refresh-idle-timeout-minutes: 1440
   labels:
     sizes:
       - key: "50x25"
@@ -66,6 +68,9 @@ iams:
         width-mm: 100
         height-mm: 50
     dpi: 203
+  lifecycle:
+    restore-window-days: 30
+    escalation-threshold-hours: 72
 
 logging:
   level:

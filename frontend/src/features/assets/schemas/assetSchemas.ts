@@ -16,6 +16,7 @@ export const assetCoreSchema = z
       .optional(),
     warrantyStartDate: z.string().optional().or(z.literal('')),
     warrantyEndDate: z.string().optional().or(z.literal('')),
+    rfidTagId: z.string().max(100).optional().or(z.literal('')),
   })
   .refine(
     (v) => !v.warrantyStartDate || !v.warrantyEndDate || v.warrantyEndDate >= v.warrantyStartDate,

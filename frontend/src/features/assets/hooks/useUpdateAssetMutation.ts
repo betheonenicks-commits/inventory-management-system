@@ -10,6 +10,7 @@ export function useUpdateAssetMutation(assetId: string) {
       queryClient.invalidateQueries({ queryKey: ['AST', 'asset', assetId] })
       queryClient.invalidateQueries({ queryKey: ['AST', 'assets'] })
       queryClient.invalidateQueries({ queryKey: ['AST', 'assetHistory', assetId] })
+      queryClient.invalidateQueries({ queryKey: ['AST', 'assetMovements', assetId] })
     },
   })
 }

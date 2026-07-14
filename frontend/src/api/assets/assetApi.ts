@@ -14,6 +14,7 @@ export interface AssetCreatePayload {
   orgNodeId?: string
   warrantyStartDate?: string
   warrantyEndDate?: string
+  rfidTagId?: string
   customFields?: Record<string, unknown>
 }
 
@@ -49,6 +50,34 @@ export function fetchAssetHistory(id: string, page: number, size: number) {
     .then((r) => r.data)
 }
 
+export function fetchAssetMovements(id: string, page: number, size: number) {
+  return httpClient
+    .get<PageResponse<AssetHistoryEvent>>(`/assets/${id}/movements`, { params: { page, size } })
+    .then((r) => r.data)
+}
+
 export function labelUrl(id: string, format: 'png' | 'svg' | 'pdf', size = '50x25') {
   return `${httpClient.defaults.baseURL}/assets/${id}/label?format=${format}&size=${size}`
+}
+
+export function fetchAssetChildren(id: string) {
+  return httpClient.get<Asset[]>(`/assets/${id}/children`).then((r) => r.data)
+}
+
+export function linkAssetChild(parentId: string, childAssetId: string) {
+  return httpClient.post<Asset>(`/assets/${parentId}/children`, { childAssetId }).then((r) => r.data)
+}
+
+export function unlinkAssetChild(parentId: string, childId: string) {
+  return httpClient.delete<void>(`/assets/${parentId}/children/${childId}`).then((r) => r.data)
+}
+
+export function assignAsset(assetId: string, personId: string, version: number) {
+  return httpClient.post<Asset>(`/assets/${assetId}/assignment`, { personId, version }).then((r) => r.data)
+}
+
+export function unassignAsset(assetId: string, version: number) {
+  return httpClient
+    .delete<Asset>(`/assets/${assetId}/assignment`, { params: { version } })
+    .then((r) => r.data)
 }

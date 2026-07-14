@@ -113,6 +113,7 @@ public class AssetRegistrationService {
         asset.setPurchaseCost(command.purchaseCost());
         asset.setWarrantyStartDate(command.warrantyStartDate());
         asset.setWarrantyEndDate(command.warrantyEndDate());
+        asset.setRfidTagId(command.rfidTagId());
         asset.setCustomAttributes(command.customFields() == null ? new HashMap<>() : new HashMap<>(command.customFields()));
         // The QR payload IS the asset number (FR-AST-01) - never a separately
         // allocated code. Barcode value is the same human-facing identifier.
@@ -129,7 +130,7 @@ public class AssetRegistrationService {
 
     @Transactional
     public Asset update(UUID assetId, AssetUpdateCommand command) {
-        Asset asset = assetRepository.findById(assetId).orElseThrow(() -> NotFoundException.of("Asset", assetId));
+        Asset asset = assetRepository.findByIdWithAssociations(assetId).orElseThrow(() -> NotFoundException.of("Asset", assetId));
 
         if (asset.getVersion() != command.version()) {
             throw new OptimisticLockConflictException(command.version(), asset.getVersion(), asset);
@@ -153,6 +154,7 @@ public class AssetRegistrationService {
         applyFieldChange(asset, "vendorName", asset.getVendorName(), command.vendorName(), asset::setVendorName);
         applyFieldChange(asset, "purchaseOrderReference", asset.getPurchaseOrderReference(),
                 command.purchaseOrderReference(), asset::setPurchaseOrderReference);
+        applyFieldChange(asset, "rfidTagId", asset.getRfidTagId(), command.rfidTagId(), asset::setRfidTagId);
 
         if (command.purchaseDate() != null) {
             historyRecorder.record(asset, AssetHistoryEventType.FIELD_UPDATE, "purchaseDate",
@@ -188,7 +190,7 @@ public class AssetRegistrationService {
         try {
             return assetRepository.saveAndFlush(asset);
         } catch (OptimisticLockingFailureException e) {
-            Asset current = assetRepository.findById(assetId).orElseThrow(() -> NotFoundException.of("Asset", assetId));
+            Asset current = assetRepository.findByIdWithAssociations(assetId).orElseThrow(() -> NotFoundException.of("Asset", assetId));
             throw new OptimisticLockConflictException(command.version(), current.getVersion(), current);
         }
     }

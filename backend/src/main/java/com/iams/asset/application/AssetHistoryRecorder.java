@@ -23,14 +23,27 @@ public class AssetHistoryRecorder {
         this.currentUserProvider = currentUserProvider;
     }
 
-    public void record(Asset asset, AssetHistoryEventType eventType, String fieldName, String oldValue, String newValue) {
+    public AssetHistoryEvent record(Asset asset, AssetHistoryEventType eventType, String fieldName, String oldValue, String newValue) {
+        return record(asset, eventType, fieldName, oldValue, newValue, null);
+    }
+
+    /**
+     * US-LIF-12: the restore-within-window overload - correctionOf links a new
+     * event (e.g. a restore) back to the original event it's correcting/undoing
+     * (e.g. the disposal), without editing that original row. Mirrors
+     * AssetHistoryEvent.correctionOfEvent, reserved for exactly this since
+     * FR-AST-10 but never previously written by any call site.
+     */
+    public AssetHistoryEvent record(Asset asset, AssetHistoryEventType eventType, String fieldName, String oldValue,
+                                     String newValue, AssetHistoryEvent correctionOf) {
         AssetHistoryEvent event = new AssetHistoryEvent();
         event.setAsset(asset);
         event.setEventType(eventType);
         event.setFieldName(fieldName);
         event.setOldValue(oldValue);
         event.setNewValue(newValue);
+        event.setCorrectionOfEvent(correctionOf);
         event.setCreatedBy(currentUserProvider.current().id());
-        historyRepository.save(event);
+        return historyRepository.save(event);
     }
 }

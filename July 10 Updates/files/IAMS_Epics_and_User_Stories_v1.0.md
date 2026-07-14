@@ -1,10 +1,12 @@
 # Epics and User Stories
 ## Inventory Audit Management System (IAMS)
 
-**Document ID:** IAMS-EUS-1.0 | **Status:** Draft for Review | **Date:** 2026-07-10
+**Document ID:** IAMS-EUS-1.1 | **Status:** Draft for Review | **Date:** 2026-07-12
 **Derived from:** IAMS-BRD-2.0, IAMS-FRS-2.0, IAMS-SRS-2.0, IAMS-AC-1.0, IAMS-DD-1.1 Amendment, IAMS-PUC-1.1 (see `July 10 Updates/files/`). Where this document conflicts with any of those, they govern — this is a delivery-planning artifact, not a new requirements baseline.
 
-> **Coverage:** All 16 FRS modules, all three releases (R1/R2/R3), plus a 17th cross-cutting **Platform & Non-Functional Enablers** epic covering SRS architecture/NFR items that have no FR counterpart (object storage, concurrency, observability, rate limiting, deployment, accessibility). 162 functional requirements are represented 1:1 as user stories (a handful of FRs that are pure sub-clauses of a parent FR are folded into that parent's acceptance criteria and noted inline), plus 16 platform stories.
+> **v1.1 changelog (2026-07-12, adversarial review against the FRS/API Spec/Data Dictionary/RTM and the `UX design/IAMS Design System` UI kit):** despite `IAMS_RTM_Report_v1.1.md` §1 claiming "178 stories, verified 1:1 FR traceability" and 0 open issues, two FRs had no story at all: **FR-AUD-18** (audit/finding immutability — independently cited by the API Spec's corrections endpoint, the DD's `version` column, and the RTM itself) and **FR-SEC-03b** (optional MFA for non-mandated roles — cited in this document's own EPIC-SEC release-span note but never written up). Added **US-AUD-24** and **US-SEC-17** to close both. Also corrected 7 story statements that used a role name not on FR-USR-01's list, contradicting this document's own §1 convention that role names must match FR-USR-01 exactly: 5 stories (US-DSH-06, US-RPT-01/09/12, US-INT-01) said "Board Viewer" (not a real role — the closest is "Viewer"; independently confirmed absent from the design system's closed `users[]` role vocabulary), and 2 stories (US-NTF-04/05) said "Employee" instead of the actual combined role "Employee/Volunteer". Story/epic counts below are updated accordingly (178→180); RTM and the `.xlsx` tracker should be corrected to match in a follow-up pass.
+
+> **Coverage:** All 16 FRS modules, all three releases (R1/R2/R3), plus a 17th cross-cutting **Platform & Non-Functional Enablers** epic covering SRS architecture/NFR items that have no FR counterpart (object storage, concurrency, observability, rate limiting, deployment, accessibility). 163 functional requirements are represented 1:1 as user stories (a handful of FRs that are pure sub-clauses of a parent FR are folded into that parent's acceptance criteria and noted inline), plus 16 platform stories.
 
 ## 1. Conventions
 
@@ -23,13 +25,13 @@
 | EPIC-AST | Asset Management | BR-01, BR-14 | R1 (core) / R2 (15,16) | 16 | Elena, Marcus |
 | EPIC-ORG | Organization Management | BR-02 | R1 | 6 | Priya, Marcus |
 | EPIC-USR | User Management & RBAC | BR-11, BR-21 | R1 | 9 | Priya, Marcus |
-| EPIC-SEC | Security | BR-07, BR-13 | R1 (core) / R2 (03b,07,12,13) | 16 | Priya, Officer Reyes |
+| EPIC-SEC | Security | BR-07, BR-13 | R1 (core) / R2 (03b,07,12,13) | 17 | Priya, Officer Reyes |
 | EPIC-MIG | Data Migration & Bulk Import/Export | BR-12 | R1 (01,03,04,05) / R3 (02) | 5 | Priya, Marcus |
 | EPIC-CMP | Compliance & Data Privacy | BR-17, BR-18 | R1 | 6 | Officer Reyes |
 | EPIC-SRC | Search | BR-03 | R1 (01–03) / R2 (04) / R3 (05) | 5 | Devon, Elena |
 | EPIC-SCN | Scanning | BR-03 | R1 (01–05,07) / R2 (06) | 7 | Devon |
 | EPIC-LIF | Asset Lifecycle Management | BR-04 | R2 | 16 | Elena, Dept Head, Sam |
-| EPIC-AUD | Audit Management (core differentiator) | BR-05 | R2 | 23 | Devon, Dept Head, Grace |
+| EPIC-AUD | Audit Management (core differentiator) | BR-05 | R2 | 24 | Devon, Dept Head, Grace |
 | EPIC-INV | Inventory Management | BR-06 | R2 | 11 | Elena |
 | EPIC-NTF | Notifications | BR-09 | R2 | 10 | Sam, all roles |
 | EPIC-DSH | Dashboard | BR-08 | R2 | 7 | All roles, Board Viewer |
@@ -37,7 +39,7 @@
 | EPIC-INT | External Integrations | BR-16 | R1 (03) / R3 (01,02,04,05,06) | 6 | Priya, Officer Reyes, Board Viewer |
 | EPIC-ANL | Product Analytics | BR-20 | R2 | 4 | Priya, Marcus, Sam |
 | EPIC-PLAT | Platform & Non-Functional Enablers | BR-15, BR-19, §11.2 | Spans R1–R3 | 16 | Priya, IT/Infra Team |
-| **Total** | | | | **178** | |
+| **Total** | | | | **180** | |
 
 ---
 
@@ -344,6 +346,13 @@ As an IT Security Officer, I want every integration's credentials stored only as
 As a Super Administrator, I want a documented emergency-access path that is time-boxed, reason-recorded, and dual-notified, so that a genuine emergency doesn't force me to bypass security controls invisibly.
 - Given a Super Admin invokes break-glass with a reason, when activated, then elevated access lasts at most 4 hours, the IT Security Officer and one other Administrator are notified immediately, and every action in the window is flagged in the log (AC-SEC-16-H).
 - Given no reason is supplied, when invocation is attempted, then it is rejected; given the window expires, then elevation ends automatically and the event stays flagged until reviewed (AC-SEC-16-X).
+
+**US-SEC-17 — Offer optional MFA enrollment for roles not mandated**
+*FR-SEC-03b · Could · R2*
+> Added in v1.1 to close a traceability gap: FR-SEC-03b is individually tagged `[Could]` in the FRS (§2.12) and explicitly listed in both the Release Mapping Appendix (R2) and this document's own EPIC-SEC summary-table release-span note ("R2 (03b,07,12,13)"), but v1.0 never wrote its story — only FR-SEC-03a (US-SEC-03) existed.
+As a user in a role where MFA isn't mandatory (e.g., an Auditor or Inventory Manager), I want to voluntarily enroll in TOTP MFA, so that I can opt into stronger account protection without waiting for a policy that forces it.
+- Given a user whose role doesn't require MFA, when they open their security settings and enroll in TOTP MFA, then enrollment completes and subsequent logins require the second factor.
+- Given a voluntarily-enrolled user chooses to disable it, when they do so after re-authenticating, then MFA is no longer required at their next login — Super Administrator/Administrator accounts are unaffected by this toggle and remain mandatorily enrolled per FR-SEC-03a (US-SEC-03).
 
 ---
 
@@ -753,6 +762,13 @@ As an Auditor, I want an asset that gets transferred or disposed while my audit 
 - Given an expected asset is transferred to a new location mid-audit, when the transfer posts, then it's flagged "Scope Changed During Audit" pending disposition.
 - Given the audit is closed with any scope-change disposition still open, when closure is attempted, then it's blocked until each is set to Confirm Verified at New Location, Exclude from Scope, or Accept as Exception.
 
+**US-AUD-24 — Correct a recorded finding only via an immutable, linked correction record**
+*FR-AUD-18 · Must · R2*
+> Added in v1.1 to close a traceability gap: FR-AUD-18 ("immutability with corrections-as-linked-records," per FRS §2.5's unchanged-from-v1.2 block) is independently cited by the API Specification's `POST /audits/{id}/findings/{findingId}/corrections` endpoint, the Data Dictionary's `version` column note, the RTM, and the Personas doc, but had no corresponding story in v1.0. Numbered out of sequence (appended rather than inserted as US-AUD-13/14) to avoid renumbering every downstream cross-reference to US-AUD-13–23 elsewhere in this document and in the RTM.
+As an Auditor assigned to the audit or an Administrator, I want to correct a mistake in a recorded finding only by adding a new linked correction record — never by editing the original in place — so that the audit trail stays tamper-evident even when the auditor themselves made the error.
+- Given a finding with an incorrect condition value, when a correction is submitted via `POST /audits/{id}/findings/{findingId}/corrections`, then a new linked correction record is created carrying the old value, the new value, actor, and timestamp, and the original finding remains unchanged and visible alongside it.
+- Given any actor, including a Super Administrator, attempts to edit or delete the original finding directly, when attempted, then the API refuses it and points to the corrections endpoint instead.
+
 ---
 
 ## 13. EPIC-INV — Inventory Management
@@ -851,13 +867,13 @@ As any user, I want notifications inside the app with clear read/unread state, s
 
 **US-NTF-04 — Notify affected parties on assignment and transfer**
 *FR-NTF-04 · Must · R2*
-As an Employee, I want to be notified when an asset is assigned or transferred to or from me, so that I'm never surprised by custodianship I didn't know about.
+As an Employee/Volunteer, I want to be notified when an asset is assigned or transferred to or from me, so that I'm never surprised by custodianship I didn't know about.
 - Given an asset is assigned to me, when the assignment commits, then I, the source approver, and the destination approver are all notified.
 - Given a transfer is rejected, when rejected, then the requester and affected holder are notified with the reason.
 
 **US-NTF-05 — Set per-event-type notification channel preferences**
 *FR-NTF-05 · Must · R2*
-As an Employee tired of irrelevant notifications, I want to control which channel I receive each event type on, so that I'm not nagged by things that don't matter to me — except where the Administrator has locked a type as mandatory.
+As an Employee/Volunteer tired of irrelevant notifications, I want to control which channel I receive each event type on, so that I'm not nagged by things that don't matter to me — except where the Administrator has locked a type as mandatory.
 - Given I turn off email for "low stock" (not applicable to my role's mandatory list), when saved, then I stop receiving that event by email but still see it in-app.
 - Given an Administrator has locked "security alert" as mandatory, when I view my preferences, then that type is visibly non-editable.
 
@@ -929,7 +945,7 @@ As a Department Head, I want a recent-activity feed and an audit calendar view, 
 
 **US-DSH-06 — Configure which KPIs appear on my dashboard**
 *FR-DSH-06 · Must · R2*
-As a Board Viewer, I want to choose which KPI tiles appear on my dashboard, so that the view matches what I actually care about rather than a fixed, generic layout.
+As a Viewer, I want to choose which KPI tiles appear on my dashboard, so that the view matches what I actually care about rather than a fixed, generic layout.
 - Given a set of available KPI tiles, when I select a subset and save, then my dashboard renders only those tiles on next load.
 - Given I haven't configured anything yet, when I first load the dashboard, then a sensible role-appropriate default set renders.
 
@@ -947,7 +963,7 @@ As a Department Head, I want my dashboard automatically filtered to my role and 
 
 **US-RPT-01 — Generate a full asset register report**
 *FR-RPT-01 · Must · R2*
-As a Board Viewer, I want a complete asset register report, so that I can present an accurate inventory position without asking IT to pull one together.
+As a Viewer, I want a complete asset register report, so that I can present an accurate inventory position without asking IT to pull one together.
 - Given the current asset register, when the report is generated, then every in-scope asset appears with its key attributes.
 - Given the register exceeds a page-renderable size, when generated, then it streams/paginates rather than timing out.
 
@@ -995,7 +1011,7 @@ As a Read-only Auditor, I want an audit compliance/summary report across a perio
 
 **US-RPT-09 — Generate a depreciation report**
 *FR-RPT-09 · Must · R2*
-As a Board Viewer, I want a depreciation report using the parameters set on each asset/category (FR-AST-16), so that I have defensible net book value figures for board reporting without a separate spreadsheet.
+As a Viewer, I want a depreciation report using the parameters set on each asset/category (FR-AST-16), so that I have defensible net book value figures for board reporting without a separate spreadsheet.
 - Given assets with depreciation parameters set, when the report is generated, then net book value per asset computes from the stored schedule, as of the report date.
 - Given an asset has no depreciation parameters configured, when generated, then it appears clearly flagged as "not depreciated" rather than showing a misleading zero.
 
@@ -1013,7 +1029,7 @@ As an Inventory Manager, I want to select a set of assets and print all their la
 
 **US-RPT-12 — Export any report to PDF, Excel, or CSV**
 *FR-RPT-12 · Must · R2*
-As a Board Viewer, I want any report exportable to PDF, Excel, or CSV, so that I can bring the data into whatever tool the board meeting actually uses.
+As a Viewer, I want any report exportable to PDF, Excel, or CSV, so that I can bring the data into whatever tool the board meeting actually uses.
 - Given a generated report, when I choose Excel export, then a correctly formatted .xlsx downloads matching the on-screen data.
 - Given a very large report export, when requested, then it runs as a background job with progress rather than blocking the UI.
 
@@ -1043,7 +1059,7 @@ As an Inventory Manager, I want to build a custom report from available fields a
 
 **US-INT-01 — Export depreciation and valuation data read-only to accounting**
 *FR-INT-01 · Must · R3*
-As a Board Viewer / Finance Officer, I want a read-only, stable-schema export of depreciation and valuation data for accounting/ERP consumption, so that finance can ingest asset figures without a live bidirectional integration risk.
+As a Viewer, I want a read-only, stable-schema export of depreciation and valuation data for accounting/ERP consumption, so that finance can ingest asset figures without a live bidirectional integration risk.
 - Given the export is enabled and reviewed, when run, then a CSV/JSON file in the documented, stable column schema is produced with no write path back into IAMS.
 - Given the schema changes in a future version, when released, then it's versioned so existing accounting-side imports don't silently break.
 
@@ -1213,4 +1229,11 @@ As an IT Security Officer, I want Swagger UI and `/v3/api-docs` open in dev/stag
 
 ## Appendix — FR Coverage Cross-Check
 
-Every FR in FRS 2.0 §2 maps 1:1 to exactly one user story above by matching ID suffix (e.g., `FR-AUD-19` → `US-AUD-19`), with two intentional exceptions: the AUD module's signature clarification is folded into **US-AUD-13** (it re-describes FR-AUD-12, not a new numbered FR), and platform stories (`US-PLAT-*`) map to SRS sections/NFR IDs rather than FR IDs since the SRS assigns no FR to pure architecture/NFR items. If a future FR is added to the FRS, add its matching `US-<MODULE>-<NN>` here in the same pass that updates the RTM.
+Every FR in FRS 2.0 §2 now maps to exactly one user story above. Matching is by ID suffix (e.g., `FR-AUD-19` → `US-AUD-19`) **except** for three documented exceptions:
+1. The AUD module's signature clarification is folded into **US-AUD-13** (it re-describes FR-AUD-12, not a new numbered FR).
+2. **FR-AUD-18** maps to **US-AUD-24**, not US-AUD-18, because it was discovered missing only after US-AUD-01–23 were already numbered against FR-AUD-01–23 sequentially; appended rather than renumbered to avoid breaking every existing cross-reference to US-AUD-13–23 in this document and in the RTM (see v1.1 changelog above).
+3. **FR-SEC-03b** maps to **US-SEC-17**, appended after US-SEC-16 for the same reason (US-SEC-01–16 were already numbered against FR-SEC-01–16 treating "03a" as the only 03-slot).
+
+Platform stories (`US-PLAT-*`) map to SRS sections/NFR IDs rather than FR IDs since the SRS assigns no FR to pure architecture/NFR items.
+
+If a future FR is added to the FRS, add its matching `US-<MODULE>-<NN>` here in the same pass that updates the RTM — and re-run the coverage check this revision used (diff every `FR-<MODULE>-<NN>` range stated in FRS §2 against every FR citation in this document) rather than trusting a prior pass's summary count, since that check is exactly what caught FR-AUD-18 and FR-SEC-03b after RTM v1.1 had already reported full coverage.

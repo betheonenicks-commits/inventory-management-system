@@ -9,5 +9,8 @@ public interface AssetHistoryEventRepository extends JpaRepository<AssetHistoryE
 
     Page<AssetHistoryEvent> findByAssetIdOrderByCreatedAtDesc(UUID assetId, Pageable pageable);
 
+    Page<AssetHistoryEvent> findByAssetIdAndEventTypeOrderByCreatedAtDesc(
+            UUID assetId, AssetHistoryEventType eventType, Pageable pageable);
+
     long countByAssetId(UUID assetId);
 }

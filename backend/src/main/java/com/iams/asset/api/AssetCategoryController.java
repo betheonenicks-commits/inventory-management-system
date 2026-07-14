@@ -50,25 +50,28 @@ public class AssetCategoryController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize("@perm.has('asset-categories:write')")
     public ResponseEntity<AssetCategoryResponse> create(@Valid @RequestBody AssetCategoryRequest request) {
         List<AssetCategoryService.CustomFieldSpec> fields = toSpecs(request);
-        AssetCategory category = categoryService.create(request.name(), request.code(), fields);
+        AssetCategory category = categoryService.create(request.name(), request.code(), fields, request.requiresVehicleFields(),
+                request.defaultDepreciationMethod(), request.defaultUsefulLifeMonths(), request.defaultSalvageValuePct());
         AssetCategoryResponse response = mapper.toResponse(category, categoryService.fieldDefinitions(category.getId()));
         return ResponseEntity.created(URI.create("/api/v1/asset-categories/" + category.getId())).body(response);
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize("@perm.has('asset-categories:write')")
     public AssetCategoryResponse update(@PathVariable UUID id, @Valid @RequestBody AssetCategoryRequest request) {
         long expectedVersion = request.version() != null ? request.version() : 0L;
         List<AssetCategoryService.CustomFieldSpec> fields = toSpecs(request);
-        AssetCategory category = categoryService.update(id, request.name(), request.code(), request.active(), fields, expectedVersion);
+        AssetCategory category = categoryService.update(id, request.name(), request.code(), request.active(), fields,
+                request.requiresVehicleFields(), request.defaultDepreciationMethod(), request.defaultUsefulLifeMonths(),
+                request.defaultSalvageValuePct(), expectedVersion);
         return mapper.toResponse(category, categoryService.fieldDefinitions(id));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize("@perm.has('asset-categories:write')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         categoryService.delete(id);
         return ResponseEntity.noContent().build();
