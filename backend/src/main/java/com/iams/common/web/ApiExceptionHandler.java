@@ -8,6 +8,7 @@ import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.AccountLockedException;
 import com.iams.common.security.InvalidCredentialsException;
 import com.iams.common.security.InvalidRefreshTokenException;
+import com.iams.compliance.application.LegalHoldActiveException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.time.Instant;
@@ -114,6 +115,13 @@ public class ApiExceptionHandler {
     public ResponseEntity<ProblemDetail> handleAccountLocked(AccountLockedException ex, HttpServletRequest req) {
         ProblemDetail pd = build(HttpStatus.LOCKED, "account-locked", "Account Locked", ex.getMessage(), "ACCOUNT_LOCKED", req);
         pd.setProperty("lockedUntil", ex.getLockedUntil());
+        return ResponseEntity.status(HttpStatus.LOCKED).body(pd);
+    }
+
+    @ExceptionHandler(LegalHoldActiveException.class)
+    public ResponseEntity<ProblemDetail> handleLegalHoldActive(LegalHoldActiveException ex, HttpServletRequest req) {
+        ProblemDetail pd = build(HttpStatus.LOCKED, "legal-hold-active", "Legal Hold Active", ex.getMessage(), "LEGAL_HOLD_ACTIVE", req);
+        pd.setProperty("scopeType", ex.getScopeType());
         return ResponseEntity.status(HttpStatus.LOCKED).body(pd);
     }
 

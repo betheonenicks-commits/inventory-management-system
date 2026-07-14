@@ -20,5 +20,9 @@ public enum SecurityEventType {
     /** A refresh token already revoked (rotated or logged out) was presented again - possible token theft/replay. */
     REFRESH_TOKEN_REUSE_DETECTED,
     /** US-SEC-06: a refresh token was refused for having gone unused longer than the configured idle timeout. */
-    SESSION_EXPIRED
+    SESSION_EXPIRED,
+    /** US-CMP-01: "the purge itself is logged" - one row per retention-purge run, naming what was purged and how many rows. */
+    RETENTION_PURGE_EXECUTED,
+    /** US-CMP-02: a departed person's personal data was anonymized following Compliance Officer approval. */
+    PERSON_ANONYMIZED
 }

@@ -16,6 +16,7 @@ import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUser;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.compliance.application.LegalHoldService;
 import com.iams.lifecycle.domain.AssetDisposalRequest;
 import com.iams.lifecycle.domain.AssetDisposalRequestRepository;
 import com.iams.lifecycle.domain.DisposalType;
@@ -48,6 +49,7 @@ class DisposalServiceTest {
     @Mock private CurrentUserProvider currentUserProvider;
     @Mock private OrgScopeGuard scopeGuard;
     @Mock private LifecycleProperties lifecycleProperties;
+    @Mock private LegalHoldService legalHoldService;
 
     private DisposalService service;
     private UUID actorId;
@@ -58,7 +60,7 @@ class DisposalServiceTest {
     void setUp() {
         service = new DisposalService(disposalRepository, assetRepository, statusDefRepository, historyRecorder,
                 historyEventRepository, routingService, auditScopeChangeService, appUserRepository, currentUserProvider,
-                scopeGuard, lifecycleProperties);
+                scopeGuard, lifecycleProperties, legalHoldService);
         actorId = UUID.randomUUID();
         approverId = UUID.randomUUID();
         asset = new Asset();

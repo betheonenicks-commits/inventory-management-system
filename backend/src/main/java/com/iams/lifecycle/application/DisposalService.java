@@ -13,6 +13,8 @@ import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.compliance.application.LegalHoldService;
+import com.iams.compliance.domain.LegalHoldScopeType;
 import com.iams.lifecycle.domain.AssetDisposalRequest;
 import com.iams.lifecycle.domain.AssetDisposalRequestRepository;
 import com.iams.lifecycle.domain.DisposalType;
@@ -48,13 +50,14 @@ public class DisposalService {
     private final CurrentUserProvider currentUserProvider;
     private final OrgScopeGuard scopeGuard;
     private final LifecycleProperties lifecycleProperties;
+    private final LegalHoldService legalHoldService;
 
     public DisposalService(AssetDisposalRequestRepository disposalRepository, AssetRepository assetRepository,
                             AssetStatusDefRepository statusDefRepository, AssetHistoryRecorder historyRecorder,
                             AssetHistoryEventRepository historyEventRepository, ApprovalRoutingService routingService,
                             AuditScopeChangeService auditScopeChangeService, AppUserRepository appUserRepository,
                             CurrentUserProvider currentUserProvider, OrgScopeGuard scopeGuard,
-                            LifecycleProperties lifecycleProperties) {
+                            LifecycleProperties lifecycleProperties, LegalHoldService legalHoldService) {
         this.disposalRepository = disposalRepository;
         this.assetRepository = assetRepository;
         this.statusDefRepository = statusDefRepository;
@@ -66,6 +69,7 @@ public class DisposalService {
         this.currentUserProvider = currentUserProvider;
         this.scopeGuard = scopeGuard;
         this.lifecycleProperties = lifecycleProperties;
+        this.legalHoldService = legalHoldService;
     }
 
     @Transactional
@@ -115,6 +119,8 @@ public class DisposalService {
         AssetDisposalRequest request = requireStatus(id, LifecycleRequestStatus.PENDING);
         UUID actor = currentUserProvider.current().id();
         requireIsRoutedApprover(request, actor);
+        // AC-CMP-06-H: a legal hold on this asset blocks disposal until it's lifted.
+        legalHoldService.requireNoActiveHold(LegalHoldScopeType.ASSET, request.getAsset().getId());
 
         Asset asset = request.getAsset();
         String targetStatusCode = request.getDisposalType() == DisposalType.RETIRE ? RETIRED_STATUS_CODE : DISPOSED_STATUS_CODE;
