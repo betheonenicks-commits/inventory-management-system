@@ -9,6 +9,8 @@ import { AssetEditPage } from '../features/assets/AssetEditPage'
 import { CategoryConfigPage } from '../features/assets/CategoryConfigPage'
 import { UserListPage } from '../features/users/UserListPage'
 import { RoleListPage } from '../features/roles/RoleListPage'
+import { AuditListPage } from '../features/audits/AuditListPage'
+import { AuditDetailPage } from '../features/audits/AuditDetailPage'
 import { NotFoundPage } from '../components/common/NotFoundPage'
 
 export const router = createBrowserRouter([
@@ -27,6 +29,8 @@ export const router = createBrowserRouter([
           { path: 'assets/:assetId/edit', element: <AssetEditPage /> },
           { path: 'users', element: <UserListPage /> },
           { path: 'roles', element: <RoleListPage /> },
+          { path: 'audits', element: <AuditListPage /> },
+          { path: 'audits/:auditId', element: <AuditDetailPage /> },
         ],
       },
     ],

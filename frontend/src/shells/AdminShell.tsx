@@ -18,6 +18,7 @@ import CategoryIcon from '@mui/icons-material/Category'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import PeopleIcon from '@mui/icons-material/People'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
+import FactCheckIcon from '@mui/icons-material/FactCheck'
 import { useAuthStore, hasPermission } from '../auth/authStore'
 import { logout as logoutApi } from '../api/authApi'
 
@@ -38,6 +39,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Assets', to: '/assets', icon: <Inventory2Icon /> },
   { label: 'Categories', to: '/assets/categories', icon: <CategoryIcon /> },
+  { label: 'Audits', to: '/audits', icon: <FactCheckIcon />, requiresPermission: 'audits:read' },
   { label: 'Users', to: '/users', icon: <PeopleIcon />, requiresPermission: 'users:read' },
   { label: 'Roles', to: '/roles', icon: <AdminPanelSettingsIcon />, requiresPermission: 'roles:read' },
 ]

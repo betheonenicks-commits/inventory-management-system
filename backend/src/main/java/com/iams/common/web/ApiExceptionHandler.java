@@ -139,8 +139,20 @@ public class ApiExceptionHandler {
         // handleGeneric() below and returned a 500, not a 403 - found via live
         // click-testing for the OrgScopeGuard case specifically (the @PreAuthorize case
         // was caught and fixed earlier the same day).
-        ProblemDetail pd = build(HttpStatus.FORBIDDEN, "forbidden", "Forbidden",
-                "You do not have permission to perform this action.", "FORBIDDEN", req);
+        //
+        // ex.getClass() == AccessDeniedException.class (not a subclass check) singles out
+        // the plain-application-throw case - OrgScopeGuard, and the six routed-approver/
+        // active-auditor checks across Transfer/Disposal/PurchaseRequest/AuditWorkflow/
+        // AuditScan - all of which throw a deliberately specific, actionable message.
+        // AuthorizationDeniedException (the @PreAuthorize/AOP case) is a subclass, so it
+        // still falls through to the generic detail below, unchanged - Spring's own
+        // message there ("Access Denied") isn't written for end users. Found via browser-
+        // testing EPIC-AUD's frontend: a real "you're not the active auditor on this
+        // audit" denial rendered as the same unhelpful generic string as every other 403.
+        String detail = ex.getClass() == AccessDeniedException.class && ex.getMessage() != null
+                ? ex.getMessage()
+                : "You do not have permission to perform this action.";
+        ProblemDetail pd = build(HttpStatus.FORBIDDEN, "forbidden", "Forbidden", detail, "FORBIDDEN", req);
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(pd);
     }
 
