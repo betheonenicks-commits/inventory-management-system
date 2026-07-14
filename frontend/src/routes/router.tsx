@@ -12,6 +12,9 @@ import { RoleListPage } from '../features/roles/RoleListPage'
 import { AuditListPage } from '../features/audits/AuditListPage'
 import { AuditDetailPage } from '../features/audits/AuditDetailPage'
 import { CompliancePage } from '../features/compliance/CompliancePage'
+import { PurchaseRequestListPage } from '../features/procurement/PurchaseRequestListPage'
+import { PurchaseOrderListPage } from '../features/procurement/PurchaseOrderListPage'
+import { PurchaseOrderDetailPage } from '../features/procurement/PurchaseOrderDetailPage'
 import { NotFoundPage } from '../components/common/NotFoundPage'
 
 export const router = createBrowserRouter([
@@ -33,6 +36,9 @@ export const router = createBrowserRouter([
           { path: 'audits', element: <AuditListPage /> },
           { path: 'audits/:auditId', element: <AuditDetailPage /> },
           { path: 'compliance', element: <CompliancePage /> },
+          { path: 'procurement/purchase-requests', element: <PurchaseRequestListPage /> },
+          { path: 'procurement/purchase-orders', element: <PurchaseOrderListPage /> },
+          { path: 'procurement/purchase-orders/:orderId', element: <PurchaseOrderDetailPage /> },
         ],
       },
     ],

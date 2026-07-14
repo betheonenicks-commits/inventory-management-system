@@ -1,11 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createUser, deactivateUser, fetchUser, fetchUsers } from '../../../api/users/userApi'
+import { createUser, deactivateUser, fetchPickableUsers, fetchUser, fetchUsers } from '../../../api/users/userApi'
 import type { UserCreatePayload } from '../../../api/users/userApi'
 
 export function useUsersQuery(enabled = true) {
   return useQuery({
     queryKey: ['USR', 'users'],
     queryFn: fetchUsers,
+    enabled,
+  })
+}
+
+/** For approver/assignee pickers - any authenticated user, not just users:read holders. */
+export function usePickableUsersQuery(enabled = true) {
+  return useQuery({
+    queryKey: ['USR', 'pickable'],
+    queryFn: fetchPickableUsers,
     enabled,
   })
 }

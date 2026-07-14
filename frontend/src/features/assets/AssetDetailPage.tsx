@@ -19,6 +19,9 @@ import { AssetAssignmentPanel } from './components/AssetAssignmentPanel'
 import { AssetInsurancePanel } from './components/AssetInsurancePanel'
 import { AssetVehiclePanel } from './components/AssetVehiclePanel'
 import { AssetDepreciationPanel } from './components/AssetDepreciationPanel'
+import { AssetTransferPanel } from './components/AssetTransferPanel'
+import { AssetDisposalPanel } from './components/AssetDisposalPanel'
+import { AssetMaintenancePanel } from './components/AssetMaintenancePanel'
 import { LabelPreview } from './components/LabelPreview'
 import { useAssetQuery, useAssetHistoryQuery, useAssetMovementsQuery } from './hooks/useAssetQuery'
 import { useChangeAssetStatusMutation } from './hooks/useUpdateAssetMutation'
@@ -172,8 +175,20 @@ export function AssetDetailPage() {
             </Paper>
           )}
 
-          <Paper variant="outlined" sx={{ p: 2 }}>
+          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
             <AssetDepreciationPanel asset={asset} />
+          </Paper>
+
+          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+            <AssetTransferPanel asset={asset} />
+          </Paper>
+
+          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+            <AssetDisposalPanel asset={asset} />
+          </Paper>
+
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <AssetMaintenancePanel asset={asset} />
           </Paper>
         </Grid>
       </Grid>

@@ -20,6 +20,8 @@ import PeopleIcon from '@mui/icons-material/People'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
 import GavelIcon from '@mui/icons-material/Gavel'
+import RequestQuoteIcon from '@mui/icons-material/RequestQuote'
+import LocalShippingIcon from '@mui/icons-material/LocalShipping'
 import { useAuthStore, hasPermission } from '../auth/authStore'
 import { logout as logoutApi } from '../api/authApi'
 
@@ -41,6 +43,13 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Assets', to: '/assets', icon: <Inventory2Icon /> },
   { label: 'Categories', to: '/assets/categories', icon: <CategoryIcon /> },
   { label: 'Audits', to: '/audits', icon: <FactCheckIcon />, requiresPermission: 'audits:read' },
+  {
+    label: 'Purchase Requests',
+    to: '/procurement/purchase-requests',
+    icon: <RequestQuoteIcon />,
+    requiresPermission: 'assets:read',
+  },
+  { label: 'Purchase Orders', to: '/procurement/purchase-orders', icon: <LocalShippingIcon />, requiresPermission: 'assets:read' },
   { label: 'Users', to: '/users', icon: <PeopleIcon />, requiresPermission: 'users:read' },
   { label: 'Roles', to: '/roles', icon: <AdminPanelSettingsIcon />, requiresPermission: 'roles:read' },
   { label: 'Compliance', to: '/compliance', icon: <GavelIcon />, requiresPermission: 'compliance:read' },

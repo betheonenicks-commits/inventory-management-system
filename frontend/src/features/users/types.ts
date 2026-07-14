@@ -18,3 +18,9 @@ export interface User {
   updatedBy: string | null
   updatedAt: string | null
 }
+
+// Mirrors backend/src/main/java/com/iams/usr/api/dto/UserSummaryResponse.java
+export interface UserSummary {
+  id: string
+  displayName: string
+}

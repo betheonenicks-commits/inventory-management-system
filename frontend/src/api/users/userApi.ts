@@ -1,5 +1,5 @@
 import { httpClient } from '../httpClient'
-import type { User } from '../../features/users/types'
+import type { User, UserSummary } from '../../features/users/types'
 
 export interface UserCreatePayload {
   username: string
@@ -13,6 +13,11 @@ export interface UserCreatePayload {
 
 export function fetchUsers() {
   return httpClient.get<User[]>('/users').then((r) => r.data)
+}
+
+/** Open to any authenticated user (no users:read needed) - see UserController.pickable(). */
+export function fetchPickableUsers() {
+  return httpClient.get<UserSummary[]>('/users/pickable').then((r) => r.data)
 }
 
 export function fetchUser(id: string) {

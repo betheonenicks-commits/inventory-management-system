@@ -4,10 +4,12 @@ import com.iams.common.security.CurrentUserProvider;
 import com.iams.usr.api.dto.UserCreateRequest;
 import com.iams.usr.api.dto.UserDeactivateRequest;
 import com.iams.usr.api.dto.UserResponse;
+import com.iams.usr.api.dto.UserSummaryResponse;
 import com.iams.usr.application.UserDeactivationService;
 import com.iams.usr.application.UserLockoutService;
 import com.iams.usr.application.UserProvisioningService;
 import com.iams.usr.application.UserQueryService;
+import com.iams.usr.domain.UserStatus;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -23,8 +25,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * US-USR-01 (provision), US-USR-08 (block offboarding while assets remain
- * assigned). List/get are Administrator+ only, same as PersonController -
- * user accounts are not something every role can browse.
+ * assigned). list()/get() are Administrator+ only - user accounts are not
+ * something every role can browse. pickable() is the deliberate exception:
+ * it's open to any authenticated user but returns only id/displayName.
  */
 @RestController
 @RequestMapping("/api/v1/users")
@@ -52,6 +55,20 @@ public class UserController {
     @PreAuthorize("@perm.has('users:read')")
     public List<UserResponse> list() {
         return queryService.list().stream().map(mapper::toResponse).toList();
+    }
+
+    /**
+     * Any authenticated user - not just users:read holders - needs to name a colleague
+     * as a transfer/disposal/purchase-request approver (US-LIF-05/10, US-PRC-01), so this
+     * intentionally has no @PreAuthorize, same as PersonController.list(). Returns only
+     * id/displayName of active users, never the sensitive fields on UserResponse.
+     */
+    @GetMapping("/pickable")
+    public List<UserSummaryResponse> pickable() {
+        return queryService.list().stream()
+                .filter(u -> u.user().getStatus() == UserStatus.ACTIVE)
+                .map(mapper::toSummary)
+                .toList();
     }
 
     @GetMapping("/{id}")
