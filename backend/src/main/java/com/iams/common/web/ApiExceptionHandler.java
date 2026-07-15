@@ -25,6 +25,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -82,6 +83,22 @@ public class ApiExceptionHandler {
         ProblemDetail pd = build(HttpStatus.BAD_REQUEST, "validation-failed", "Validation Failed",
                 "Parameter '" + ex.getName() + "' has an invalid value.", "VALIDATION_FAILED", req);
         pd.setProperty("errors", List.of(new ValidationErrorItem(ex.getName(), "Invalid value")));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
+
+    /**
+     * An absent required query parameter is the same caller-fault class as a
+     * malformed one (the handler above) - without this it also fell through
+     * to the generic 500. Found by EPIC-RPT's adversarial pass on
+     * /reports/employee-assets with personId omitted; pre-existing for every
+     * required @RequestParam in the codebase.
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ProblemDetail> handleMissingParameter(MissingServletRequestParameterException ex,
+                                                                 HttpServletRequest req) {
+        ProblemDetail pd = build(HttpStatus.BAD_REQUEST, "validation-failed", "Validation Failed",
+                "Parameter '" + ex.getParameterName() + "' is required.", "VALIDATION_FAILED", req);
+        pd.setProperty("errors", List.of(new ValidationErrorItem(ex.getParameterName(), "Required parameter is missing")));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 

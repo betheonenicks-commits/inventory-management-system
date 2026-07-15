@@ -16,6 +16,7 @@ import { PurchaseRequestListPage } from '../features/procurement/PurchaseRequest
 import { PurchaseOrderListPage } from '../features/procurement/PurchaseOrderListPage'
 import { PurchaseOrderDetailPage } from '../features/procurement/PurchaseOrderDetailPage'
 import { DashboardPage } from '../features/dashboard/DashboardPage'
+import { ReportsPage } from '../features/reports/ReportsPage'
 import { InventoryItemListPage } from '../features/inventory/InventoryItemListPage'
 import { InventoryItemDetailPage } from '../features/inventory/InventoryItemDetailPage'
 import { WarehouseListPage } from '../features/inventory/WarehouseListPage'
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="/assets" replace /> },
           { path: 'dashboard', element: <DashboardPage /> },
+          { path: 'reports', element: <ReportsPage /> },
           { path: 'assets', element: <AssetListPage /> },
           { path: 'assets/new', element: <AssetRegisterWizardPage /> },
           { path: 'assets/categories', element: <CategoryConfigPage /> },
