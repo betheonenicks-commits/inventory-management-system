@@ -27,7 +27,7 @@ import { ErrorPanel } from '../../components/common/ErrorPanel'
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton'
 import { useAuthStore, hasPermission } from '../../auth/authStore'
 import { isApiProblem } from '../../api/errors'
-import { useUsersQuery } from '../users/hooks/useUsersQuery'
+import { usePickableUsersQuery } from '../users/hooks/useUsersQuery'
 import { useAssetCategoriesQuery } from '../assets/hooks/useAssetCategoriesQuery'
 import { useOrgNodesQuery } from './hooks/useOrgNodesQuery'
 import { useAuditsQuery, useCreateAuditMutation } from './hooks/useAuditsQuery'
@@ -75,11 +75,13 @@ export function AuditListPage() {
   const status = STATUS_TABS[statusTab].value
   const auditsQuery = useAuditsQuery(status)
   const canWrite = hasPermission(useAuthStore((s) => s.user), 'audits:write')
-  // Only fetched for the New Audit dialog's approver picker - a read-only viewer
-  // (e.g. a Department Head with no users:read) must not trigger this call at
-  // all, not just have the dialog hidden (found via browser-testing: it 403'd
-  // for exactly that role).
-  const usersQuery = useUsersQuery(canWrite)
+  // Only fetched for the New Audit dialog's approver picker, and deliberately the
+  // low-privilege /users/pickable endpoint (id + displayName only, no permission
+  // gate) rather than the full users:read-gated list - AUDITOR holds audits:write
+  // but not users:read, so the story's own "As an Auditor, define an audit" flow
+  // 403'd on this picker until switched. Same fix EPIC-LIF's approver pickers
+  // already needed for Inventory Manager/Department Head.
+  const usersQuery = usePickableUsersQuery(canWrite)
   const categoriesQuery = useAssetCategoriesQuery()
   const orgNodesQuery = useOrgNodesQuery()
   const createAudit = useCreateAuditMutation()
@@ -252,7 +254,7 @@ export function AuditListPage() {
               >
                 {(usersQuery.data ?? []).map((user) => (
                   <MenuItem key={user.id} value={user.id}>
-                    {user.displayName} ({user.username})
+                    {user.displayName}
                   </MenuItem>
                 ))}
               </Select>

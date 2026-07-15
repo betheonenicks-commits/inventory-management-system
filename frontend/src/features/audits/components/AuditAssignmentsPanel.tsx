@@ -12,7 +12,7 @@ import Select from '@mui/material/Select'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { ErrorPanel } from '../../../components/common/ErrorPanel'
-import { useUsersQuery } from '../../users/hooks/useUsersQuery'
+import { usePickableUsersQuery } from '../../users/hooks/useUsersQuery'
 import {
   useAssignAuditorMutation,
   useAuditAssignmentsQuery,
@@ -22,15 +22,18 @@ import {
 /** US-AUD-02: assign one or more auditors to an audit, optionally splitting scope. */
 export function AuditAssignmentsPanel({ auditId, canWrite }: { auditId: string; canWrite: boolean }) {
   const assignmentsQuery = useAuditAssignmentsQuery(auditId)
-  // Gated behind canWrite - a read-only viewer without users:read (e.g. a
-  // Department Head, who can approve but not assign) must not trigger this
-  // call at all. Found via browser-testing: it 403'd for exactly that role.
-  const usersQuery = useUsersQuery(canWrite)
+  // The low-privilege /users/pickable endpoint, not users:read-gated /users - an
+  // AUDITOR holds audits:write (so canWrite is true for them too) but not
+  // users:read, and 403'd here on every audit detail page until switched.
+  // Trade-off: pickable strips roleCodes (deliberately - see UserSummaryResponse's
+  // own doc comment), so this can no longer filter to AUDITOR-role users only;
+  // it now offers every active user as a candidate assignee.
+  const usersQuery = usePickableUsersQuery(canWrite)
   const assignAuditor = useAssignAuditorMutation(auditId)
   const unassignAuditor = useUnassignAuditorMutation(auditId)
   const [selectedAuditor, setSelectedAuditor] = useState('')
 
-  const auditors = (usersQuery.data ?? []).filter((u) => u.roleCodes.includes('AUDITOR'))
+  const auditors = usersQuery.data ?? []
 
   async function handleAssign() {
     if (!selectedAuditor) return

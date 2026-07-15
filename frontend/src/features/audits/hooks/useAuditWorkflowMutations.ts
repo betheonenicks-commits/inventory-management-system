@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { approveAudit, rejectAudit, submitAudit } from '../../../api/audits/auditApi'
+import { approveAudit, escalateAudit, rejectAudit, submitAudit } from '../../../api/audits/auditApi'
 
 // Submit auto-classifies every not-yet-verified expected asset as Missing
 // (US-AUD-09) and reject undoes those system-classified Missing findings
@@ -35,5 +35,17 @@ export function useRejectAuditMutation(auditId: string) {
   return useMutation({
     mutationFn: (reason: string) => rejectAudit(auditId, reason),
     onSuccess: () => invalidateAuditAndDerivedData(queryClient, auditId),
+  })
+}
+
+/** US-AUD-14: only the audit's own status/effectiveApproverId change - no derived progress/exceptions data to invalidate. */
+export function useEscalateAuditMutation(auditId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => escalateAudit(auditId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['AUD', 'audit', auditId] })
+      queryClient.invalidateQueries({ queryKey: ['AUD', 'audits'] })
+    },
   })
 }

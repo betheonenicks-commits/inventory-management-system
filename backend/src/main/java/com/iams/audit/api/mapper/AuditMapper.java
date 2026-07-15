@@ -63,7 +63,13 @@ public class AuditMapper {
         );
     }
 
+    /** Freshly-scanned/batch-scanned findings can never already be reconciled (US-AUD-21 only applies to a system-classified Missing finding), so reconciliation is unconditionally null here. */
     public AuditFindingResponse toResponse(AuditFinding finding, List<AuditFindingCorrection> correctionsAscending) {
+        return toResponse(finding, correctionsAscending, null);
+    }
+
+    public AuditFindingResponse toResponse(AuditFinding finding, List<AuditFindingCorrection> correctionsAscending,
+                                            AuditFindingReconciliation reconciliation) {
         String effectiveCondition = AuditFindingCorrectionService.effectiveValue(finding, CorrectionField.CONDITION, correctionsAscending);
         String effectiveRemarks = AuditFindingCorrectionService.effectiveValue(finding, CorrectionField.REMARKS, correctionsAscending);
         return new AuditFindingResponse(
@@ -80,7 +86,8 @@ public class AuditMapper {
                 finding.getVerifiedAt(),
                 finding.getDeviceId(),
                 finding.getScopeChangeDisposition(),
-                correctionsAscending.stream().map(this::toResponse).toList()
+                correctionsAscending.stream().map(this::toResponse).toList(),
+                reconciliation != null ? toResponse(reconciliation) : null
         );
     }
 
@@ -144,9 +151,10 @@ public class AuditMapper {
     }
 
     public AuditExceptionReportResponse toExceptionReport(UUID auditId, List<AuditFinding> findings,
-                                                            java.util.function.Function<UUID, List<AuditFindingCorrection>> correctionsLookup) {
+                                                            java.util.function.Function<UUID, List<AuditFindingCorrection>> correctionsLookup,
+                                                            java.util.function.Function<UUID, AuditFindingReconciliation> reconciliationLookup) {
         List<AuditFindingResponse> mapped = findings.stream()
-                .map(f -> toResponse(f, correctionsLookup.apply(f.getId())))
+                .map(f -> toResponse(f, correctionsLookup.apply(f.getId()), reconciliationLookup.apply(f.getId())))
                 .toList();
         return new AuditExceptionReportResponse(auditId, !mapped.isEmpty(), mapped);
     }

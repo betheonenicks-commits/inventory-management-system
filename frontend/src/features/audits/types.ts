@@ -56,6 +56,15 @@ export interface AuditFindingCorrection {
   createdAt: string
 }
 
+export interface AuditFindingReconciliation {
+  id: string
+  findingId: string
+  foundLocationNote: string
+  reconciledByUserId: string
+  reconciledByUsername: string
+  reconciledAt: string
+}
+
 export interface AuditFinding {
   id: string
   auditId: string
@@ -71,6 +80,8 @@ export interface AuditFinding {
   deviceId: string | null
   scopeChangeDisposition: string | null
   corrections: AuditFindingCorrection[]
+  // US-AUD-21: null unless this Missing finding has actually been reconciled.
+  reconciliation: AuditFindingReconciliation | null
 }
 
 export interface AuditExceptionReport {

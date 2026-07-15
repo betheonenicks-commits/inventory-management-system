@@ -97,4 +97,10 @@ public class AuditReconciliationService {
 
         return reconciliation;
     }
+
+    /** Null when the finding hasn't been reconciled - lets a response embed "has this been resolved?" without a client guessing from a blind 409. */
+    @Transactional(readOnly = true)
+    public AuditFindingReconciliation forFinding(UUID findingId) {
+        return reconciliationRepository.findByFindingId(findingId).orElse(null);
+    }
 }

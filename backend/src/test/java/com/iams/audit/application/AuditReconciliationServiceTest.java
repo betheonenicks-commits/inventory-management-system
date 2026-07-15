@@ -146,4 +146,19 @@ class AuditReconciliationServiceTest {
         assertThatThrownBy(() -> service.reconcile(otherAuditId, findingId, "Found it"))
                 .isInstanceOf(NotFoundException.class);
     }
+
+    @Test
+    void forFinding_returnsNull_whenNeverReconciled() {
+        when(reconciliationRepository.findByFindingId(findingId)).thenReturn(Optional.empty());
+
+        assertThat(service.forFinding(findingId)).isNull();
+    }
+
+    @Test
+    void forFinding_returnsTheRecord_whenReconciled() {
+        AuditFindingReconciliation existing = new AuditFindingReconciliation();
+        when(reconciliationRepository.findByFindingId(findingId)).thenReturn(Optional.of(existing));
+
+        assertThat(service.forFinding(findingId)).isSameAs(existing);
+    }
 }

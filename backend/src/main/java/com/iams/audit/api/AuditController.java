@@ -147,7 +147,7 @@ public class AuditController {
     @PreAuthorize("@perm.has('audits:read')")
     public AuditFindingResponse getFinding(@PathVariable UUID id, @PathVariable UUID findingId) {
         AuditFinding finding = correctionService.getFinding(id, findingId);
-        return mapper.toResponse(finding, correctionService.corrections(findingId));
+        return mapper.toResponse(finding, correctionService.corrections(findingId), reconciliationService.forFinding(findingId));
     }
 
     @PostMapping("/{id}/findings/{findingId}/corrections")
@@ -156,7 +156,7 @@ public class AuditController {
                                                 @Valid @RequestBody AuditCorrectionRequest request) {
         correctionService.correct(id, findingId, request.fieldName(), request.newValue());
         AuditFinding finding = correctionService.getFinding(id, findingId);
-        return mapper.toResponse(finding, correctionService.corrections(findingId));
+        return mapper.toResponse(finding, correctionService.corrections(findingId), reconciliationService.forFinding(findingId));
     }
 
     @PostMapping("/{id}/submit")
@@ -195,7 +195,7 @@ public class AuditController {
     @GetMapping("/{id}/exceptions")
     @PreAuthorize("@perm.has('audits:read')")
     public AuditExceptionReportResponse exceptions(@PathVariable UUID id) {
-        return mapper.toExceptionReport(id, reportService.exceptions(id), correctionService::corrections);
+        return mapper.toExceptionReport(id, reportService.exceptions(id), correctionService::corrections, reconciliationService::forFinding);
     }
 
     @GetMapping("/{id}/certificate")

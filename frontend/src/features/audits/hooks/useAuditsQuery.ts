@@ -6,6 +6,7 @@ import {
   fetchAuditExceptions,
   fetchAudits,
   fetchAuditProgress,
+  reconcileFinding,
 } from '../../../api/audits/auditApi'
 import type { AuditCreatePayload } from '../../../api/audits/auditApi'
 import type { AuditStatus } from '../types'
@@ -58,5 +59,15 @@ export function useCreateAuditMutation() {
   return useMutation({
     mutationFn: (payload: AuditCreatePayload) => createAudit(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['AUD', 'audits'] }),
+  })
+}
+
+/** US-AUD-21: reconciles a Missing finding - the original finding is never edited, so only the exceptions list (which now embeds the new reconciliation) needs refetching. */
+export function useReconcileFindingMutation(auditId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ findingId, foundLocationNote }: { findingId: string; foundLocationNote: string }) =>
+      reconcileFinding(auditId, findingId, foundLocationNote),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['AUD', 'exceptions', auditId] }),
   })
 }

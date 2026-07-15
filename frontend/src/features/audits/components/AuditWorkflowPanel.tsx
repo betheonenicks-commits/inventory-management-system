@@ -12,7 +12,12 @@ import Typography from '@mui/material/Typography'
 import { isApiProblem } from '../../../api/errors'
 import { useAuthStore, hasPermission } from '../../../auth/authStore'
 import { useAuditCertificateQuery } from '../hooks/useAuditsQuery'
-import { useApproveAuditMutation, useRejectAuditMutation, useSubmitAuditMutation } from '../hooks/useAuditWorkflowMutations'
+import {
+  useApproveAuditMutation,
+  useEscalateAuditMutation,
+  useRejectAuditMutation,
+  useSubmitAuditMutation,
+} from '../hooks/useAuditWorkflowMutations'
 import type { Audit } from '../types'
 
 // ValidationFailedException-based errors (e.g. US-AUD-22's self-approval block)
@@ -34,6 +39,7 @@ export function AuditWorkflowPanel({ audit }: { audit: Audit }) {
   const submitAudit = useSubmitAuditMutation(audit.id)
   const approveAudit = useApproveAuditMutation(audit.id)
   const rejectAudit = useRejectAuditMutation(audit.id)
+  const escalateAudit = useEscalateAuditMutation(audit.id)
   const certificateQuery = useAuditCertificateQuery(audit.id, audit.status === 'CLOSED')
 
   const [submitOpen, setSubmitOpen] = useState(false)
@@ -42,6 +48,7 @@ export function AuditWorkflowPanel({ audit }: { audit: Audit }) {
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [escalateNotice, setEscalateNotice] = useState<string | null>(null)
 
   async function handleSubmit() {
     setError(null)
@@ -75,11 +82,24 @@ export function AuditWorkflowPanel({ audit }: { audit: Audit }) {
     }
   }
 
+  async function handleEscalate() {
+    setError(null)
+    setEscalateNotice(null)
+    try {
+      await escalateAudit.mutateAsync()
+      setEscalateNotice('Escalated - the approval now also routes to the next resolver in line.')
+    } catch (err) {
+      // Most common case: ESCALATION_THRESHOLD_NOT_REACHED (409) - this audit hasn't sat long enough yet.
+      setError(describeError(err, 'Failed to escalate audit'))
+    }
+  }
+
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1">Workflow</Typography>
 
       {error && <Alert severity="error">{error}</Alert>}
+      {escalateNotice && <Alert severity="success">{escalateNotice}</Alert>}
 
       {audit.status === 'IN_PROGRESS' && canWrite && (
         <Box>
@@ -101,6 +121,9 @@ export function AuditWorkflowPanel({ audit }: { audit: Audit }) {
               </Button>
               <Button variant="outlined" color="error" onClick={() => setRejectOpen(true)}>
                 Reject
+              </Button>
+              <Button variant="text" onClick={handleEscalate} disabled={escalateAudit.isPending}>
+                Escalate
               </Button>
             </Stack>
           ) : (

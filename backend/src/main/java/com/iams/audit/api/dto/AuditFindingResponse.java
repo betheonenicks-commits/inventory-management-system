@@ -13,6 +13,11 @@ import java.util.UUID;
  * - not necessarily what was originally recorded. corrections carries the
  * full history so a client can show both, per US-AUD-24's "remains unchanged
  * and visible alongside it."
+ * <p>
+ * reconciliation is null unless this finding is MISSING and has actually been
+ * reconciled (US-AUD-21) - a client uses its presence to know whether to show
+ * a "Reconcile" action or the recorded outcome, without needing a separate
+ * lookup or guessing from a 409 on a blind attempt.
  */
 public record AuditFindingResponse(
         UUID id,
@@ -28,6 +33,7 @@ public record AuditFindingResponse(
         Instant verifiedAt,
         String deviceId,
         ScopeChangeDisposition scopeChangeDisposition,
-        List<AuditFindingCorrectionResponse> corrections
+        List<AuditFindingCorrectionResponse> corrections,
+        AuditFindingReconciliationResponse reconciliation
 ) {
 }

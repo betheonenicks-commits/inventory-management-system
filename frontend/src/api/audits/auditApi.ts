@@ -5,6 +5,7 @@ import type {
   AuditCertificate,
   AuditExceptionReport,
   AuditFinding,
+  AuditFindingReconciliation,
   AuditProgress,
   AuditStatus,
   AuditType,
@@ -71,6 +72,18 @@ export function approveAudit(id: string) {
 
 export function rejectAudit(id: string, reason: string) {
   return httpClient.post<Audit>(`/audits/${id}/reject`, { reason }).then((r) => r.data)
+}
+
+/** US-AUD-14: no-ops with a 409 until the configured pending-approval threshold has actually passed. */
+export function escalateAudit(id: string) {
+  return httpClient.post<Audit>(`/audits/${id}/escalate`).then((r) => r.data)
+}
+
+/** US-AUD-21: reconcile a Missing finding found later, outside any active audit - a new linked record, never an edit. */
+export function reconcileFinding(auditId: string, findingId: string, foundLocationNote: string) {
+  return httpClient
+    .post<AuditFindingReconciliation>(`/audits/${auditId}/findings/${findingId}/reconcile`, { foundLocationNote })
+    .then((r) => r.data)
 }
 
 export function fetchAuditExceptions(id: string) {
