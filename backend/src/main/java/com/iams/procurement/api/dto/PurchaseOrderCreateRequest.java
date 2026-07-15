@@ -10,6 +10,7 @@ import java.util.UUID;
 public record PurchaseOrderCreateRequest(
         @NotNull UUID purchaseRequestId,
         @NotBlank String vendorName,
+        UUID vendorId,
         @NotEmpty @Valid List<PurchaseOrderLineRequest> lines
 ) {
 }

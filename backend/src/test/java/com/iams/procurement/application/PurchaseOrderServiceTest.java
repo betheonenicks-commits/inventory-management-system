@@ -8,6 +8,7 @@ import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUser;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.inventory.domain.VendorRepository;
 import com.iams.lifecycle.domain.LifecycleRequestStatus;
 import com.iams.procurement.domain.PurchaseOrder;
 import com.iams.procurement.domain.PurchaseOrderLine;
@@ -39,6 +40,7 @@ class PurchaseOrderServiceTest {
     @Mock private PurchaseRequestRepository requestRepository;
     @Mock private PurchaseOrderNumberGenerator numberGenerator;
     @Mock private CurrentUserProvider currentUserProvider;
+    @Mock private VendorRepository vendorRepository;
 
     private PurchaseOrderService service;
     private UUID actorId;
@@ -47,7 +49,7 @@ class PurchaseOrderServiceTest {
     @BeforeEach
     void setUp() {
         service = new PurchaseOrderService(orderRepository, lineRepository, lineEventRepository, requestRepository,
-                numberGenerator, currentUserProvider);
+                numberGenerator, currentUserProvider, vendorRepository);
         actorId = UUID.randomUUID();
         approvedRequest = new PurchaseRequest();
         approvedRequest.setId(UUID.randomUUID());
@@ -64,14 +66,14 @@ class PurchaseOrderServiceTest {
         pending.setStatus(LifecycleRequestStatus.PENDING);
         when(requestRepository.findById(pending.getId())).thenReturn(Optional.of(pending));
 
-        assertThatThrownBy(() -> service.create(new PurchaseOrderCreateCommand(pending.getId(), "Dell",
+        assertThatThrownBy(() -> service.create(new PurchaseOrderCreateCommand(pending.getId(), "Dell", null,
                 List.of(new PurchaseOrderLineCommand("Laptop", 5, BigDecimal.TEN)))))
                 .isInstanceOf(ConflictException.class);
     }
 
     @Test
     void create_rejectsEmptyLines() {
-        assertThatThrownBy(() -> service.create(new PurchaseOrderCreateCommand(UUID.randomUUID(), "Dell", List.of())))
+        assertThatThrownBy(() -> service.create(new PurchaseOrderCreateCommand(UUID.randomUUID(), "Dell", null, List.of())))
                 .isInstanceOf(ValidationFailedException.class);
     }
 
@@ -82,7 +84,7 @@ class PurchaseOrderServiceTest {
         when(orderRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> inv.getArgument(0));
         when(lineRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> inv.getArgument(0));
 
-        PurchaseOrder result = service.create(new PurchaseOrderCreateCommand(approvedRequest.getId(), "Dell",
+        PurchaseOrder result = service.create(new PurchaseOrderCreateCommand(approvedRequest.getId(), "Dell", null,
                 List.of(new PurchaseOrderLineCommand("Laptop", 5, new BigDecimal("999.00")))));
 
         assertThat(result.getPoNumber()).isEqualTo("PO-2026-000001");

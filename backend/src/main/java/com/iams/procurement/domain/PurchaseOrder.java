@@ -1,6 +1,7 @@
 package com.iams.procurement.domain;
 
 import com.iams.common.domain.BaseEntity;
+import com.iams.inventory.domain.Vendor;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -35,6 +36,17 @@ public class PurchaseOrder extends BaseEntity {
 
     @Column(name = "vendor_name", nullable = false)
     private String vendorName;
+
+    /**
+     * US-INV-07: an optional real link to a registered {@link Vendor}, added
+     * alongside (not replacing) vendorName - this PO predates EPIC-INV's own
+     * Vendor entity by design, so a PO can still name a vendor in free text
+     * without one being registered yet. Only a linked PO ever appears in
+     * {@code VendorService.purchaseHistory()}.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vendor_id")
+    private Vendor vendor;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

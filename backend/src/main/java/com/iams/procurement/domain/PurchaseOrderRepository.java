@@ -16,4 +16,8 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, UU
 
     @Query("SELECT po FROM PurchaseOrder po JOIN FETCH po.purchaseRequest WHERE po.status = :status ORDER BY po.createdAt DESC")
     List<PurchaseOrder> findByStatusWithRequestOrderByCreatedAtDesc(PurchaseOrderStatus status);
+
+    /** US-INV-07: a vendor's full purchase history. */
+    @Query("SELECT po FROM PurchaseOrder po JOIN FETCH po.purchaseRequest WHERE po.vendor.id = :vendorId ORDER BY po.createdAt DESC")
+    List<PurchaseOrder> findByVendorIdWithRequestOrderByCreatedAtDesc(UUID vendorId);
 }

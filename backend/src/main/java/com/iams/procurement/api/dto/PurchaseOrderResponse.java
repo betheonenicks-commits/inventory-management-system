@@ -9,6 +9,7 @@ public record PurchaseOrderResponse(
         String poNumber,
         UUID purchaseRequestId,
         String vendorName,
+        UUID vendorId,
         PurchaseOrderStatus status
 ) {
 }

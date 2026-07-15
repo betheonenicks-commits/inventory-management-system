@@ -44,7 +44,8 @@ public class PurchaseOrderController {
         var lines = request.lines().stream()
                 .map(l -> new PurchaseOrderLineCommand(l.description(), l.quantityOrdered(), l.unitCost()))
                 .toList();
-        var order = orderService.create(new PurchaseOrderCreateCommand(request.purchaseRequestId(), request.vendorName(), lines));
+        var order = orderService.create(
+                new PurchaseOrderCreateCommand(request.purchaseRequestId(), request.vendorName(), request.vendorId(), lines));
         return ResponseEntity.created(URI.create("/api/v1/purchase-orders/" + order.getId())).body(mapper.toResponse(order));
     }
 

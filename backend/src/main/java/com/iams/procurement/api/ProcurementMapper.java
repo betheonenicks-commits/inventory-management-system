@@ -39,6 +39,9 @@ public class ProcurementMapper {
                 order.getPoNumber(),
                 order.getPurchaseRequest().getId(),
                 order.getVendorName(),
+                // .getId() only - never traverse further into this lazy proxy outside its
+                // transaction (same discipline AuditMapper's Audit/AuditFinding reads use).
+                order.getVendor() != null ? order.getVendor().getId() : null,
                 order.getStatus()
         );
     }

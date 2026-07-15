@@ -4,6 +4,8 @@ import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.inventory.domain.Vendor;
+import com.iams.inventory.domain.VendorRepository;
 import com.iams.lifecycle.domain.LifecycleRequestStatus;
 import com.iams.procurement.domain.PurchaseOrder;
 import com.iams.procurement.domain.PurchaseOrderLine;
@@ -36,16 +38,19 @@ public class PurchaseOrderService {
     private final PurchaseRequestRepository requestRepository;
     private final PurchaseOrderNumberGenerator numberGenerator;
     private final CurrentUserProvider currentUserProvider;
+    private final VendorRepository vendorRepository;
 
     public PurchaseOrderService(PurchaseOrderRepository orderRepository, PurchaseOrderLineRepository lineRepository,
                                  PurchaseOrderLineEventRepository lineEventRepository, PurchaseRequestRepository requestRepository,
-                                 PurchaseOrderNumberGenerator numberGenerator, CurrentUserProvider currentUserProvider) {
+                                 PurchaseOrderNumberGenerator numberGenerator, CurrentUserProvider currentUserProvider,
+                                 VendorRepository vendorRepository) {
         this.orderRepository = orderRepository;
         this.lineRepository = lineRepository;
         this.lineEventRepository = lineEventRepository;
         this.requestRepository = requestRepository;
         this.numberGenerator = numberGenerator;
         this.currentUserProvider = currentUserProvider;
+        this.vendorRepository = vendorRepository;
     }
 
     @Transactional
@@ -71,6 +76,12 @@ public class PurchaseOrderService {
         order.setPoNumber(numberGenerator.next());
         order.setPurchaseRequest(request);
         order.setVendorName(command.vendorName());
+        if (command.vendorId() != null) {
+            // US-INV-07: an optional real link - a PO can still name a vendor in free text with none registered yet.
+            Vendor vendor = vendorRepository.findById(command.vendorId())
+                    .orElseThrow(() -> NotFoundException.of("Vendor", command.vendorId()));
+            order.setVendor(vendor);
+        }
         order.setStatus(PurchaseOrderStatus.OPEN);
         order.setCreatedBy(actor);
         order = orderRepository.save(order);
