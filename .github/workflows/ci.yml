@@ -82,3 +82,10 @@ jobs:
       - name: Typecheck + production build (tsc -b && vite build)
         working-directory: frontend
         run: npm run build
+
+      - name: Dependency vulnerability scan (npm audit)
+        working-directory: frontend
+        # high/critical only - low/moderate advisories in transitive dev tooling
+        # aren't worth failing every build over; Dependabot (see dependabot.yml)
+        # is what surfaces those for a human to triage on its own schedule.
+        run: npm audit --audit-level=high
