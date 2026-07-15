@@ -6,6 +6,13 @@ export type FindingStatus = 'VERIFIED' | 'MISSING' | 'OUT_OF_SCOPE' | 'SCOPE_CHA
 export type AssetCondition = 'GOOD' | 'FAIR' | 'MINOR_DAMAGE' | 'MAJOR_DAMAGE' | 'UNUSABLE'
 export type CorrectionField = 'CONDITION' | 'REMARKS'
 
+// US-CMP-06: the minimal, non-sensitive projection any authenticated user can
+// fetch via GET /audits/pickable, regardless of whether they hold audits:read.
+export interface AuditSummary {
+  id: string
+  name: string
+}
+
 export interface Audit {
   id: string
   name: string

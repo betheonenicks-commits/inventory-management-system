@@ -20,7 +20,7 @@ import Typography from '@mui/material/Typography'
 import { isApiProblem } from '../../../api/errors'
 import { fetchAssets } from '../../../api/assets/assetApi'
 import { useQuery } from '@tanstack/react-query'
-import { useAuditsQuery } from '../../audits/hooks/useAuditsQuery'
+import { usePickableAuditsQuery } from '../../audits/hooks/useAuditsQuery'
 import { ErrorPanel } from '../../../components/common/ErrorPanel'
 import { LoadingSkeleton } from '../../../components/common/LoadingSkeleton'
 import { useLegalHoldsQuery, useLiftLegalHoldMutation, usePlaceLegalHoldMutation } from '../hooks/useLegalHoldsQuery'
@@ -31,11 +31,14 @@ export function LegalHoldsPanel({ canWrite }: { canWrite: boolean }) {
   const holdsQuery = useLegalHoldsQuery()
   const [scopeType, setScopeType] = useState<LegalHoldScopeType>('ASSET')
   const [dialogOpen, setDialogOpen] = useState(false)
-  // Only fetched when actually needed (dialog open + Audit scope picked) - a
-  // Compliance Officer has no audits:read at all, so fetching this
-  // unconditionally would 403 just from opening this panel, the same bug
-  // class the EPIC-AUD frontend session found and fixed for useUsersQuery.
-  const auditsQuery = useAuditsQuery(undefined, dialogOpen && scopeType === 'AUDIT')
+  // A Compliance Officer has no audits:read at all, so this deliberately uses
+  // the low-privilege /audits/pickable endpoint (id + name only, no permission
+  // gate) rather than the full audits:read-gated list - confirmed live (403)
+  // before this fix, the same bug class the EPIC-AUD session found for
+  // useUsersQuery. Still only fetched once actually needed (dialog open +
+  // Audit scope picked), just no longer because that was the only thing
+  // standing between this call and a 403.
+  const auditsQuery = usePickableAuditsQuery(dialogOpen && scopeType === 'AUDIT')
   const placeHold = usePlaceLegalHoldMutation()
   const liftHold = useLiftLegalHoldMutation()
 

@@ -17,6 +17,7 @@ import com.iams.audit.api.dto.AuditRejectRequest;
 import com.iams.audit.api.dto.AuditResponse;
 import com.iams.audit.api.dto.AuditScanRequest;
 import com.iams.audit.api.dto.AuditSubmitRequest;
+import com.iams.audit.api.dto.AuditSummaryResponse;
 import com.iams.audit.api.mapper.AuditMapper;
 import com.iams.audit.application.AuditCreateCommand;
 import com.iams.audit.application.AuditFindingCorrectionService;
@@ -88,6 +89,16 @@ public class AuditController {
     @PreAuthorize("@perm.has('audits:read')")
     public List<AuditResponse> list(@RequestParam(required = false) AuditStatus status) {
         return auditService.list(status).stream().map(mapper::toResponse).toList();
+    }
+
+    /**
+     * Any authenticated user - not just audits:read holders - needs to name an audit
+     * as a legal-hold scope target (US-CMP-06), mirroring UserController.pickable().
+     * Returns only id/name, never the sensitive fields on AuditResponse.
+     */
+    @GetMapping("/pickable")
+    public List<AuditSummaryResponse> pickable() {
+        return auditService.list(null).stream().map(mapper::toSummary).toList();
     }
 
     @GetMapping("/dashboard")

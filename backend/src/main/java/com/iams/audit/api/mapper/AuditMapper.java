@@ -10,6 +10,7 @@ import com.iams.audit.api.dto.AuditFindingReconciliationResponse;
 import com.iams.audit.api.dto.AuditFindingResponse;
 import com.iams.audit.api.dto.AuditProgressResponse;
 import com.iams.audit.api.dto.AuditResponse;
+import com.iams.audit.api.dto.AuditSummaryResponse;
 import com.iams.audit.application.AuditFindingCorrectionService;
 import com.iams.audit.application.AuditReportService;
 import com.iams.audit.application.AuditScanService;
@@ -48,6 +49,10 @@ public class AuditMapper {
                 audit.getLastRejectionReason(),
                 audit.getVersion()
         );
+    }
+
+    public AuditSummaryResponse toSummary(Audit audit) {
+        return new AuditSummaryResponse(audit.getId(), audit.getName());
     }
 
     public AuditAssignmentResponse toResponse(AuditAssignment assignment) {

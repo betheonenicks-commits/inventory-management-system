@@ -8,6 +8,7 @@ import type {
   AuditFindingReconciliation,
   AuditProgress,
   AuditStatus,
+  AuditSummary,
   AuditType,
   AssetCondition,
 } from '../../features/audits/types'
@@ -30,6 +31,11 @@ export interface AuditScanPayload {
 
 export function fetchAudits(status?: AuditStatus) {
   return httpClient.get<Audit[]>('/audits', { params: status ? { status } : undefined }).then((r) => r.data)
+}
+
+/** No audits:read required - see AuditController.pickable(). */
+export function fetchPickableAudits() {
+  return httpClient.get<AuditSummary[]>('/audits/pickable').then((r) => r.data)
 }
 
 export function fetchAudit(id: string) {

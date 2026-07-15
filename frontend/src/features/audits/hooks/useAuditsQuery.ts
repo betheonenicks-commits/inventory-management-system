@@ -6,6 +6,7 @@ import {
   fetchAuditExceptions,
   fetchAudits,
   fetchAuditProgress,
+  fetchPickableAudits,
   reconcileFinding,
 } from '../../../api/audits/auditApi'
 import type { AuditCreatePayload } from '../../../api/audits/auditApi'
@@ -43,6 +44,15 @@ export function useAuditExceptionsQuery(id: string | undefined) {
     queryKey: ['AUD', 'exceptions', id],
     queryFn: () => fetchAuditExceptions(id as string),
     enabled: !!id,
+  })
+}
+
+/** US-CMP-06: for pickers outside EPIC-AUD itself - any authenticated user, not just audits:read holders. */
+export function usePickableAuditsQuery(enabled = true) {
+  return useQuery({
+    queryKey: ['AUD', 'pickable'],
+    queryFn: fetchPickableAudits,
+    enabled,
   })
 }
 
