@@ -9,8 +9,10 @@ import com.iams.audit.api.dto.AuditCorrectionRequest;
 import com.iams.audit.api.dto.AuditCreateRequest;
 import com.iams.audit.api.dto.AuditDashboardItemResponse;
 import com.iams.audit.api.dto.AuditExceptionReportResponse;
+import com.iams.audit.api.dto.AuditFindingReconciliationResponse;
 import com.iams.audit.api.dto.AuditFindingResponse;
 import com.iams.audit.api.dto.AuditProgressResponse;
+import com.iams.audit.api.dto.AuditReconciliationRequest;
 import com.iams.audit.api.dto.AuditRejectRequest;
 import com.iams.audit.api.dto.AuditResponse;
 import com.iams.audit.api.dto.AuditScanRequest;
@@ -18,6 +20,7 @@ import com.iams.audit.api.dto.AuditSubmitRequest;
 import com.iams.audit.api.mapper.AuditMapper;
 import com.iams.audit.application.AuditCreateCommand;
 import com.iams.audit.application.AuditFindingCorrectionService;
+import com.iams.audit.application.AuditReconciliationService;
 import com.iams.audit.application.AuditReportService;
 import com.iams.audit.application.AuditScanCommand;
 import com.iams.audit.application.AuditScanService;
@@ -43,10 +46,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * EPIC-AUD: physical audit management (US-AUD-01/02/03/04/05/07/08/09/10/12/13/14/15/16/17/22/24).
- * See DEVELOPMENT_LOG.md for what this session deliberately left Partial or
- * Not-started (photo evidence, offline sync, statistical sampling, cross-cycle
- * analytics, escalation, automatic mid-audit scope-change detection).
+ * EPIC-AUD: physical audit management
+ * (US-AUD-01/02/03/04/05/07/08/09/10/12/13/14/15/16/17/21/22/23/24).
+ * See DEVELOPMENT_LOG.md for what remains Partial or Not-started (photo
+ * evidence, offline sync, statistical sampling, cross-cycle analytics,
+ * continuous-scan mode as a dedicated UX affordance).
  */
 @RestController
 @RequestMapping("/api/v1/audits")
@@ -57,16 +61,18 @@ public class AuditController {
     private final AuditWorkflowService workflowService;
     private final AuditFindingCorrectionService correctionService;
     private final AuditReportService reportService;
+    private final AuditReconciliationService reconciliationService;
     private final AuditMapper mapper;
 
     public AuditController(AuditService auditService, AuditScanService scanService, AuditWorkflowService workflowService,
                             AuditFindingCorrectionService correctionService, AuditReportService reportService,
-                            AuditMapper mapper) {
+                            AuditReconciliationService reconciliationService, AuditMapper mapper) {
         this.auditService = auditService;
         this.scanService = scanService;
         this.workflowService = workflowService;
         this.correctionService = correctionService;
         this.reportService = reportService;
+        this.reconciliationService = reconciliationService;
         this.mapper = mapper;
     }
 
@@ -169,6 +175,21 @@ public class AuditController {
     @PreAuthorize("@perm.has('approvals:write')")
     public AuditResponse reject(@PathVariable UUID id, @Valid @RequestBody AuditRejectRequest request) {
         return mapper.toResponse(workflowService.reject(id, request.reason()));
+    }
+
+    /** US-AUD-14: escalate a pending approval that's sat untouched past the configured threshold. */
+    @PostMapping("/{id}/escalate")
+    @PreAuthorize("@perm.has('approvals:write')")
+    public AuditResponse escalate(@PathVariable UUID id) {
+        return mapper.toResponse(workflowService.escalate(id));
+    }
+
+    /** US-AUD-21: reconcile a Missing finding found later, outside any active audit - a new linked record, never an edit. */
+    @PostMapping("/{id}/findings/{findingId}/reconcile")
+    @PreAuthorize("@perm.has('audits:write')")
+    public AuditFindingReconciliationResponse reconcile(@PathVariable UUID id, @PathVariable UUID findingId,
+                                                          @Valid @RequestBody AuditReconciliationRequest request) {
+        return mapper.toResponse(reconciliationService.reconcile(id, findingId, request.foundLocationNote()));
     }
 
     @GetMapping("/{id}/exceptions")

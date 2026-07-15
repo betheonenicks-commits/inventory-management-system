@@ -1,5 +1,11 @@
 package com.iams.audit.application;
 
+import com.iams.asset.application.AssetHistoryRecorder;
+import com.iams.asset.domain.Asset;
+import com.iams.asset.domain.AssetHistoryEventType;
+import com.iams.asset.domain.AssetRepository;
+import com.iams.asset.domain.AssetStatusDef;
+import com.iams.asset.domain.AssetStatusDefRepository;
 import com.iams.audit.domain.Audit;
 import com.iams.audit.domain.AuditExpectedAsset;
 import com.iams.audit.domain.AuditExpectedAssetRepository;
@@ -12,10 +18,13 @@ import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.lifecycle.application.ApprovalRoutingService;
+import com.iams.lifecycle.application.LifecycleProperties;
 import com.iams.usr.domain.AppUser;
 import com.iams.usr.domain.AppUserRepository;
 import com.iams.usr.domain.SodWaiver;
 import com.iams.usr.domain.SodWaiverRepository;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -27,16 +36,19 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * US-AUD-09/13/14/22: submitting a completed audit (closing scanning,
  * classifying Missing, signing with password re-authentication, checking for
- * a self-approval SoD conflict) and the Department Head's
- * approve/reject decision. See AuditStatus's Javadoc for why this codebase
- * folds "close scanning" and "approve" into a two-step (not three-step)
- * state machine.
+ * a self-approval SoD conflict), the Department Head's approve/reject
+ * decision, and escalating a stale pending approval. See AuditStatus's
+ * Javadoc for why this codebase folds "close scanning" and "approve" into a
+ * two-step (not three-step) state machine.
  */
 @Service
 public class AuditWorkflowService {
 
     /** Matches the literal scope this project's existing SoD-waiver seed data already uses for audit approval conflicts. */
     private static final String SOD_SCOPE = "AUDIT_APPROVAL";
+
+    /** US-AUD-09: the long-seeded (V3) but never-until-now-used status an asset takes on the moment it's classified Missing. */
+    private static final String MISSING_STATUS_CODE = "MISSING";
 
     private final AuditRepository auditRepository;
     private final AuditExpectedAssetRepository expectedAssetRepository;
@@ -45,11 +57,18 @@ public class AuditWorkflowService {
     private final AppUserRepository appUserRepository;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUserProvider currentUserProvider;
+    private final AssetRepository assetRepository;
+    private final AssetStatusDefRepository statusDefRepository;
+    private final AssetHistoryRecorder historyRecorder;
+    private final ApprovalRoutingService routingService;
+    private final LifecycleProperties lifecycleProperties;
 
     public AuditWorkflowService(AuditRepository auditRepository, AuditExpectedAssetRepository expectedAssetRepository,
                                  AuditFindingRepository findingRepository, SodWaiverRepository sodWaiverRepository,
                                  AppUserRepository appUserRepository, PasswordEncoder passwordEncoder,
-                                 CurrentUserProvider currentUserProvider) {
+                                 CurrentUserProvider currentUserProvider, AssetRepository assetRepository,
+                                 AssetStatusDefRepository statusDefRepository, AssetHistoryRecorder historyRecorder,
+                                 ApprovalRoutingService routingService, LifecycleProperties lifecycleProperties) {
         this.auditRepository = auditRepository;
         this.expectedAssetRepository = expectedAssetRepository;
         this.findingRepository = findingRepository;
@@ -57,6 +76,11 @@ public class AuditWorkflowService {
         this.appUserRepository = appUserRepository;
         this.passwordEncoder = passwordEncoder;
         this.currentUserProvider = currentUserProvider;
+        this.assetRepository = assetRepository;
+        this.statusDefRepository = statusDefRepository;
+        this.historyRecorder = historyRecorder;
+        this.routingService = routingService;
+        this.lifecycleProperties = lifecycleProperties;
     }
 
     @Transactional
@@ -110,13 +134,31 @@ public class AuditWorkflowService {
             if (findingRepository.findByAuditIdAndAssetId(audit.getId(), row.getAsset().getId()).isPresent()) {
                 continue;
             }
+            Asset asset = row.getAsset();
+            String previousStatusCode = asset.getStatus() != null ? asset.getStatus().getCode() : null;
+
             AuditFinding finding = new AuditFinding();
             finding.setAudit(audit);
-            finding.setAsset(row.getAsset());
+            finding.setAsset(asset);
             finding.setStatus(FindingStatus.MISSING);
             finding.setVerifiedAt(Instant.now());
+            finding.setPreviousStatusCode(previousStatusCode);
             findingRepository.save(finding);
+
+            // US-AUD-09/21: the asset's own status now reflects "not found at last audit" -
+            // reconciliation (US-AUD-21) is what reverts this to previousStatusCode later.
+            markAssetMissing(asset, previousStatusCode);
         }
+    }
+
+    private void markAssetMissing(Asset asset, String previousStatusCode) {
+        AssetStatusDef missingStatus = statusDefRepository.findByCode(MISSING_STATUS_CODE)
+                .orElseThrow(() -> new IllegalStateException(MISSING_STATUS_CODE + " status missing from seed data"));
+        asset.setStatus(missingStatus);
+        asset.setUpdatedBy(currentUserProvider.current().id());
+        asset = assetRepository.saveAndFlush(asset);
+        historyRecorder.record(asset, AssetHistoryEventType.STATUS_CHANGE, "status", previousStatusCode,
+                MISSING_STATUS_CODE + " (classified missing at audit closure)");
     }
 
     @Transactional
@@ -148,7 +190,44 @@ public class AuditWorkflowService {
         // Undo this submission's own Missing classification (never a real scan - see
         // AuditFindingRepository's Javadoc) so the reopened audit's auditor can actually
         // rescan those assets; a real VERIFIED/OUT_OF_SCOPE finding is never touched here.
-        findingRepository.deleteAll(findingRepository.findByAuditIdAndStatusAndVerifiedByUserIdIsNull(auditId, FindingStatus.MISSING));
+        List<AuditFinding> systemMissing = findingRepository.findByAuditIdAndStatusAndVerifiedByUserIdIsNull(auditId, FindingStatus.MISSING);
+        // classifyMissing() also flips the asset itself to MISSING - undoing the finding
+        // without undoing that would leave the asset stuck MISSING forever after rejection.
+        for (AuditFinding missing : systemMissing) {
+            revertAssetFromMissing(missing);
+        }
+        findingRepository.deleteAll(systemMissing);
+        return auditRepository.saveAndFlush(audit);
+    }
+
+    private void revertAssetFromMissing(AuditFinding missingFinding) {
+        Asset asset = missingFinding.getAsset();
+        String restoreStatusCode = missingFinding.getPreviousStatusCode();
+        if (restoreStatusCode == null) {
+            return;
+        }
+        AssetStatusDef restoreStatus = statusDefRepository.findByCode(restoreStatusCode)
+                .orElseThrow(() -> new IllegalStateException(restoreStatusCode + " status missing from seed data"));
+        asset.setStatus(restoreStatus);
+        asset.setUpdatedBy(currentUserProvider.current().id());
+        asset = assetRepository.saveAndFlush(asset);
+        historyRecorder.record(asset, AssetHistoryEventType.STATUS_CHANGE, "status", MISSING_STATUS_CODE,
+                restoreStatusCode + " (Missing classification undone by audit rejection)");
+    }
+
+    /** US-AUD-14: escalates a stale pending approval per US-LIF-13's resolution order (see ApprovalRoutingService). */
+    @Transactional
+    public Audit escalate(UUID auditId) {
+        Audit audit = requireStatus(auditId, AuditStatus.PENDING_APPROVAL);
+        Duration age = Duration.between(audit.getSubmittedAt(), Instant.now());
+        if (age.toHours() < lifecycleProperties.getEscalationThresholdHours()) {
+            throw new ConflictException("ESCALATION_THRESHOLD_NOT_REACHED",
+                    "This audit has not been pending approval long enough to escalate (threshold: "
+                            + lifecycleProperties.getEscalationThresholdHours() + "h)");
+        }
+        UUID currentApprover = audit.getEffectiveApproverId() != null ? audit.getEffectiveApproverId() : audit.getNominalApproverId();
+        audit.setEffectiveApproverId(routingService.resolveEscalationTarget(currentApprover));
+        audit.setUpdatedBy(currentUserProvider.current().id());
         return auditRepository.saveAndFlush(audit);
     }
 

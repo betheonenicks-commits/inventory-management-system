@@ -4,7 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import com.iams.asset.application.AssetHistoryRecorder;
 import com.iams.asset.domain.Asset;
+import com.iams.asset.domain.AssetRepository;
+import com.iams.asset.domain.AssetStatusDef;
+import com.iams.asset.domain.AssetStatusDefRepository;
 import com.iams.audit.domain.Audit;
 import com.iams.audit.domain.AuditExpectedAsset;
 import com.iams.audit.domain.AuditExpectedAssetRepository;
@@ -17,6 +21,8 @@ import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUser;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.lifecycle.application.ApprovalRoutingService;
+import com.iams.lifecycle.application.LifecycleProperties;
 import com.iams.usr.domain.AppUser;
 import com.iams.usr.domain.AppUserRepository;
 import com.iams.usr.domain.SodWaiver;
@@ -43,6 +49,10 @@ class AuditWorkflowServiceTest {
     @Mock private AppUserRepository appUserRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private CurrentUserProvider currentUserProvider;
+    @Mock private AssetRepository assetRepository;
+    @Mock private AssetStatusDefRepository statusDefRepository;
+    @Mock private AssetHistoryRecorder historyRecorder;
+    @Mock private ApprovalRoutingService routingService;
 
     private AuditWorkflowService service;
     private UUID actorId;
@@ -53,7 +63,8 @@ class AuditWorkflowServiceTest {
     @BeforeEach
     void setUp() {
         service = new AuditWorkflowService(auditRepository, expectedAssetRepository, findingRepository,
-                sodWaiverRepository, appUserRepository, passwordEncoder, currentUserProvider);
+                sodWaiverRepository, appUserRepository, passwordEncoder, currentUserProvider, assetRepository,
+                statusDefRepository, historyRecorder, routingService, new LifecycleProperties());
         actorId = UUID.randomUUID();
         auditId = UUID.randomUUID();
         audit = new Audit();
@@ -161,6 +172,11 @@ class AuditWorkflowServiceTest {
         scannedAsset.setId(UUID.randomUUID());
         Asset neverScannedAsset = new Asset();
         neverScannedAsset.setId(UUID.randomUUID());
+        AssetStatusDef inStorage = new AssetStatusDef();
+        inStorage.setCode("IN_STORAGE");
+        neverScannedAsset.setStatus(inStorage);
+        AssetStatusDef missingStatus = new AssetStatusDef();
+        missingStatus.setCode("MISSING");
 
         AuditExpectedAsset row1 = new AuditExpectedAsset();
         row1.setAsset(scannedAsset);
@@ -171,6 +187,8 @@ class AuditWorkflowServiceTest {
                 .thenReturn(Optional.of(new AuditFinding()));
         when(findingRepository.findByAuditIdAndAssetId(auditId, neverScannedAsset.getId()))
                 .thenReturn(Optional.empty());
+        when(statusDefRepository.findByCode("MISSING")).thenReturn(Optional.of(missingStatus));
+        when(assetRepository.saveAndFlush(neverScannedAsset)).thenReturn(neverScannedAsset);
         when(auditRepository.saveAndFlush(audit)).thenReturn(audit);
 
         service.submit(auditId, "correct-password", null);
@@ -180,6 +198,9 @@ class AuditWorkflowServiceTest {
         assertThat(captor.getValue().getAsset()).isSameAs(neverScannedAsset);
         assertThat(captor.getValue().getStatus()).isEqualTo(FindingStatus.MISSING);
         assertThat(captor.getValue().getVerifiedByUserId()).isNull();
+        // US-AUD-09/21: the finding captures the asset's real prior status, and the asset itself flips to MISSING.
+        assertThat(captor.getValue().getPreviousStatusCode()).isEqualTo("IN_STORAGE");
+        assertThat(neverScannedAsset.getStatus()).isSameAs(missingStatus);
     }
 
     @Test
@@ -240,5 +261,56 @@ class AuditWorkflowServiceTest {
         service.reject(auditId, "reason");
 
         org.mockito.Mockito.verify(findingRepository).deleteAll(List.of(systemMissing));
+    }
+
+    @Test
+    void reject_revertsAssetStatus_forFindingsThatHadFlippedTheAssetToMissing() {
+        UUID approverId = UUID.randomUUID();
+        audit.setStatus(AuditStatus.PENDING_APPROVAL);
+        audit.setEffectiveApproverId(approverId);
+        when(currentUserProvider.current()).thenReturn(new CurrentUser(approverId, "depthead", Set.of("DEPARTMENT_HEAD")));
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(audit));
+        when(auditRepository.saveAndFlush(audit)).thenReturn(audit);
+
+        Asset asset = new Asset();
+        asset.setId(UUID.randomUUID());
+        AuditFinding systemMissing = new AuditFinding();
+        systemMissing.setStatus(FindingStatus.MISSING);
+        systemMissing.setAsset(asset);
+        systemMissing.setPreviousStatusCode("IN_USE");
+        when(findingRepository.findByAuditIdAndStatusAndVerifiedByUserIdIsNull(auditId, FindingStatus.MISSING))
+                .thenReturn(List.of(systemMissing));
+        AssetStatusDef inUse = new AssetStatusDef();
+        inUse.setCode("IN_USE");
+        when(statusDefRepository.findByCode("IN_USE")).thenReturn(Optional.of(inUse));
+        when(assetRepository.saveAndFlush(asset)).thenReturn(asset);
+
+        service.reject(auditId, "reason");
+
+        assertThat(asset.getStatus()).isSameAs(inUse);
+    }
+
+    @Test
+    void escalate_throwsConflict_whenBelowThreshold() {
+        audit.setStatus(AuditStatus.PENDING_APPROVAL);
+        audit.setSubmittedAt(java.time.Instant.now());
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(audit));
+
+        assertThatThrownBy(() -> service.escalate(auditId)).isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void escalate_reroutesToTarget_whenThresholdReached() {
+        audit.setStatus(AuditStatus.PENDING_APPROVAL);
+        audit.setSubmittedAt(java.time.Instant.now().minus(java.time.Duration.ofHours(73)));
+        UUID currentApprover = audit.getNominalApproverId();
+        UUID escalationTarget = UUID.randomUUID();
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(audit));
+        when(routingService.resolveEscalationTarget(currentApprover)).thenReturn(escalationTarget);
+        when(auditRepository.saveAndFlush(audit)).thenReturn(audit);
+
+        Audit result = service.escalate(auditId);
+
+        assertThat(result.getEffectiveApproverId()).isEqualTo(escalationTarget);
     }
 }

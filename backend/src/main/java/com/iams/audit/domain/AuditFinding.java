@@ -41,6 +41,9 @@ import org.hibernate.type.SqlTypes;
  * verifiedByUserId/verifiedByUsername are null for a MISSING finding created
  * by system classification at audit submission (US-AUD-09) - there is no
  * human verifier for "never scanned."
+ * US-AUD-21: a MISSING finding found later, outside any active audit, is
+ * never edited either - see {@link AuditFindingReconciliation}, the same
+ * new-linked-record discipline as {@link AuditFindingCorrection}.
  */
 @Getter
 @Setter
@@ -88,6 +91,17 @@ public class AuditFinding {
     @Enumerated(EnumType.STRING)
     @Column(name = "scope_change_disposition")
     private ScopeChangeDisposition scopeChangeDisposition;
+
+    /**
+     * US-AUD-09/21: the asset's own status immediately before a MISSING
+     * finding also flipped it to the MISSING {@code AssetStatusDef} - null
+     * for every other finding status. {@link AuditFindingReconciliation}
+     * reverts to exactly this value rather than a fixed fallback, the same
+     * "capture the real prior state" discipline RepairEvent.previousStatusCode
+     * already established in EPIC-LIF.
+     */
+    @Column(name = "previous_status_code", updatable = false)
+    private String previousStatusCode;
 
     @PrePersist
     protected void onCreate() {

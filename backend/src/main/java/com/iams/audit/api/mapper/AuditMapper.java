@@ -6,6 +6,7 @@ import com.iams.audit.api.dto.AuditCertificateResponse;
 import com.iams.audit.api.dto.AuditDashboardItemResponse;
 import com.iams.audit.api.dto.AuditExceptionReportResponse;
 import com.iams.audit.api.dto.AuditFindingCorrectionResponse;
+import com.iams.audit.api.dto.AuditFindingReconciliationResponse;
 import com.iams.audit.api.dto.AuditFindingResponse;
 import com.iams.audit.api.dto.AuditProgressResponse;
 import com.iams.audit.api.dto.AuditResponse;
@@ -17,6 +18,7 @@ import com.iams.audit.domain.Audit;
 import com.iams.audit.domain.AuditAssignment;
 import com.iams.audit.domain.AuditFinding;
 import com.iams.audit.domain.AuditFindingCorrection;
+import com.iams.audit.domain.AuditFindingReconciliation;
 import com.iams.audit.domain.CorrectionField;
 import com.iams.audit.domain.FindingStatus;
 import java.util.List;
@@ -79,6 +81,17 @@ public class AuditMapper {
                 finding.getDeviceId(),
                 finding.getScopeChangeDisposition(),
                 correctionsAscending.stream().map(this::toResponse).toList()
+        );
+    }
+
+    public AuditFindingReconciliationResponse toResponse(AuditFindingReconciliation reconciliation) {
+        return new AuditFindingReconciliationResponse(
+                reconciliation.getId(),
+                reconciliation.getFinding().getId(),
+                reconciliation.getFoundLocationNote(),
+                reconciliation.getReconciledByUserId(),
+                reconciliation.getReconciledByUsername(),
+                reconciliation.getReconciledAt()
         );
     }
 
