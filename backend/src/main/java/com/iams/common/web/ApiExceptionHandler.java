@@ -27,6 +27,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * Central mapper from Java exceptions to RFC 7807 problem+json, per API spec Section 1.9.
@@ -66,6 +67,21 @@ public class ApiExceptionHandler {
     public ResponseEntity<ProblemDetail> handleUnreadable(HttpMessageNotReadableException ex, HttpServletRequest req) {
         ProblemDetail pd = build(HttpStatus.BAD_REQUEST, "malformed-request", "Malformed Request",
                 "The request body could not be parsed.", "VALIDATION_FAILED", req);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
+
+    /**
+     * A query/path parameter that fails Spring's type conversion (e.g.
+     * ?withinDays=abc against an int param) is the caller's malformed input,
+     * not a server fault - without this handler it fell through to the
+     * generic 500. Found by EPIC-DSH's adversarial pass; pre-existing for
+     * every typed @RequestParam in the codebase, not specific to dashboards.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ProblemDetail> handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest req) {
+        ProblemDetail pd = build(HttpStatus.BAD_REQUEST, "validation-failed", "Validation Failed",
+                "Parameter '" + ex.getName() + "' has an invalid value.", "VALIDATION_FAILED", req);
+        pd.setProperty("errors", List.of(new ValidationErrorItem(ex.getName(), "Invalid value")));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 

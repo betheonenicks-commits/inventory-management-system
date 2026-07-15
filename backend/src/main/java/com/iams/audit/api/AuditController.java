@@ -81,7 +81,8 @@ public class AuditController {
     @PreAuthorize("@perm.has('audits:write')")
     public ResponseEntity<AuditResponse> create(@Valid @RequestBody AuditCreateRequest request) {
         Audit audit = auditService.create(new AuditCreateCommand(request.name(), request.auditType(),
-                request.scopeOrgNodeId(), request.scopeCategoryId(), request.assetIds(), request.nominalApproverId()));
+                request.scopeOrgNodeId(), request.scopeCategoryId(), request.assetIds(), request.nominalApproverId(),
+                request.scheduledDate()));
         return ResponseEntity.created(URI.create("/api/v1/audits/" + audit.getId())).body(mapper.toResponse(audit));
     }
 

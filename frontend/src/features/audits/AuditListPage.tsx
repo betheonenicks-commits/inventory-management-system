@@ -55,6 +55,7 @@ interface CreateFormState {
   scopeOrgNodeId: string
   scopeCategoryId: string
   nominalApproverId: string
+  scheduledDate: string
 }
 
 const EMPTY_FORM: CreateFormState = {
@@ -64,6 +65,7 @@ const EMPTY_FORM: CreateFormState = {
   scopeOrgNodeId: '',
   scopeCategoryId: '',
   nominalApproverId: '',
+  scheduledDate: '',
 }
 
 // US-AUD-01/02/03: define an audit's type and scope (org node or category -
@@ -106,6 +108,7 @@ export function AuditListPage() {
         scopeOrgNodeId: form.scopeMode === 'ORG_NODE' ? form.scopeOrgNodeId : undefined,
         scopeCategoryId: form.scopeMode === 'CATEGORY' ? form.scopeCategoryId : undefined,
         nominalApproverId: form.nominalApproverId,
+        scheduledDate: form.scheduledDate || undefined,
       })
       setDialogOpen(false)
       navigate(`/audits/${audit.id}`)
@@ -259,6 +262,15 @@ export function AuditListPage() {
                 ))}
               </Select>
             </FormControl>
+
+            <TextField
+              label="Scheduled date (optional)"
+              type="date"
+              value={form.scheduledDate}
+              onChange={(e) => setForm((f) => ({ ...f, scheduledDate: e.target.value }))}
+              slotProps={{ inputLabel: { shrink: true } }}
+              helperText="Shown on the dashboard's audit calendar"
+            />
           </Stack>
         </DialogContent>
         <DialogActions>

@@ -30,6 +30,7 @@ export interface Audit {
   approvedBy: string | null
   approvedAt: string | null
   lastRejectionReason: string | null
+  scheduledDate: string | null
   version: number
 }
 

@@ -94,6 +94,7 @@ public class AuditService {
         audit.setScopeCategory(scopeCategory);
         audit.setStatus(AuditStatus.IN_PROGRESS);
         audit.setNominalApproverId(command.nominalApproverId());
+        audit.setScheduledDate(command.scheduledDate());
         audit.setCreatedBy(actor);
         audit = auditRepository.save(audit);
 

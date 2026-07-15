@@ -81,7 +81,7 @@ class AuditServiceTest {
 
     @Test
     void create_rejectsEmptyScope() {
-        AuditCreateCommand command = new AuditCreateCommand("Q3 Audit", AuditType.SPOT_CHECK, null, null, null, approverId);
+        AuditCreateCommand command = new AuditCreateCommand("Q3 Audit", AuditType.SPOT_CHECK, null, null, null, approverId, null);
 
         assertThatThrownBy(() -> service.create(command))
                 .isInstanceOf(ValidationFailedException.class)
@@ -107,7 +107,7 @@ class AuditServiceTest {
         when(assetRepository.search(isNull(), isNull(), isNull(), eq("/campus/building-b/"), any()))
                 .thenReturn(new PageImpl<>(List.of(a1, a2)));
 
-        Audit result = service.create(new AuditCreateCommand("Building B Sweep", AuditType.BULK, orgNodeId, null, null, approverId));
+        Audit result = service.create(new AuditCreateCommand("Building B Sweep", AuditType.BULK, orgNodeId, null, null, approverId, null));
 
         assertThat(result).isSameAs(saved);
         verify(expectedAssetRepository, org.mockito.Mockito.times(2)).save(any(AuditExpectedAsset.class));
@@ -125,7 +125,7 @@ class AuditServiceTest {
         when(auditRepository.save(any(Audit.class))).thenReturn(saved);
         when(auditRepository.findByIdWithAssociations(saved.getId())).thenReturn(Optional.of(saved));
 
-        service.create(new AuditCreateCommand("Spot Check", AuditType.SPOT_CHECK, null, null, ids, approverId));
+        service.create(new AuditCreateCommand("Spot Check", AuditType.SPOT_CHECK, null, null, ids, approverId, null));
 
         verify(expectedAssetRepository, org.mockito.Mockito.times(1)).save(any(AuditExpectedAsset.class));
     }
@@ -141,7 +141,7 @@ class AuditServiceTest {
         when(auditRepository.save(any(Audit.class))).thenReturn(saved);
 
         assertThatThrownBy(() -> service.create(
-                new AuditCreateCommand("Spot Check", AuditType.SPOT_CHECK, null, null, List.of(unknownId), approverId)))
+                new AuditCreateCommand("Spot Check", AuditType.SPOT_CHECK, null, null, List.of(unknownId), approverId, null)))
                 .isInstanceOf(ValidationFailedException.class);
     }
 
@@ -150,7 +150,7 @@ class AuditServiceTest {
         when(appUserRepository.existsById(approverId)).thenReturn(false);
 
         assertThatThrownBy(() -> service.create(
-                new AuditCreateCommand("Q3", AuditType.ANNUAL, null, null, List.of(UUID.randomUUID()), approverId)))
+                new AuditCreateCommand("Q3", AuditType.ANNUAL, null, null, List.of(UUID.randomUUID()), approverId, null)))
                 .isInstanceOf(NotFoundException.class);
     }
 

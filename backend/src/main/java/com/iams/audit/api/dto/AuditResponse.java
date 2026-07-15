@@ -3,6 +3,7 @@ package com.iams.audit.api.dto;
 import com.iams.audit.domain.AuditStatus;
 import com.iams.audit.domain.AuditType;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 public record AuditResponse(
@@ -22,6 +23,7 @@ public record AuditResponse(
         UUID approvedBy,
         Instant approvedAt,
         String lastRejectionReason,
+        LocalDate scheduledDate,
         long version
 ) {
 }

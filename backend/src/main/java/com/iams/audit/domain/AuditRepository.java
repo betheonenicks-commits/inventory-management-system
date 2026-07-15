@@ -1,5 +1,6 @@
 package com.iams.audit.domain;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,4 +24,9 @@ public interface AuditRepository extends JpaRepository<Audit, UUID> {
     @Query("SELECT a FROM Audit a LEFT JOIN FETCH a.scopeOrgNode LEFT JOIN FETCH a.scopeCategory "
             + "WHERE a.status = :status ORDER BY a.createdAt DESC")
     List<Audit> findByStatusWithAssociationsOrderByCreatedAtDesc(AuditStatus status);
+
+    /** US-DSH-05: the audit-calendar window - scope filtering happens in the caller, same as list(). */
+    @Query("SELECT a FROM Audit a LEFT JOIN FETCH a.scopeOrgNode "
+            + "WHERE a.scheduledDate BETWEEN :from AND :to ORDER BY a.scheduledDate ASC")
+    List<Audit> findScheduledBetween(LocalDate from, LocalDate to);
 }

@@ -47,6 +47,7 @@ public class AuditMapper {
                 audit.getApprovedBy(),
                 audit.getApprovedAt(),
                 audit.getLastRejectionReason(),
+                audit.getScheduledDate(),
                 audit.getVersion()
         );
     }

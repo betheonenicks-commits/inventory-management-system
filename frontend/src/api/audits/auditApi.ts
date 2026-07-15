@@ -20,6 +20,8 @@ export interface AuditCreatePayload {
   scopeCategoryId?: string
   assetIds?: string[]
   nominalApproverId: string
+  // US-DSH-05: optional planned date, plotted by the dashboard's audit calendar.
+  scheduledDate?: string
 }
 
 export interface AuditScanPayload {

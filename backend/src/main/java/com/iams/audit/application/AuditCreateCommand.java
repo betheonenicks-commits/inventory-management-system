@@ -1,6 +1,7 @@
 package com.iams.audit.application;
 
 import com.iams.audit.domain.AuditType;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,6 +17,7 @@ public record AuditCreateCommand(
         UUID scopeOrgNodeId,
         UUID scopeCategoryId,
         List<UUID> assetIds,
-        UUID nominalApproverId
+        UUID nominalApproverId,
+        LocalDate scheduledDate
 ) {
 }

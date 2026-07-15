@@ -13,6 +13,7 @@ import Box from '@mui/material/Box'
 import IconButton from '@mui/material/IconButton'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
+import DashboardIcon from '@mui/icons-material/Dashboard'
 import Inventory2Icon from '@mui/icons-material/Inventory2'
 import CategoryIcon from '@mui/icons-material/Category'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
@@ -48,6 +49,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { label: 'Dashboard', to: '/dashboard', icon: <DashboardIcon />, requiresPermission: 'dashboards:read' },
   { label: 'Assets', to: '/assets', icon: <Inventory2Icon /> },
   { label: 'Categories', to: '/assets/categories', icon: <CategoryIcon /> },
   { label: 'Audits', to: '/audits', icon: <FactCheckIcon />, requiresPermission: 'audits:read' },

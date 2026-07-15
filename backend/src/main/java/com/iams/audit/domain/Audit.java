@@ -12,6 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
@@ -85,4 +86,14 @@ public class Audit extends BaseEntity {
 
     @Column(name = "last_rejection_reason", length = 500)
     private String lastRejectionReason;
+
+    /**
+     * US-DSH-05 (audit calendar): optional planned date, settable at creation.
+     * Audits never had a scheduling concept before EPIC-DSH - they're created
+     * straight into IN_PROGRESS - so this is deliberately informational only:
+     * no state machine reads it, nothing blocks on it, the calendar widget
+     * just plots it (V39).
+     */
+    @Column(name = "scheduled_date")
+    private LocalDate scheduledDate;
 }
