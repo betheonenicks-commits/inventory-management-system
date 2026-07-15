@@ -72,6 +72,48 @@ public class ReportController {
         return render(reportService.assetMovements(from, to), format);
     }
 
+    @GetMapping("/loss")
+    @PreAuthorize("@perm.has('reports:read')")
+    public ResponseEntity<?> loss(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "json") String format) {
+        return render(reportService.loss(from, to), format);
+    }
+
+    @GetMapping("/vendor-purchases")
+    @PreAuthorize("@perm.has('reports:read')")
+    public ResponseEntity<?> vendorPurchases(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "json") String format) {
+        return render(reportService.vendorPurchases(from, to), format);
+    }
+
+    @GetMapping("/audit-compliance")
+    @PreAuthorize("@perm.has('reports:read')")
+    public ResponseEntity<?> auditCompliance(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "json") String format) {
+        return render(reportService.auditCompliance(from, to), format);
+    }
+
+    @GetMapping("/depreciation")
+    @PreAuthorize("@perm.has('reports:read')")
+    public ResponseEntity<?> depreciation(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf,
+            @RequestParam(defaultValue = "json") String format) {
+        return render(reportService.depreciation(asOf), format);
+    }
+
+    @GetMapping("/maintenance-history")
+    @PreAuthorize("@perm.has('reports:read')")
+    public ResponseEntity<?> maintenanceHistory(@RequestParam(required = false) UUID assetId,
+                                                 @RequestParam(defaultValue = "json") String format) {
+        return render(reportService.maintenanceHistory(assetId), format);
+    }
+
     @GetMapping("/security-events")
     @PreAuthorize("@perm.has('security:read')")
     public ResponseEntity<?> securityEvents(

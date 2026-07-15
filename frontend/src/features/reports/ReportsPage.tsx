@@ -29,7 +29,17 @@ import { fetchOrgNodes } from '../../api/org/orgNodeApi'
 import { fetchPersons } from '../../api/persons/personApi'
 import type { TabularReport } from './types'
 
-type ReportKey = 'asset-register' | 'employee-assets' | 'expiry' | 'asset-movements' | 'security-events'
+type ReportKey =
+  | 'asset-register'
+  | 'employee-assets'
+  | 'expiry'
+  | 'asset-movements'
+  | 'loss'
+  | 'vendor-purchases'
+  | 'audit-compliance'
+  | 'depreciation'
+  | 'maintenance-history'
+  | 'security-events'
 
 interface ReportDef {
   key: ReportKey
@@ -45,8 +55,16 @@ const REPORTS: ReportDef[] = [
   { key: 'employee-assets', label: 'Employee Asset List', description: 'Everything assigned to one person, with assignment dates (US-RPT-03).' },
   { key: 'expiry', label: 'Expiring Coverage & Maintenance', description: 'Warranty/AMC/insurance expiry and maintenance due in a lookahead window (US-RPT-05).' },
   { key: 'asset-movements', label: 'Asset Movements', description: 'Relocations between locations over a date range (US-RPT-07).' },
+  { key: 'loss', label: 'Missing / Lost / Damaged', description: 'Every Missing or damaged finding across all audits, with its source audit (US-RPT-04).' },
+  { key: 'vendor-purchases', label: 'Purchase & Vendor', description: 'Item-level PO detail with per-vendor subtotals and a grand total (US-RPT-06).' },
+  { key: 'audit-compliance', label: 'Audit Compliance Summary', description: 'Completion, exception, and on-time rates across a period (US-RPT-08).' },
+  { key: 'depreciation', label: 'Depreciation & Net Book Value', description: 'NBV per asset from its stored schedule; unconfigured assets flagged, never zeroed (US-RPT-09).' },
+  { key: 'maintenance-history', label: 'Maintenance History', description: 'Repairs plus preventive/corrective maintenance in one timeline (US-RPT-10).' },
   { key: 'security-events', label: 'Security & Access Log', description: 'The security log as a formal, exportable report (US-RPT-14).', requiresPermission: 'security:read' },
 ]
+
+// Reports whose only controls are an optional from/to date range.
+const DATE_RANGE_REPORTS: ReportKey[] = ['asset-movements', 'loss', 'vendor-purchases', 'audit-compliance']
 
 function defaultFrom() {
   const d = new Date()
@@ -65,6 +83,7 @@ export function ReportsPage() {
   const [withinDays, setWithinDays] = useState('90')
   const [from, setFrom] = useState(defaultFrom())
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10))
+  const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10))
   const [report, setReport] = useState<TabularReport | null>(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -93,6 +112,15 @@ export function ReportsPage() {
         return { withinDays: Number(withinDays) }
       case 'asset-movements':
         return { from, to }
+      case 'loss':
+      case 'vendor-purchases':
+      case 'audit-compliance':
+        // Optional range - blank inputs mean all-time.
+        return { from: from || undefined, to: to || undefined }
+      case 'depreciation':
+        return asOf ? { asOf } : {}
+      case 'maintenance-history':
+        return {}
       case 'security-events':
         return {}
     }
@@ -209,13 +237,18 @@ export function ReportsPage() {
               />
             )}
 
-            {reportKey === 'asset-movements' && (
+            {DATE_RANGE_REPORTS.includes(reportKey) && (
               <>
                 <TextField label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)}
                   slotProps={{ inputLabel: { shrink: true } }} />
                 <TextField label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)}
                   slotProps={{ inputLabel: { shrink: true } }} />
               </>
+            )}
+
+            {reportKey === 'depreciation' && (
+              <TextField label="As of" type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }} />
             )}
 
             <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={run} disabled={running}>

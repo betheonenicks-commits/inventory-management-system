@@ -14,6 +14,8 @@ import com.iams.asset.domain.AssetHistoryEvent;
 import com.iams.asset.domain.AssetHistoryEventType;
 import com.iams.asset.domain.AssetRepository;
 import com.iams.asset.domain.AssetStatusDef;
+import com.iams.audit.domain.Audit;
+import com.iams.audit.domain.AuditStatus;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.dashboard.application.DashboardService;
@@ -48,13 +50,20 @@ class ReportServiceTest {
     @Mock private ReportQueries reportQueries;
     @Mock private DashboardService dashboardService;
     @Mock private OrgScopeGuard scopeGuard;
+    @Mock private com.iams.audit.domain.AuditRepository auditRepository;
+    @Mock private com.iams.audit.application.AuditReportService auditReportService;
+    @Mock private com.iams.asset.application.DepreciationService depreciationService;
+    @Mock private com.iams.maintenance.domain.RepairEventRepository repairEventRepository;
+    @Mock private com.iams.maintenance.domain.MaintenanceEventRepository maintenanceEventRepository;
 
     private ReportService service;
 
     @BeforeEach
     void setUp() {
         service = new ReportService(assetRepository, orgNodeRepository, personRepository,
-                securityEventLogRepository, reportQueries, dashboardService, scopeGuard);
+                securityEventLogRepository, reportQueries, dashboardService, scopeGuard,
+                auditRepository, auditReportService, depreciationService, repairEventRepository,
+                maintenanceEventRepository);
     }
 
     @Test
@@ -162,6 +171,160 @@ class ReportServiceTest {
                 eq(Instant.parse("2026-07-01T00:00:00Z")),
                 eq(Instant.parse("2026-07-11T00:00:00Z")),
                 eq(null));
+    }
+
+    @Test
+    void loss_rejectsInvertedRangeButAcceptsOpenEnded() {
+        assertThatThrownBy(() -> service.loss(LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 1)))
+                .isInstanceOf(ValidationFailedException.class);
+        when(scopeGuard.currentScopePathPrefix()).thenReturn(null);
+        when(reportQueries.lossFindings(any(), any(), any(), any())).thenReturn(List.of());
+        assertThat(service.loss(null, null).rows()).isEmpty();
+    }
+
+    @Test
+    void vendorPurchases_groupsByVendorWithSubtotalsAndGrandTotal() {
+        var vendorA = vendor("Acme");
+        var po1 = purchaseOrder("PO-2026-000001", vendorA, null);
+        var po2 = purchaseOrder("PO-2026-000002", null, "Legacy Freetext Vendor");
+        when(reportQueries.purchaseOrderLines(any(), any())).thenReturn(List.of(
+                line(po1, "Desks", 10, new java.math.BigDecimal("100.00")),
+                line(po1, "Chairs", 5, new java.math.BigDecimal("40.00")),
+                line(po2, "Cables", 3, new java.math.BigDecimal("10.00"))));
+
+        TabularReport report = service.vendorPurchases(null, null);
+
+        // 3 detail + 2 vendor subtotals + 1 grand total
+        assertThat(report.rows()).hasSize(6);
+        assertThat(report.rows().get(2).get(0)).isEqualTo("Acme — subtotal");
+        assertThat(report.rows().get(2).get(8)).isEqualTo("1200.00"); // 10*100 + 5*40
+        assertThat(report.rows().get(4).get(0)).isEqualTo("Legacy Freetext Vendor — subtotal");
+        assertThat(report.rows().get(5).get(0)).isEqualTo("TOTAL");
+        assertThat(report.rows().get(5).get(8)).isEqualTo("1230.00");
+    }
+
+    @Test
+    void auditCompliance_ratesComputeAndOnTimeDenominatorOnlyCountsAuditsWithDeadlines() {
+        Audit closedOnTime = complianceAudit("On time", AuditStatus.CLOSED,
+                LocalDate.of(2026, 7, 10), Instant.parse("2026-07-09T10:00:00Z"));
+        Audit closedLate = complianceAudit("Late", AuditStatus.CLOSED,
+                LocalDate.of(2026, 7, 1), Instant.parse("2026-07-05T10:00:00Z"));
+        Audit openNoDeadline = complianceAudit("Open", AuditStatus.IN_PROGRESS, null, null);
+        when(auditRepository.findAllWithAssociationsOrderByCreatedAtDesc())
+                .thenReturn(List.of(closedOnTime, closedLate, openNoDeadline));
+        when(scopeGuard.currentScopePathPrefix()).thenReturn(null);
+        when(auditReportService.exceptions(closedOnTime.getId())).thenReturn(List.of());
+        when(auditReportService.exceptions(closedLate.getId()))
+                .thenReturn(List.of(org.mockito.Mockito.mock(com.iams.audit.domain.AuditFinding.class)));
+
+        TabularReport report = service.auditCompliance(null, null);
+
+        assertThat(report.rows().get(0).get(1)).startsWith("67%").contains("2/3 closed");
+        assertThat(report.rows().get(1).get(1)).startsWith("50%").contains("1/2 closed audits with exceptions");
+        assertThat(report.rows().get(2).get(1)).startsWith("50%").contains("1/2 audits with a scheduled date");
+        // 3 summary rows + 3 audit rows; the open audit is n/a, never "complete".
+        assertThat(report.rows()).hasSize(6);
+        assertThat(report.rows().get(5).get(1)).isEqualTo("IN_PROGRESS");
+        assertThat(report.rows().get(5).get(5)).isEqualTo("n/a (open)");
+    }
+
+    @Test
+    void depreciation_flagsNotDepreciatedAndDegradesUnsupportedPerRowNotWholeReport() {
+        when(scopeGuard.currentScopePathPrefix()).thenReturn(null);
+        Asset computed = asset("AST-1", "Laptop");
+        Asset unconfigured = asset("AST-2", "Whiteboard");
+        Asset unsupported = asset("AST-3", "Vehicle");
+        when(assetRepository.search(any(), any(), any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(computed, unconfigured, unsupported)));
+        LocalDate asOf = LocalDate.of(2026, 7, 15);
+        when(depreciationService.compute(computed.getId(), asOf)).thenReturn(new com.iams.asset.application.DepreciationResult(
+                com.iams.asset.application.DepreciationResult.Status.COMPUTED,
+                com.iams.asset.domain.DepreciationMethod.STRAIGHT_LINE, 36,
+                new java.math.BigDecimal("100.00"), new java.math.BigDecimal("25.00"),
+                new java.math.BigDecimal("300.00"), new java.math.BigDecimal("700.00"), asOf));
+        when(depreciationService.compute(unconfigured.getId(), asOf))
+                .thenReturn(com.iams.asset.application.DepreciationResult.notDepreciated(asOf));
+        when(depreciationService.compute(unsupported.getId(), asOf))
+                .thenThrow(ValidationFailedException.singleField("method", "DECLINING_BALANCE is not yet supported"));
+
+        TabularReport report = service.depreciation(asOf);
+
+        assertThat(report.rows()).hasSize(3);
+        assertThat(report.rows().get(0).get(3)).isEqualTo("COMPUTED");
+        assertThat(report.rows().get(0).get(7)).isEqualTo("700.00");
+        assertThat(report.rows().get(1).get(3)).isEqualTo("NOT_DEPRECIATED");
+        assertThat(report.rows().get(2).get(3)).isEqualTo("UNSUPPORTED");
+    }
+
+    @Test
+    void maintenanceHistory_mergesRepairsAndEventsNewestFirstWithDowntimeOnlyForClosedRepairs() {
+        Asset asset = asset("AST-7", "Generator");
+        com.iams.maintenance.domain.RepairEvent closedRepair = new com.iams.maintenance.domain.RepairEvent();
+        closedRepair.setAsset(asset);
+        closedRepair.setCreatedAt(Instant.parse("2026-07-01T00:00:00Z"));
+        closedRepair.setActualReturnDate(LocalDate.of(2026, 7, 3));
+        closedRepair.setActualCost(new java.math.BigDecimal("120.00"));
+        closedRepair.setReason("Fan failure");
+        com.iams.maintenance.domain.MaintenanceEvent preventive = new com.iams.maintenance.domain.MaintenanceEvent();
+        preventive.setAsset(asset);
+        preventive.setMaintenanceType(com.iams.maintenance.domain.MaintenanceType.PREVENTIVE);
+        preventive.setPerformedAt(Instant.parse("2026-07-10T00:00:00Z"));
+        when(repairEventRepository.findAllWithAssetOrderByCreatedAtDesc()).thenReturn(List.of(closedRepair));
+        when(maintenanceEventRepository.findAllWithAssociationsOrderByPerformedAtDesc()).thenReturn(List.of(preventive));
+        passThroughScopeFilter();
+
+        TabularReport report = service.maintenanceHistory(null);
+
+        assertThat(report.rows()).hasSize(2);
+        assertThat(report.rows().get(0).get(2)).isEqualTo("PREVENTIVE"); // newest first
+        assertThat(report.rows().get(1).get(2)).isEqualTo("REPAIR");
+        assertThat(report.rows().get(1).get(5)).isEqualTo("3"); // Jul 1 -> end of Jul 3 = 3 days
+        assertThat(report.rows().get(0).get(5)).isEmpty();
+    }
+
+    @Test
+    void maintenanceHistory_unknownAssetFilterIs404() {
+        UUID unknown = UUID.randomUUID();
+        when(assetRepository.existsById(unknown)).thenReturn(false);
+        assertThatThrownBy(() -> service.maintenanceHistory(unknown)).isInstanceOf(NotFoundException.class);
+    }
+
+    private static com.iams.inventory.domain.Vendor vendor(String name) {
+        com.iams.inventory.domain.Vendor vendor = new com.iams.inventory.domain.Vendor();
+        vendor.setId(UUID.randomUUID());
+        vendor.setName(name);
+        return vendor;
+    }
+
+    private static com.iams.procurement.domain.PurchaseOrder purchaseOrder(String number,
+            com.iams.inventory.domain.Vendor vendor, String freeTextVendor) {
+        com.iams.procurement.domain.PurchaseOrder order = new com.iams.procurement.domain.PurchaseOrder();
+        order.setId(UUID.randomUUID());
+        order.setPoNumber(number);
+        order.setVendor(vendor);
+        order.setVendorName(vendor != null ? vendor.getName() : freeTextVendor);
+        return order;
+    }
+
+    private static com.iams.procurement.domain.PurchaseOrderLine line(
+            com.iams.procurement.domain.PurchaseOrder order, String description, int qty, java.math.BigDecimal unitCost) {
+        com.iams.procurement.domain.PurchaseOrderLine line = new com.iams.procurement.domain.PurchaseOrderLine();
+        line.setPurchaseOrder(order);
+        line.setDescription(description);
+        line.setQuantityOrdered(qty);
+        line.setUnitCost(unitCost);
+        return line;
+    }
+
+    private static Audit complianceAudit(String name, AuditStatus status, LocalDate scheduled, Instant submittedAt) {
+        Audit audit = new Audit();
+        audit.setId(UUID.randomUUID());
+        audit.setName(name);
+        audit.setStatus(status);
+        audit.setScheduledDate(scheduled);
+        audit.setSubmittedAt(submittedAt);
+        audit.setCreatedAt(Instant.parse("2026-07-01T00:00:00Z"));
+        return audit;
     }
 
     @SuppressWarnings("unchecked")
