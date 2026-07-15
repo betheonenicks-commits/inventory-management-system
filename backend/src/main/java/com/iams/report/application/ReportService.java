@@ -125,7 +125,7 @@ public class ReportService {
         List<List<String>> rows = new ArrayList<>();
         Pageable page = PageRequest.of(0, CSV_PAGE_SIZE, Sort.by("assetNumber"));
         while (true) {
-            var slice = assetRepository.search(categoryId, statusId, null, prefix, page);
+            var slice = assetRepository.search(categoryId, statusId, null, null, prefix, null, null, page);
             for (Asset asset : slice.getContent()) {
                 rows.add(List.of(
                         asset.getAssetNumber(),
@@ -371,7 +371,7 @@ public class ReportService {
         List<List<String>> rows = new ArrayList<>();
         Pageable page = PageRequest.of(0, CSV_PAGE_SIZE, Sort.by("assetNumber"));
         while (true) {
-            var slice = assetRepository.search(null, null, null, prefix, page);
+            var slice = assetRepository.search(null, null, null, null, prefix, null, null, page);
             for (Asset asset : slice.getContent()) {
                 rows.add(depreciationRow(asset, effectiveAsOf));
             }

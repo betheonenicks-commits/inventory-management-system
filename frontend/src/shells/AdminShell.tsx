@@ -14,6 +14,7 @@ import IconButton from '@mui/material/IconButton'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import AssessmentIcon from '@mui/icons-material/Assessment'
+import SearchIcon from '@mui/icons-material/Search'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import Inventory2Icon from '@mui/icons-material/Inventory2'
 import CategoryIcon from '@mui/icons-material/Category'
@@ -50,6 +51,9 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  // No permission gate: the search endpoint is open to any authenticated user
+  // (same precedent as GET /assets); groups are permission-filtered server-side.
+  { label: 'Search', to: '/search', icon: <SearchIcon /> },
   { label: 'Dashboard', to: '/dashboard', icon: <DashboardIcon />, requiresPermission: 'dashboards:read' },
   { label: 'Reports', to: '/reports', icon: <AssessmentIcon />, requiresPermission: 'reports:read' },
   { label: 'Assets', to: '/assets', icon: <Inventory2Icon /> },

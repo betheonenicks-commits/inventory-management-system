@@ -73,8 +73,15 @@ public class AssetController {
     public PageResponse<AssetResponse> list(@RequestParam(required = false) UUID categoryId,
                                              @RequestParam(required = false) UUID statusId,
                                              @RequestParam(required = false) String q,
+                                             @RequestParam(required = false) UUID orgNodeId,
+                                             @RequestParam(required = false)
+                                             @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+                                             java.time.LocalDate purchasedFrom,
+                                             @RequestParam(required = false)
+                                             @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+                                             java.time.LocalDate purchasedTo,
                                              @PageableDefault(size = 20) Pageable pageable) {
-        var page = queryService.list(categoryId, statusId, q, pageable);
+        var page = queryService.list(categoryId, statusId, q, orgNodeId, purchasedFrom, purchasedTo, pageable);
         List<AssetResponse> data = page.getContent().stream().map(mapper::toResponse).collect(Collectors.toList());
         List<String> sort = pageable.getSort().stream().map(o -> o.getProperty() + "," + o.getDirection()).toList();
         return new PageResponse<>(data, new PageResponse.PageMeta(page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages()), sort);

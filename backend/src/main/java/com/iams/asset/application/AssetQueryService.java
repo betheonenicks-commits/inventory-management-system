@@ -6,10 +6,16 @@ import com.iams.asset.domain.AssetHistoryEventRepository;
 import com.iams.asset.domain.AssetHistoryEventType;
 import com.iams.asset.domain.AssetRepository;
 import com.iams.common.exception.NotFoundException;
+import com.iams.common.exception.ValidationFailedException;
+import com.iams.org.domain.OrgNode;
+import com.iams.org.domain.OrgNodeRepository;
 import com.iams.usr.application.OrgScopeGuard;
+import java.time.LocalDate;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,15 +28,24 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AssetQueryService {
 
+    /**
+     * US-SRC-03 (AC-SRC-03-X): the closed set of sortable columns. An
+     * arbitrary property name would otherwise reach the Criteria API and
+     * blow up as a path error deep in Hibernate - rejected up front instead.
+     */
+    private static final Set<String> SORTABLE = Set.of("assetNumber", "name", "createdAt", "purchaseDate");
+
     private final AssetRepository assetRepository;
     private final AssetHistoryEventRepository historyRepository;
     private final OrgScopeGuard scopeGuard;
+    private final OrgNodeRepository orgNodeRepository;
 
     public AssetQueryService(AssetRepository assetRepository, AssetHistoryEventRepository historyRepository,
-                              OrgScopeGuard scopeGuard) {
+                              OrgScopeGuard scopeGuard, OrgNodeRepository orgNodeRepository) {
         this.assetRepository = assetRepository;
         this.historyRepository = historyRepository;
         this.scopeGuard = scopeGuard;
+        this.orgNodeRepository = orgNodeRepository;
     }
 
     @Transactional(readOnly = true)
@@ -42,8 +57,27 @@ public class AssetQueryService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Asset> list(UUID categoryId, UUID statusId, String query, Pageable pageable) {
-        return assetRepository.search(categoryId, statusId, query, scopeGuard.currentScopePathPrefix(), pageable);
+    public Page<Asset> list(UUID categoryId, UUID statusId, String query, UUID orgNodeId,
+                             LocalDate purchasedFrom, LocalDate purchasedTo, Pageable pageable) {
+        for (Sort.Order order : pageable.getSort()) {
+            if (!SORTABLE.contains(order.getProperty())) {
+                throw ValidationFailedException.singleField("sort",
+                        "Unsupported sort field '" + order.getProperty() + "' - supported: " + SORTABLE);
+            }
+        }
+        if (purchasedFrom != null && purchasedTo != null && purchasedTo.isBefore(purchasedFrom)) {
+            throw ValidationFailedException.singleField("purchasedTo", "Must not be before purchasedFrom");
+        }
+        String locationPrefix = null;
+        if (orgNodeId != null) {
+            // Same rule as the asset-register report: a requested node outside the
+            // caller's own scope is refused, not silently emptied.
+            scopeGuard.requireWithinScope(orgNodeId, "org node", orgNodeId);
+            locationPrefix = orgNodeRepository.findById(orgNodeId).map(OrgNode::getPath)
+                    .orElseThrow(() -> NotFoundException.of("OrgNode", orgNodeId));
+        }
+        return assetRepository.search(categoryId, statusId, query, locationPrefix,
+                scopeGuard.currentScopePathPrefix(), purchasedFrom, purchasedTo, pageable);
     }
 
     @Transactional(readOnly = true)

@@ -104,7 +104,7 @@ class AuditServiceTest {
 
         Asset a1 = asset("AST-001");
         Asset a2 = asset("AST-002");
-        when(assetRepository.search(isNull(), isNull(), isNull(), eq("/campus/building-b/"), any()))
+        when(assetRepository.search(isNull(), isNull(), isNull(), isNull(), eq("/campus/building-b/"), isNull(), isNull(), any()))
                 .thenReturn(new PageImpl<>(List.of(a1, a2)));
 
         Audit result = service.create(new AuditCreateCommand("Building B Sweep", AuditType.BULK, orgNodeId, null, null, approverId, null));

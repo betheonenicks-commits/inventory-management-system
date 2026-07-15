@@ -35,4 +35,14 @@ public interface AssetRepository extends JpaRepository<Asset, UUID>, AssetReposi
 
     /** US-USR-08: assets currently assigned to a person, to block offboarding while any remain. */
     List<Asset> findByAssignedToPersonId(UUID personId);
+
+    /**
+     * US-SRC-02: exact-match lookup by any of the asset's unique identifying
+     * codes in one query - typed asset number, scanned barcode/QR payload, or
+     * a (future) RFID tag id (US-SRC-05).
+     */
+    @Query("SELECT a FROM Asset a JOIN FETCH a.category JOIN FETCH a.status JOIN FETCH a.orgNode "
+            + "LEFT JOIN FETCH a.parentAsset "
+            + "WHERE a.assetNumber = :code OR a.barcodeValue = :code OR a.qrPayload = :code OR a.rfidTagId = :code")
+    Optional<Asset> findByAnyCodeWithAssociations(String code);
 }

@@ -7,6 +7,7 @@ import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -26,7 +27,8 @@ public class AssetRepositoryImpl implements AssetRepositoryCustom {
     private EntityManager entityManager;
 
     @Override
-    public Page<Asset> search(UUID categoryId, UUID statusId, String query, String scopePathPrefix, Pageable pageable) {
+    public Page<Asset> search(UUID categoryId, UUID statusId, String query, String locationPathPrefix,
+                               String scopePathPrefix, LocalDate purchasedFrom, LocalDate purchasedTo, Pageable pageable) {
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
 
         CriteriaQuery<Asset> dataQuery = cb.createQuery(Asset.class);
@@ -39,7 +41,8 @@ public class AssetRepositoryImpl implements AssetRepositoryCustom {
         root.fetch("status", JoinType.INNER);
         root.fetch("orgNode", JoinType.INNER);
         root.fetch("parentAsset", JoinType.LEFT);
-        dataQuery.select(root).distinct(true).where(buildPredicates(cb, root, categoryId, statusId, query, scopePathPrefix));
+        dataQuery.select(root).distinct(true).where(buildPredicates(cb, root, categoryId, statusId, query,
+                locationPathPrefix, scopePathPrefix, purchasedFrom, purchasedTo));
         if (pageable.getSort().isSorted()) {
             List<jakarta.persistence.criteria.Order> orders = new ArrayList<>();
             for (Sort.Order order : pageable.getSort()) {
@@ -58,14 +61,16 @@ public class AssetRepositoryImpl implements AssetRepositoryCustom {
 
         CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
         Root<Asset> countRoot = countQuery.from(Asset.class);
-        countQuery.select(cb.count(countRoot)).where(buildPredicates(cb, countRoot, categoryId, statusId, query, scopePathPrefix));
+        countQuery.select(cb.count(countRoot)).where(buildPredicates(cb, countRoot, categoryId, statusId, query,
+                locationPathPrefix, scopePathPrefix, purchasedFrom, purchasedTo));
         long total = entityManager.createQuery(countQuery).getSingleResult();
 
         return new PageImpl<>(content, pageable, total);
     }
 
     private Predicate[] buildPredicates(CriteriaBuilder cb, Root<Asset> root, UUID categoryId, UUID statusId,
-                                         String query, String scopePathPrefix) {
+                                         String query, String locationPathPrefix, String scopePathPrefix,
+                                         LocalDate purchasedFrom, LocalDate purchasedTo) {
         List<Predicate> predicates = new ArrayList<>();
         if (categoryId != null) {
             predicates.add(cb.equal(root.get("category").get("id"), categoryId));
@@ -78,11 +83,25 @@ public class AssetRepositoryImpl implements AssetRepositoryCustom {
             Predicate nameMatch = cb.like(cb.lower(root.get("name")), like);
             Predicate assetNumberMatch = cb.like(cb.lower(root.get("assetNumber")), like);
             Predicate serialMatch = cb.like(cb.lower(cb.coalesce(root.get("serialNumber"), "")), like);
-            predicates.add(cb.or(nameMatch, assetNumberMatch, serialMatch));
+            // US-SRC-05: rfidTagId is searchable from day one - empty today, so it
+            // simply never matches until an RFID rollout populates it.
+            Predicate rfidMatch = cb.like(cb.lower(cb.coalesce(root.get("rfidTagId"), "")), like);
+            predicates.add(cb.or(nameMatch, assetNumberMatch, serialMatch, rfidMatch));
+        }
+        if (locationPathPrefix != null) {
+            // US-SRC-03: the caller's requested location filter - independent of,
+            // and ANDed with, the mandatory scope restriction below.
+            predicates.add(cb.like(root.get("orgNode").get("path"), locationPathPrefix + "%"));
         }
         if (scopePathPrefix != null) {
             // FR-USR-04: scope node itself or any descendant - see OrgScopeGuard.
             predicates.add(cb.like(root.get("orgNode").get("path"), scopePathPrefix + "%"));
+        }
+        if (purchasedFrom != null) {
+            predicates.add(cb.greaterThanOrEqualTo(root.get("purchaseDate"), purchasedFrom));
+        }
+        if (purchasedTo != null) {
+            predicates.add(cb.lessThanOrEqualTo(root.get("purchaseDate"), purchasedTo));
         }
         return predicates.toArray(new Predicate[0]);
     }

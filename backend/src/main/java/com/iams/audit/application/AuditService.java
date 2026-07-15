@@ -119,8 +119,8 @@ public class AuditService {
         String pathPrefix = scopeOrgNode != null ? scopeOrgNode.getPath() : null;
         // Pageable.unpaged() throws UnsupportedOperationException from AssetRepositoryImpl's
         // getOffset()/getPageSize() calls - a large explicit page stands in for "all matching".
-        Page<Asset> page = assetRepository.search(command.scopeCategoryId(), null, null, pathPrefix,
-                PageRequest.of(0, Integer.MAX_VALUE));
+        Page<Asset> page = assetRepository.search(command.scopeCategoryId(), null, null, null, pathPrefix,
+                null, null, PageRequest.of(0, Integer.MAX_VALUE));
         return page.getContent();
     }
 

@@ -61,7 +61,7 @@ class AssetQueryServiceTest {
     @BeforeEach
     void setUp() {
         OrgScopeGuard scopeGuard = new OrgScopeGuard(currentUserProvider, scopeResolver, orgNodeRepository, securityEventLogger);
-        service = new AssetQueryService(assetRepository, historyRepository, scopeGuard);
+        service = new AssetQueryService(assetRepository, historyRepository, scopeGuard, orgNodeRepository);
     }
 
     private void stubActor(UUID actorId) {
@@ -175,12 +175,12 @@ class AssetQueryServiceTest {
 
         Pageable pageable = PageRequest.of(0, 20);
         Page<Asset> emptyPage = new PageImpl<>(java.util.List.of());
-        when(assetRepository.search(isNull(), isNull(), isNull(), eq(scopePath), any(Pageable.class)))
+        when(assetRepository.search(isNull(), isNull(), isNull(), isNull(), eq(scopePath), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(emptyPage);
 
-        service.list(null, null, null, pageable);
+        service.list(null, null, null, null, null, null, pageable);
 
-        verify(assetRepository).search(isNull(), isNull(), isNull(), eq(scopePath), any(Pageable.class));
+        verify(assetRepository).search(isNull(), isNull(), isNull(), isNull(), eq(scopePath), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -191,11 +191,32 @@ class AssetQueryServiceTest {
 
         Pageable pageable = PageRequest.of(0, 20);
         Page<Asset> emptyPage = new PageImpl<>(java.util.List.of());
-        when(assetRepository.search(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(assetRepository.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(emptyPage);
 
-        service.list(null, null, null, pageable);
+        service.list(null, null, null, null, null, null, pageable);
 
-        verify(assetRepository).search(isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+        verify(assetRepository).search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    void list_rejectsUnsupportedSortField() {
+        // AC-SRC-03-X: an arbitrary property would otherwise become a Criteria
+        // path error deep inside Hibernate - rejected up front as a 400 instead.
+        Pageable pageable = PageRequest.of(0, 20, org.springframework.data.domain.Sort.by("customAttributes"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.list(null, null, null, null, null, null, pageable))
+                .isInstanceOf(com.iams.common.exception.ValidationFailedException.class);
+        org.mockito.Mockito.verifyNoInteractions(assetRepository);
+    }
+
+    @Test
+    void list_rejectsInvertedPurchaseDateRange() {
+        Pageable pageable = PageRequest.of(0, 20);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.list(null, null, null, null,
+                        java.time.LocalDate.of(2026, 7, 10), java.time.LocalDate.of(2026, 7, 1), pageable))
+                .isInstanceOf(com.iams.common.exception.ValidationFailedException.class);
     }
 }
