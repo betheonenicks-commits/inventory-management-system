@@ -22,6 +22,10 @@ import FactCheckIcon from '@mui/icons-material/FactCheck'
 import GavelIcon from '@mui/icons-material/Gavel'
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
+import WarehouseIcon from '@mui/icons-material/Warehouse'
+import StoreIcon from '@mui/icons-material/Store'
+import RuleIcon from '@mui/icons-material/Rule'
+import InventoryIcon from '@mui/icons-material/Inventory'
 import { useAuthStore, hasPermission } from '../auth/authStore'
 import { logout as logoutApi } from '../api/authApi'
 
@@ -37,6 +41,10 @@ interface NavItem {
   // airtight. Permission-based (not role-name-based) so a custom role (US-USR-02)
   // that happens to carry these permissions sees the right nav automatically.
   requiresPermission?: string
+  // For a page whose backend endpoint accepts more than one permission (an
+  // OR-composed @PreAuthorize, e.g. inventory:read OR approvals:read for a
+  // Department Head reviewing what's routed to them) - any one match shows the item.
+  requiresAnyPermission?: string[]
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -50,6 +58,18 @@ const NAV_ITEMS: NavItem[] = [
     requiresPermission: 'assets:read',
   },
   { label: 'Purchase Orders', to: '/procurement/purchase-orders', icon: <LocalShippingIcon />, requiresPermission: 'assets:read' },
+  { label: 'Inventory Items', to: '/inventory/items', icon: <InventoryIcon />, requiresPermission: 'inventory:read' },
+  { label: 'Warehouses', to: '/inventory/warehouses', icon: <WarehouseIcon />, requiresPermission: 'inventory:read' },
+  { label: 'Vendors', to: '/inventory/vendors', icon: <StoreIcon />, requiresPermission: 'inventory:read' },
+  {
+    label: 'Adjustments',
+    to: '/inventory/adjustments',
+    icon: <RuleIcon />,
+    // Matches ManualAdjustmentController's own OR-composed @PreAuthorize - a Department
+    // Head (approvals:read/write, no inventory:read) still needs to see this to review and
+    // decide on requests routed to them, not just an Inventory Manager.
+    requiresAnyPermission: ['inventory:read', 'approvals:read'],
+  },
   { label: 'Users', to: '/users', icon: <PeopleIcon />, requiresPermission: 'users:read' },
   { label: 'Roles', to: '/roles', icon: <AdminPanelSettingsIcon />, requiresPermission: 'roles:read' },
   { label: 'Compliance', to: '/compliance', icon: <GavelIcon />, requiresPermission: 'compliance:read' },
@@ -62,9 +82,10 @@ export function AdminShell() {
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
 
-  const visibleNavItems = NAV_ITEMS.filter(
-    (item) => !item.requiresPermission || hasPermission(user, item.requiresPermission),
-  )
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.requiresAnyPermission) return item.requiresAnyPermission.some((p) => hasPermission(user, p))
+    return !item.requiresPermission || hasPermission(user, item.requiresPermission)
+  })
 
   function handleLogout() {
     setAnchorEl(null)

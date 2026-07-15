@@ -15,6 +15,11 @@ import { CompliancePage } from '../features/compliance/CompliancePage'
 import { PurchaseRequestListPage } from '../features/procurement/PurchaseRequestListPage'
 import { PurchaseOrderListPage } from '../features/procurement/PurchaseOrderListPage'
 import { PurchaseOrderDetailPage } from '../features/procurement/PurchaseOrderDetailPage'
+import { InventoryItemListPage } from '../features/inventory/InventoryItemListPage'
+import { InventoryItemDetailPage } from '../features/inventory/InventoryItemDetailPage'
+import { WarehouseListPage } from '../features/inventory/WarehouseListPage'
+import { VendorListPage } from '../features/inventory/VendorListPage'
+import { ManualAdjustmentListPage } from '../features/inventory/ManualAdjustmentListPage'
 import { NotFoundPage } from '../components/common/NotFoundPage'
 
 export const router = createBrowserRouter([
@@ -39,6 +44,11 @@ export const router = createBrowserRouter([
           { path: 'procurement/purchase-requests', element: <PurchaseRequestListPage /> },
           { path: 'procurement/purchase-orders', element: <PurchaseOrderListPage /> },
           { path: 'procurement/purchase-orders/:orderId', element: <PurchaseOrderDetailPage /> },
+          { path: 'inventory/items', element: <InventoryItemListPage /> },
+          { path: 'inventory/items/:itemId', element: <InventoryItemDetailPage /> },
+          { path: 'inventory/warehouses', element: <WarehouseListPage /> },
+          { path: 'inventory/vendors', element: <VendorListPage /> },
+          { path: 'inventory/adjustments', element: <ManualAdjustmentListPage /> },
         ],
       },
     ],

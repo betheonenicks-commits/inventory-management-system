@@ -41,14 +41,23 @@ public class ManualAdjustmentController {
         return ResponseEntity.created(URI.create("/api/v1/inventory-adjustments/" + adjustment.getId())).body(mapper.toResponse(adjustment));
     }
 
+    /**
+     * inventory:read (Inventory Manager, sees everything) OR approvals:read (Department Head,
+     * sees what's routed to them) - Department Head holds approvals:write to actually decide on
+     * a request but never held inventory:read, so gating this on inventory:read alone would let
+     * them call approve()/reject() blindly without ever being able to list or review the request
+     * first. Same "gated on the wrong permission" class fixed twice already this session in
+     * EPIC-AUD/EPIC-CMP - caught here by inspection before the frontend was built on top of it,
+     * rather than by a live 403 after the fact.
+     */
     @GetMapping
-    @PreAuthorize("@perm.has('inventory:read')")
+    @PreAuthorize("@perm.has('inventory:read') or @perm.has('approvals:read')")
     public List<ManualAdjustmentResponse> list(@RequestParam(required = false) LifecycleRequestStatus status) {
         return adjustmentService.list(status).stream().map(mapper::toResponse).toList();
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("@perm.has('inventory:read')")
+    @PreAuthorize("@perm.has('inventory:read') or @perm.has('approvals:read')")
     public ManualAdjustmentResponse get(@PathVariable UUID id) {
         return mapper.toResponse(adjustmentService.get(id));
     }
