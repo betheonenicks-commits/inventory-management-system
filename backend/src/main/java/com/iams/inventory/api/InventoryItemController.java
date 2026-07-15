@@ -1,5 +1,6 @@
 package com.iams.inventory.api;
 
+import com.iams.inventory.api.dto.InventoryItemCostingMethodChangeResponse;
 import com.iams.inventory.api.dto.InventoryItemCreateRequest;
 import com.iams.inventory.api.dto.InventoryItemResponse;
 import com.iams.inventory.api.dto.InventoryItemUpdateRequest;
@@ -63,5 +64,12 @@ public class InventoryItemController {
     @PreAuthorize("@perm.has('inventory:write')")
     public InventoryItemResponse deactivate(@PathVariable UUID id) {
         return mapper.toResponse(itemService.deactivate(id));
+    }
+
+    /** US-INV-06 (AC-INV-06-H): every past costing-method switch for this item, oldest first. */
+    @GetMapping("/{id}/costing-method-history")
+    @PreAuthorize("@perm.has('inventory:read')")
+    public List<InventoryItemCostingMethodChangeResponse> costingMethodHistory(@PathVariable UUID id) {
+        return itemService.costingMethodHistory(id).stream().map(mapper::toResponse).toList();
     }
 }

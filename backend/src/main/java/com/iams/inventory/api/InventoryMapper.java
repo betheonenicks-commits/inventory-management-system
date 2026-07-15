@@ -1,5 +1,6 @@
 package com.iams.inventory.api;
 
+import com.iams.inventory.api.dto.InventoryItemCostingMethodChangeResponse;
 import com.iams.inventory.api.dto.InventoryItemResponse;
 import com.iams.inventory.api.dto.InventoryStockBalanceResponse;
 import com.iams.inventory.api.dto.InventoryTransactionResponse;
@@ -9,6 +10,7 @@ import com.iams.inventory.api.dto.VendorResponse;
 import com.iams.inventory.api.dto.WarehouseResponse;
 import com.iams.inventory.application.InventoryStockService;
 import com.iams.inventory.domain.InventoryItem;
+import com.iams.inventory.domain.InventoryItemCostingMethodChange;
 import com.iams.inventory.domain.InventoryManualAdjustmentRequest;
 import com.iams.inventory.domain.InventoryStockBalance;
 import com.iams.inventory.domain.InventoryTransaction;
@@ -52,6 +54,17 @@ public class InventoryMapper {
                 item.getReorderLevel(),
                 item.getCostingMethod(),
                 item.isActive()
+        );
+    }
+
+    public InventoryItemCostingMethodChangeResponse toResponse(InventoryItemCostingMethodChange change) {
+        return new InventoryItemCostingMethodChangeResponse(
+                change.getId(),
+                change.getInventoryItem().getId(),
+                change.getOldMethod(),
+                change.getNewMethod(),
+                change.getChangedBy(),
+                change.getChangedAt()
         );
     }
 

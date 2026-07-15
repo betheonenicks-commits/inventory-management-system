@@ -6,6 +6,8 @@ import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUserProvider;
 import com.iams.inventory.domain.CostingMethod;
 import com.iams.inventory.domain.InventoryItem;
+import com.iams.inventory.domain.InventoryItemCostingMethodChange;
+import com.iams.inventory.domain.InventoryItemCostingMethodChangeRepository;
 import com.iams.inventory.domain.InventoryItemRepository;
 import com.iams.inventory.domain.UnitOfMeasure;
 import java.math.BigDecimal;
@@ -19,10 +21,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class InventoryItemService {
 
     private final InventoryItemRepository itemRepository;
+    private final InventoryItemCostingMethodChangeRepository costingMethodChangeRepository;
     private final CurrentUserProvider currentUserProvider;
 
-    public InventoryItemService(InventoryItemRepository itemRepository, CurrentUserProvider currentUserProvider) {
+    public InventoryItemService(InventoryItemRepository itemRepository,
+                                 InventoryItemCostingMethodChangeRepository costingMethodChangeRepository,
+                                 CurrentUserProvider currentUserProvider) {
         this.itemRepository = itemRepository;
+        this.costingMethodChangeRepository = costingMethodChangeRepository;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -75,12 +81,24 @@ public class InventoryItemService {
         InventoryItem item = get(id);
         item.setName(name);
         item.setReorderLevel(reorderLevel);
-        if (costingMethod != null) {
-            // AC-INV-06-H: prospective only - already-recorded average_unit_cost balances are untouched by this switch.
+        UUID actor = currentUserProvider.current().id();
+        if (costingMethod != null && costingMethod != item.getCostingMethod()) {
+            // AC-INV-06-H: "the change itself is recorded" - a new linked row, not just the item's own
+            // generic updatedBy/updatedAt (which says something changed, not what it changed from/to).
+            // Prospective only: already-recorded average_unit_cost balances are untouched by this switch.
+            recordCostingMethodChange(item, item.getCostingMethod(), costingMethod, actor);
             item.setCostingMethod(costingMethod);
         }
-        item.setUpdatedBy(currentUserProvider.current().id());
+        item.setUpdatedBy(actor);
         return itemRepository.saveAndFlush(item);
+    }
+
+    @Transactional(readOnly = true)
+    public List<InventoryItemCostingMethodChange> costingMethodHistory(UUID id) {
+        if (!itemRepository.existsById(id)) {
+            throw NotFoundException.of("InventoryItem", id);
+        }
+        return costingMethodChangeRepository.findByInventoryItemIdOrderByChangedAtAsc(id);
     }
 
     @Transactional
@@ -89,5 +107,14 @@ public class InventoryItemService {
         item.setActive(false);
         item.setUpdatedBy(currentUserProvider.current().id());
         return itemRepository.saveAndFlush(item);
+    }
+
+    private void recordCostingMethodChange(InventoryItem item, CostingMethod oldMethod, CostingMethod newMethod, UUID actor) {
+        InventoryItemCostingMethodChange change = new InventoryItemCostingMethodChange();
+        change.setInventoryItem(item);
+        change.setOldMethod(oldMethod);
+        change.setNewMethod(newMethod);
+        change.setChangedBy(actor);
+        costingMethodChangeRepository.save(change);
     }
 }
