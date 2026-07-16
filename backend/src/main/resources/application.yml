@@ -39,6 +39,15 @@ server:
     include-message: always
 
 management:
+  health:
+    mail:
+      # An unreachable SMTP server must not mark the whole appliance
+      # unhealthy: email failures retry with backoff and in-app notifications
+      # are unaffected by design (EPIC-NTF). Without this, the mail starter's
+      # auto-registered indicator turns any SMTP outage into a 503 on
+      # /actuator/health - found live when the health probe went down the
+      # moment the dev SMTP catcher was removed.
+      enabled: false
   endpoints:
     web:
       exposure:

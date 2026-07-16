@@ -810,3 +810,13 @@ The queue's biggest unlock. One new `com.iams.notification` module (V43: notific
 **Deliberately not done, and why:** a concrete SMS gateway (no provider exists in this environment to verify against - wiring a fake HTTP gateway would test the mock, not the story); email HTML templating (plain text is template-controlled wording per NTF-09 - markup is presentation scope no AC asks for); notification admin UI for templates (API-complete with permission gating; a template editor screen is UI polish); assignment-event notification of "source/destination approver" (assignments have no approvers in this domain model - transfers do, and their decision events notify requester + both holders; noted as the AC's wording vs. the model's reality). Mailpit was removed after verification; dsh_im keeps the test email address.
 
 **Next session:** (1) US-RPT-13 (scheduled report delivery) - now unlocked by this session's email infra, would take EPIC-RPT to 14/15; (2) EPIC-ANL (4 stories, smallest untouched epic); (3) the Partials sweep (11 stories, several now cheap: AUD-15's certificate PDF rides on PdfExporter, NTF-02 needs a gateway decision).
+
+## 2026-07-16, continued a fourth time — Working Software Demo published; one real health-probe bug found by demoing
+
+Ran the demo the user asked for as a live walkthrough, not a slide deck: 8 flows captured from the running application as real scoped users (dashboard, asset register with batch-label selection, asset lifecycle detail, audit with photo evidence, reports with export formats, inventory, notification bell + settings, global search) and published as a self-contained demo page with embedded screenshots.
+
+**A real bug surfaced by the demo itself:** with the dev SMTP catcher removed after the NTF session, `/actuator/health` returned **503** - spring-boot-starter-mail auto-registers a MailHealthIndicator, so any SMTP outage marked the whole appliance unhealthy, directly contradicting EPIC-NTF's own design (email failures retry with backoff; in-app notifications are unaffected). In the packaged stack this would have flipped the backend container unhealthy - and blocked the proxy - the moment a mail relay hiccuped. Fixed with `management.health.mail.enabled: false` and the reasoning as a comment. This is exactly why demos run against the real thing.
+
+**Status:** no story-tier change. Overall unchanged at **113 Built / 11 Partial / 56 Not started** (180 total).
+
+**Next session:** unchanged queue - (1) US-RPT-13 scheduled report delivery (email infra now exists), (2) EPIC-ANL, (3) the Partials sweep.

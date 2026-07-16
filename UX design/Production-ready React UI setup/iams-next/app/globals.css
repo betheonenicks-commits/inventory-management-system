@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * IAMS token layer.
+ * Light values match the approved prototype exactly; dark values are
+ * derived from the same hues at inverted lightness.
+ */
+@layer base {
+  :root {
+    --ink: 223 41% 12%;
+    --ink-2: 222 35% 16%;
+    --ink-border: 223 31% 24%;
+    --ink-text-dim: 222 15% 59%;
+    --paper: 48 24% 96%;
+    --surface: 0 0% 100%;
+    --hairline: 48 22% 86%;
+    --slate: 216 11% 43%;
+    --slate-dim: 218 10% 59%;
+    --text: 226 21% 15%;
+    --verify: 170 80% 27%;
+    --verify-dim: 166 35% 92%;
+    --verify-deep: 171 80% 20%;
+    --rust: 12 59% 44%;
+    --rust-dim: 13 53% 93%;
+    --amber: 38 63% 44%;
+    --amber-dim: 39 62% 92%;
+  }
+
+  .dark {
+    --paper: 223 41% 9%;
+    --surface: 223 38% 12%;
+    --hairline: 223 28% 20%;
+    --slate: 218 12% 66%;
+    --slate-dim: 219 10% 50%;
+    --text: 220 25% 92%;
+    --verify: 168 62% 42%;
+    --verify-dim: 170 45% 15%;
+    --verify-deep: 166 55% 62%;
+    --rust: 12 64% 58%;
+    --rust-dim: 12 40% 16%;
+    --amber: 38 70% 56%;
+    --amber-dim: 39 45% 14%;
+  }
+
+  * { @apply border-hairline; }
+  body { @apply bg-paper text-foreground antialiased; }
+  ::selection { @apply bg-verify-dim text-verify-deep; }
+}
