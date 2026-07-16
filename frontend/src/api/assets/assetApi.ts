@@ -81,3 +81,28 @@ export function unassignAsset(assetId: string, version: number) {
     .delete<Asset>(`/assets/${assetId}/assignment`, { params: { version } })
     .then((r) => r.data)
 }
+
+// US-RPT-11: one print-ready PDF for a selection; assets the server excluded
+// (not visible, or no printable data) come back in the X-IAMS-Labels-* headers.
+export interface BatchLabelOutcome {
+  rendered: number
+  excluded: number
+  excludedDetail: string
+}
+
+export async function downloadBatchLabels(assetIds: string[], size = '50x25'): Promise<BatchLabelOutcome> {
+  const response = await httpClient.post(`/assets/labels/batch`, { assetIds, size }, { responseType: 'blob' })
+  const url = URL.createObjectURL(response.data as Blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'asset-labels-batch.pdf'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+  return {
+    rendered: Number(response.headers['x-iams-labels-rendered'] ?? 0),
+    excluded: Number(response.headers['x-iams-labels-excluded'] ?? 0),
+    excludedDetail: String(response.headers['x-iams-labels-excluded-detail'] ?? ''),
+  }
+}

@@ -67,6 +67,41 @@ public class LabelRenderService {
         };
     }
 
+    /**
+     * US-RPT-11: one print-ready PDF, one page per label, every page the
+     * configured physical size - the same composite pipeline as the single
+     * label PDF, batched into a single document.
+     */
+    public byte[] renderBatchPdf(List<BatchLabel> labels, LabelProperties.Size size) {
+        int dpi = labelProperties.getDpi();
+        int widthPx = mmToPx(size.getWidthMm(), dpi);
+        int heightPx = mmToPx(size.getHeightMm(), dpi);
+        float pageWidthPt = (float) (size.getWidthMm() * POINTS_PER_MM);
+        float pageHeightPt = (float) (size.getHeightMm() * POINTS_PER_MM);
+
+        try (PDDocument document = new PDDocument()) {
+            for (BatchLabel label : labels) {
+                BufferedImage canvas = compositeImage(label.barcodeValue(), label.qrPayload(), label.displayText(),
+                        widthPx, heightPx);
+                PDPage page = new PDPage(new PDRectangle(pageWidthPt, pageHeightPt));
+                document.addPage(page);
+                PDImageXObject image = LosslessFactory.createFromImage(document, canvas);
+                try (PDPageContentStream contentStream = new PDPageContentStream(document, page)) {
+                    contentStream.drawImage(image, 0, 0, pageWidthPt, pageHeightPt);
+                }
+            }
+            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                document.save(out);
+                return out.toByteArray();
+            }
+        } catch (IOException e) {
+            throw new LabelRenderException("Failed to render batch label PDF", e);
+        }
+    }
+
+    public record BatchLabel(String barcodeValue, String qrPayload, String displayText) {
+    }
+
     private int mmToPx(double mm, int dpi) {
         return (int) Math.round(mm / MM_PER_INCH * dpi);
     }

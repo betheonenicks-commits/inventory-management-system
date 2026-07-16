@@ -23,8 +23,15 @@ import { PageHeader } from '../../components/common/PageHeader'
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton'
 import { useAuthStore, hasPermission } from '../../auth/authStore'
 import { isApiProblem } from '../../api/errors'
-import { downloadReportCsv, fetchReport } from '../../api/reports/reportApi'
-import type { ReportParams } from '../../api/reports/reportApi'
+import {
+  downloadExportJob,
+  downloadReport,
+  fetchExportJob,
+  fetchReport,
+  submitExportJob,
+} from '../../api/reports/reportApi'
+import type { ExportFormat, ExportJob, ReportParams } from '../../api/reports/reportApi'
+import LinearProgress from '@mui/material/LinearProgress'
 import { fetchOrgNodes } from '../../api/org/orgNodeApi'
 import { fetchPersons } from '../../api/persons/personApi'
 import type { TabularReport } from './types'
@@ -87,6 +94,8 @@ export function ReportsPage() {
   const [report, setReport] = useState<TabularReport | null>(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('xlsx')
+  const [exportJob, setExportJob] = useState<ExportJob | null>(null)
 
   // Pickers fetch only while their owning report is selected - the enabled-gating
   // discipline every prior permission bug in this codebase taught.
@@ -144,7 +153,7 @@ export function ReportsPage() {
     }
   }
 
-  async function downloadCsv() {
+  async function download() {
     const params = currentParams()
     if ('error' in params) {
       setError(params.error as string)
@@ -152,9 +161,37 @@ export function ReportsPage() {
     }
     setError(null)
     try {
-      await downloadReportCsv(reportKey, params)
+      await downloadReport(reportKey, params, exportFormat)
     } catch (err) {
-      setError(isApiProblem(err) ? err.detail : 'Failed to download the CSV')
+      setError(isApiProblem(err) ? err.detail : `Failed to download the ${exportFormat.toUpperCase()}`)
+    }
+  }
+
+  // US-RPT-12's background path: submit, poll every second, auto-download on completion.
+  async function exportInBackground() {
+    const params = currentParams()
+    if ('error' in params) {
+      setError(params.error as string)
+      return
+    }
+    setError(null)
+    try {
+      let job = await submitExportJob(reportKey, params, exportFormat)
+      setExportJob(job)
+      while (job.status === 'RUNNING') {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        job = await fetchExportJob(job.id)
+        setExportJob(job)
+      }
+      if (job.status === 'COMPLETED') {
+        await downloadExportJob(job)
+      } else {
+        setError(job.error ?? 'Background export failed')
+      }
+    } catch (err) {
+      setError(isApiProblem(err) ? err.detail : 'Background export failed')
+    } finally {
+      setTimeout(() => setExportJob(null), 3000)
     }
   }
 
@@ -254,10 +291,35 @@ export function ReportsPage() {
             <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={run} disabled={running}>
               Run report
             </Button>
-            <Button variant="outlined" startIcon={<DownloadIcon />} onClick={downloadCsv}>
-              Download CSV
+            <FormControl sx={{ minWidth: 110 }} size="small">
+              <InputLabel id="export-format-label">Format</InputLabel>
+              <Select labelId="export-format-label" label="Format" value={exportFormat}
+                onChange={(e) => setExportFormat(e.target.value as ExportFormat)}>
+                <MenuItem value="xlsx">Excel</MenuItem>
+                <MenuItem value="pdf">PDF</MenuItem>
+                <MenuItem value="csv">CSV</MenuItem>
+              </Select>
+            </FormControl>
+            <Button variant="outlined" startIcon={<DownloadIcon />} onClick={download}>
+              Download
+            </Button>
+            <Button variant="outlined" onClick={exportInBackground} disabled={exportJob?.status === 'RUNNING'}>
+              Export in background
             </Button>
           </Stack>
+          {exportJob && (
+            <Stack spacing={0.5} sx={{ maxWidth: 420 }}>
+              <Typography variant="caption" color="text.secondary">
+                {exportJob.status === 'RUNNING'
+                  ? `Exporting ${exportJob.reportKey} as ${exportJob.format.toUpperCase()}… ${exportJob.progress}%`
+                  : exportJob.status === 'COMPLETED'
+                    ? 'Export complete - downloaded.'
+                    : 'Export failed.'}
+              </Typography>
+              <LinearProgress variant="determinate" value={exportJob.progress}
+                color={exportJob.status === 'FAILED' ? 'error' : 'primary'} />
+            </Stack>
+          )}
         </Stack>
       </Paper>
 

@@ -1,8 +1,16 @@
 package com.iams.report.api;
 
+import com.iams.common.exception.ValidationFailedException;
 import com.iams.report.application.CsvExporter;
+import com.iams.report.application.ExportJobService;
+import com.iams.report.application.ExportJobService.RenderFunction;
+import com.iams.report.application.PdfExporter;
+import com.iams.report.application.ReportDispatchService;
 import com.iams.report.application.ReportService;
 import com.iams.report.application.TabularReport;
+import com.iams.report.application.XlsxExporter;
+import java.util.HashMap;
+import java.util.Map;
 import com.iams.sec.domain.SecurityEventType;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -13,6 +21,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,10 +44,20 @@ public class ReportController {
 
     private final ReportService reportService;
     private final CsvExporter csvExporter;
+    private final XlsxExporter xlsxExporter;
+    private final PdfExporter pdfExporter;
+    private final ExportJobService exportJobService;
+    private final ReportDispatchService dispatchService;
 
-    public ReportController(ReportService reportService, CsvExporter csvExporter) {
+    public ReportController(ReportService reportService, CsvExporter csvExporter, XlsxExporter xlsxExporter,
+                            PdfExporter pdfExporter, ExportJobService exportJobService,
+                            ReportDispatchService dispatchService) {
         this.reportService = reportService;
         this.csvExporter = csvExporter;
+        this.xlsxExporter = xlsxExporter;
+        this.pdfExporter = pdfExporter;
+        this.exportJobService = exportJobService;
+        this.dispatchService = dispatchService;
     }
 
     @GetMapping("/asset-register")
@@ -125,14 +145,84 @@ public class ReportController {
         return render(reportService.securityEvents(actorUserId, eventType, from, to), format);
     }
 
-    private ResponseEntity<?> render(TabularReport report, String format) {
-        if ("csv".equalsIgnoreCase(format)) {
-            String filename = report.key() + "-" + LocalDate.now() + ".csv";
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                    .contentType(new MediaType("text", "csv"))
-                    .body(csvExporter.export(report));
+    // US-RPT-12's background path: a very large export runs as a job with
+    // progress instead of blocking. The permission split mirrors the typed
+    // endpoints: security-events requires security:read, everything else
+    // reports:read - checked HERE on the request thread; the worker thread
+    // then re-runs generation under the same delegated security context.
+    @PostMapping("/{reportKey}/export-jobs")
+    @PreAuthorize("#reportKey == T(com.iams.report.application.ReportDispatchService).SECURITY_EVENTS_KEY "
+            + "? @perm.has('security:read') : @perm.has('reports:read')")
+    public ResponseEntity<ExportJobResponse> submitExportJob(@PathVariable String reportKey,
+            @RequestParam(defaultValue = "xlsx") String exportFormat,
+            @RequestParam Map<String, String> allParams) {
+        dispatchService.requireKnownKey(reportKey);
+        RenderFunction renderer = rendererFor(exportFormat);
+        Map<String, String> params = new HashMap<>(allParams);
+        params.remove("exportFormat");
+        ExportJobService.ExportJob job =
+                exportJobService.submit(reportKey, exportFormat.toLowerCase(), () -> dispatchService.generate(reportKey, params), renderer);
+        return ResponseEntity.accepted().body(ExportJobResponse.from(job));
+    }
+
+    @GetMapping("/export-jobs/{id}")
+    public ExportJobResponse exportJob(@PathVariable UUID id) {
+        return ExportJobResponse.from(exportJobService.get(id));
+    }
+
+    @GetMapping("/export-jobs/{id}/download")
+    public ResponseEntity<byte[]> downloadExportJob(@PathVariable UUID id) {
+        ExportJobService.DownloadableExport export = exportJobService.download(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + export.fileName() + "\"")
+                .contentType(mediaTypeFor(export.format()))
+                .body(export.content());
+    }
+
+    private RenderFunction rendererFor(String format) {
+        return switch (format == null ? "" : format.toLowerCase()) {
+            case "csv" -> csvExporter::export;
+            case "xlsx" -> xlsxExporter::export;
+            case "pdf" -> pdfExporter::export;
+            default -> throw ValidationFailedException.singleField("exportFormat",
+                    "exportFormat must be one of csv, xlsx, pdf - got " + format);
+        };
+    }
+
+    private static MediaType mediaTypeFor(String format) {
+        return switch (format) {
+            case "csv" -> new MediaType("text", "csv");
+            case "pdf" -> MediaType.APPLICATION_PDF;
+            default -> MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        };
+    }
+
+    public record ExportJobResponse(UUID id, String reportKey, String format, String status, int progress,
+                                     String fileName, String error) {
+        static ExportJobResponse from(ExportJobService.ExportJob job) {
+            return new ExportJobResponse(job.getId(), job.getReportKey(), job.getFormat(), job.getStatus().name(),
+                    job.getProgress(), job.getFileName(), job.getError());
         }
-        return ResponseEntity.ok(report);
+    }
+
+    private ResponseEntity<?> render(TabularReport report, String format) {
+        return switch (format == null ? "json" : format.toLowerCase()) {
+            case "csv" -> download(report, "csv", new MediaType("text", "csv"), csvExporter.export(report));
+            case "xlsx" -> download(report, "xlsx",
+                    MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                    xlsxExporter.export(report));
+            case "pdf" -> download(report, "pdf", MediaType.APPLICATION_PDF, pdfExporter.export(report));
+            case "json" -> ResponseEntity.ok(report);
+            default -> throw ValidationFailedException.singleField("format",
+                    "format must be one of json, csv, xlsx, pdf - got " + format);
+        };
+    }
+
+    private ResponseEntity<byte[]> download(TabularReport report, String extension, MediaType mediaType, byte[] body) {
+        String filename = report.key() + "-" + LocalDate.now() + "." + extension;
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(mediaType)
+                .body(body);
     }
 }

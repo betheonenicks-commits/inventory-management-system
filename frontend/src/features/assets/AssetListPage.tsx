@@ -14,6 +14,8 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import AddIcon from '@mui/icons-material/Add'
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd'
+import PrintIcon from '@mui/icons-material/Print'
+import { downloadBatchLabels } from '../../api/assets/assetApi'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { PageHeader } from '../../components/common/PageHeader'
 import { EmptyState } from '../../components/common/EmptyState'
@@ -65,6 +67,47 @@ export function AssetListPage() {
   const [saveName, setSaveName] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [appliedNotes, setAppliedNotes] = useState<string[]>([])
+
+  // --- Batch label printing (US-RPT-11) ---
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [labelResult, setLabelResult] = useState<string | null>(null)
+  const [printing, setPrinting] = useState(false)
+
+  function toggleSelect(assetId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(assetId)) next.delete(assetId)
+      else next.add(assetId)
+      return next
+    })
+  }
+
+  function toggleSelectPage(pageIds: string[]) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      const allSelected = pageIds.every((id) => next.has(id))
+      pageIds.forEach((id) => (allSelected ? next.delete(id) : next.add(id)))
+      return next
+    })
+  }
+
+  async function printLabels() {
+    setLabelResult(null)
+    setPrinting(true)
+    try {
+      const outcome = await downloadBatchLabels([...selectedIds])
+      setLabelResult(
+        outcome.excluded > 0
+          ? `${outcome.rendered} label(s) downloaded; ${outcome.excluded} asset(s) excluded: ${outcome.excludedDetail}`
+          : `${outcome.rendered} label(s) downloaded.`,
+      )
+      setSelectedIds(new Set())
+    } catch (err) {
+      setLabelResult(isApiProblem(err) ? err.detail : 'Batch label printing failed')
+    } finally {
+      setPrinting(false)
+    }
+  }
 
   async function handleSaveSearch() {
     setSaveError(null)
@@ -240,12 +283,31 @@ export function AssetListPage() {
         />
       )}
 
+      {labelResult && (
+        <Alert severity={labelResult.includes('excluded') ? 'warning' : 'success'} sx={{ mb: 1 }}
+          onClose={() => setLabelResult(null)}>
+          {labelResult}
+        </Alert>
+      )}
+      {selectedIds.size > 0 && (
+        <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center' }}>
+          <Button variant="outlined" size="small" startIcon={<PrintIcon />} onClick={printLabels}
+            disabled={printing}>
+            {printing ? 'Rendering…' : `Print ${selectedIds.size} label(s)`}
+          </Button>
+          <Button size="small" onClick={() => setSelectedIds(new Set())}>Clear selection</Button>
+        </Stack>
+      )}
+
       {assetsQuery.isSuccess && assetsQuery.data.data.length > 0 && (
         <AssetTable
           assets={assetsQuery.data.data}
           page={assetsQuery.data.page}
           onPageChange={(newPage) => updateParams({ page: String(newPage) })}
           onPageSizeChange={(newSize) => updateParams({ size: String(newSize), page: '0' })}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onToggleSelectPage={toggleSelectPage}
         />
       )}
     </Box>
