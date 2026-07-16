@@ -1,11 +1,19 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
 import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import AddIcon from '@mui/icons-material/Add'
+import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { PageHeader } from '../../components/common/PageHeader'
 import { EmptyState } from '../../components/common/EmptyState'
@@ -15,6 +23,13 @@ import { AssetTable } from './components/AssetTable'
 import { useAssetsQuery } from './hooks/useAssetsQuery'
 import { useAssetCategoriesQuery } from './hooks/useAssetCategoriesQuery'
 import { useAuthStore, hasPermission } from '../../auth/authStore'
+import { isApiProblem } from '../../api/errors'
+import {
+  createSavedSearch,
+  deleteSavedSearch,
+  fetchSavedSearches,
+  resolveSavedSearch,
+} from '../../api/search/searchApi'
 
 export function AssetListPage() {
   const navigate = useNavigate()
@@ -34,6 +49,51 @@ export function AssetListPage() {
 
   const assetsQuery = useAssetsQuery(filters, page, size)
   const categoriesQuery = useAssetCategoriesQuery()
+
+  // --- Saved searches (US-SRC-04) ---
+  const queryClient = useQueryClient()
+  const savedSearchesQuery = useQuery({ queryKey: ['SRC', 'savedSearches'], queryFn: fetchSavedSearches })
+  const saveSearch = useMutation({
+    mutationFn: createSavedSearch,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['SRC', 'savedSearches'] }),
+  })
+  const removeSearch = useMutation({
+    mutationFn: deleteSavedSearch,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['SRC', 'savedSearches'] }),
+  })
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [appliedNotes, setAppliedNotes] = useState<string[]>([])
+
+  async function handleSaveSearch() {
+    setSaveError(null)
+    try {
+      await saveSearch.mutateAsync({
+        name: saveName,
+        query: debouncedQuery || undefined,
+        categoryId: categoryId || undefined,
+      })
+      setSaveOpen(false)
+      setSaveName('')
+    } catch (err) {
+      setSaveError(isApiProblem(err) ? err.detail : 'Failed to save this search')
+    }
+  }
+
+  async function applySavedSearch(id: string) {
+    setAppliedNotes([])
+    try {
+      // Resolve server-side so clauses referencing since-deleted entities are
+      // dropped with a note instead of silently 404ing the filter (AC-SRC-04).
+      const resolved = await resolveSavedSearch(id)
+      setSearchInput(resolved.query ?? '')
+      updateParams({ categoryId: resolved.categoryId ?? undefined, page: '0' })
+      setAppliedNotes(resolved.droppedFilterNotes)
+    } catch (err) {
+      setAppliedNotes([isApiProblem(err) ? err.detail : 'Failed to apply the saved search'])
+    }
+  }
 
   function updateParams(next: Record<string, string | undefined>) {
     const params = new URLSearchParams(searchParams)
@@ -88,7 +148,63 @@ export function AssetListPage() {
             </MenuItem>
           ))}
         </TextField>
+        <Button
+          size="small"
+          startIcon={<BookmarkAddIcon />}
+          disabled={!hasFilters}
+          onClick={() => {
+            setSaveError(null)
+            setSaveOpen(true)
+          }}
+        >
+          Save search
+        </Button>
       </Stack>
+
+      {(savedSearchesQuery.data ?? []).length > 0 && (
+        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mb: 2 }}>
+          {(savedSearchesQuery.data ?? []).map((s) => (
+            <Chip
+              key={s.id}
+              label={s.name}
+              onClick={() => applySavedSearch(s.id)}
+              onDelete={() => removeSearch.mutate(s.id)}
+              variant="outlined"
+            />
+          ))}
+        </Stack>
+      )}
+
+      {appliedNotes.map((note) => (
+        <Alert key={note} severity="info" sx={{ mb: 2 }} onClose={() => setAppliedNotes([])}>
+          {note}
+        </Alert>
+      ))}
+
+      <Dialog open={saveOpen} onClose={() => setSaveOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Save this search</DialogTitle>
+        <DialogContent>
+          {saveError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {saveError}
+            </Alert>
+          )}
+          <TextField
+            autoFocus
+            fullWidth
+            label="Name"
+            value={saveName}
+            onChange={(e) => setSaveName(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSaveOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleSaveSearch} disabled={!saveName.trim() || saveSearch.isPending}>
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {assetsQuery.isLoading && <LoadingSkeleton rows={8} />}
 
