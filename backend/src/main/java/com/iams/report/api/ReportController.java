@@ -6,13 +6,20 @@ import com.iams.report.application.ExportJobService;
 import com.iams.report.application.ExportJobService.RenderFunction;
 import com.iams.report.application.PdfExporter;
 import com.iams.report.application.ReportDispatchService;
+import com.iams.report.application.ReportScheduleJob;
+import com.iams.report.application.ReportScheduleService;
 import com.iams.report.application.ReportService;
+import com.iams.report.domain.ReportSchedule;
 import com.iams.report.application.TabularReport;
 import com.iams.report.application.XlsxExporter;
 import java.util.HashMap;
 import java.util.Map;
 import com.iams.sec.domain.SecurityEventType;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
+import java.util.List;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -20,9 +27,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,16 +57,21 @@ public class ReportController {
     private final PdfExporter pdfExporter;
     private final ExportJobService exportJobService;
     private final ReportDispatchService dispatchService;
+    private final ReportScheduleService scheduleService;
+    private final ReportScheduleJob scheduleJob;
 
     public ReportController(ReportService reportService, CsvExporter csvExporter, XlsxExporter xlsxExporter,
                             PdfExporter pdfExporter, ExportJobService exportJobService,
-                            ReportDispatchService dispatchService) {
+                            ReportDispatchService dispatchService, ReportScheduleService scheduleService,
+                            ReportScheduleJob scheduleJob) {
         this.reportService = reportService;
         this.csvExporter = csvExporter;
         this.xlsxExporter = xlsxExporter;
         this.pdfExporter = pdfExporter;
         this.exportJobService = exportJobService;
         this.dispatchService = dispatchService;
+        this.scheduleService = scheduleService;
+        this.scheduleJob = scheduleJob;
     }
 
     @GetMapping("/asset-register")
@@ -202,6 +216,51 @@ public class ReportController {
         static ExportJobResponse from(ExportJobService.ExportJob job) {
             return new ExportJobResponse(job.getId(), job.getReportKey(), job.getFormat(), job.getStatus().name(),
                     job.getProgress(), job.getFileName(), job.getError());
+        }
+    }
+
+    // --- US-RPT-13: recurring delivery schedules (own-rows-only, like export jobs) ---
+
+    @PostMapping("/{reportKey}/schedules")
+    @PreAuthorize("#reportKey == T(com.iams.report.application.ReportDispatchService).SECURITY_EVENTS_KEY "
+            + "? @perm.has('security:read') : @perm.has('reports:read')")
+    public ResponseEntity<ScheduleResponse> createSchedule(@PathVariable String reportKey,
+            @Valid @RequestBody ScheduleCreateRequest request) {
+        ReportSchedule schedule = scheduleService.create(reportKey, request.params(), request.exportFormat(),
+                request.frequency(), request.recipients());
+        return ResponseEntity.status(201).body(ScheduleResponse.from(schedule));
+    }
+
+    @GetMapping("/schedules")
+    public List<ScheduleResponse> listSchedules() {
+        return scheduleService.listOwn().stream().map(ScheduleResponse::from).toList();
+    }
+
+    @DeleteMapping("/schedules/{id}")
+    public ResponseEntity<Void> deleteSchedule(@PathVariable UUID id) {
+        scheduleService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Ops/testing: run everything currently due, now, instead of waiting for the sweep. */
+    @PostMapping("/admin/run-due-schedules")
+    @PreAuthorize("@perm.has('notifications:manage')")
+    public Map<String, Integer> runDueSchedules() {
+        return Map.of("ran", scheduleJob.runDue());
+    }
+
+    public record ScheduleCreateRequest(Map<String, String> params, @NotBlank String exportFormat,
+                                         @NotNull ReportSchedule.Frequency frequency,
+                                         @NotNull List<String> recipients) {
+    }
+
+    public record ScheduleResponse(UUID id, String reportKey, String exportFormat, ReportSchedule.Frequency frequency,
+                                    List<String> recipients, String status, java.time.Instant nextRunAt,
+                                    java.time.Instant lastRunAt, String lastOutcome) {
+        static ScheduleResponse from(ReportSchedule s) {
+            return new ScheduleResponse(s.getId(), s.getReportKey(), s.getExportFormat(), s.getFrequency(),
+                    List.of(s.getRecipients().split(",")), s.getStatus().name(), s.getNextRunAt(), s.getLastRunAt(),
+                    s.getLastOutcome());
         }
     }
 

@@ -23,15 +23,30 @@ import { PageHeader } from '../../components/common/PageHeader'
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton'
 import { useAuthStore, hasPermission } from '../../auth/authStore'
 import { isApiProblem } from '../../api/errors'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
+  createReportSchedule,
+  deleteReportSchedule,
   downloadExportJob,
   downloadReport,
   fetchExportJob,
   fetchReport,
+  fetchReportSchedules,
   submitExportJob,
 } from '../../api/reports/reportApi'
-import type { ExportFormat, ExportJob, ReportParams } from '../../api/reports/reportApi'
+import type { ExportFormat, ExportJob, ReportParams, ReportSchedule } from '../../api/reports/reportApi'
 import LinearProgress from '@mui/material/LinearProgress'
+import Chip from '@mui/material/Chip'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
+import IconButton from '@mui/material/IconButton'
+import List from '@mui/material/List'
+import ListItem from '@mui/material/ListItem'
+import ListItemText from '@mui/material/ListItemText'
+import DeleteIcon from '@mui/icons-material/Delete'
+import ScheduleIcon from '@mui/icons-material/Schedule'
 import { fetchOrgNodes } from '../../api/org/orgNodeApi'
 import { fetchPersons } from '../../api/persons/personApi'
 import type { TabularReport } from './types'
@@ -96,6 +111,36 @@ export function ReportsPage() {
   const [error, setError] = useState<string | null>(null)
   const [exportFormat, setExportFormat] = useState<ExportFormat>('xlsx')
   const [exportJob, setExportJob] = useState<ExportJob | null>(null)
+
+  // --- US-RPT-13: standing schedules ---
+  const queryClient = useQueryClient()
+  const schedulesQuery = useQuery({ queryKey: ['RPT', 'schedules'], queryFn: fetchReportSchedules })
+  const removeSchedule = useMutation({
+    mutationFn: deleteReportSchedule,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['RPT', 'schedules'] }),
+  })
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [frequency, setFrequency] = useState<ReportSchedule['frequency']>('MONTHLY')
+  const [recipientsInput, setRecipientsInput] = useState('')
+  const [scheduleError, setScheduleError] = useState<string | null>(null)
+
+  async function saveSchedule() {
+    const params = currentParams()
+    if ('error' in params) {
+      setScheduleError(params.error as string)
+      return
+    }
+    setScheduleError(null)
+    try {
+      await createReportSchedule(reportKey, params, exportFormat, frequency,
+        recipientsInput.split(',').map((r) => r.trim()).filter(Boolean))
+      setScheduleOpen(false)
+      setRecipientsInput('')
+      queryClient.invalidateQueries({ queryKey: ['RPT', 'schedules'] })
+    } catch (err) {
+      setScheduleError(isApiProblem(err) ? err.detail : 'Failed to save the schedule')
+    }
+  }
 
   // Pickers fetch only while their owning report is selected - the enabled-gating
   // discipline every prior permission bug in this codebase taught.
@@ -306,6 +351,9 @@ export function ReportsPage() {
             <Button variant="outlined" onClick={exportInBackground} disabled={exportJob?.status === 'RUNNING'}>
               Export in background
             </Button>
+            <Button variant="outlined" startIcon={<ScheduleIcon />} onClick={() => setScheduleOpen(true)}>
+              Schedule…
+            </Button>
           </Stack>
           {exportJob && (
             <Stack spacing={0.5} sx={{ maxWidth: 420 }}>
@@ -370,6 +418,72 @@ export function ReportsPage() {
           )}
         </Paper>
       )}
+
+      {(schedulesQuery.data ?? []).length > 0 && (
+        <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>
+            My scheduled reports
+          </Typography>
+          <List dense disablePadding>
+            {(schedulesQuery.data ?? []).map((s) => (
+              <ListItem
+                key={s.id}
+                divider
+                secondaryAction={
+                  <IconButton edge="end" aria-label={`Delete schedule ${s.reportKey}`}
+                    onClick={() => removeSchedule.mutate(s.id)}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                }
+              >
+                <ListItemText
+                  primary={
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Typography variant="body2">{s.reportKey}</Typography>
+                      <Chip size="small" label={`${s.frequency.toLowerCase()} · ${s.exportFormat}`} />
+                      {s.status !== 'ACTIVE' && <Chip size="small" color="warning" label="Paused - owner deactivated" />}
+                    </Stack>
+                  }
+                  secondary={`To ${s.recipients.join(', ')} · next run ${new Date(s.nextRunAt).toLocaleString()}${
+                    s.lastOutcome ? ` · last: ${s.lastOutcome}` : ''
+                  }`}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </Paper>
+      )}
+
+      <Dialog open={scheduleOpen} onClose={() => setScheduleOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Schedule "{selectedDef?.label ?? reportKey}" for recurring delivery</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              The report runs with your current filters and emails itself as {exportFormat.toUpperCase()} — change
+              the format picker above first if needed.
+            </Typography>
+            {scheduleError && <Alert severity="error">{scheduleError}</Alert>}
+            <FormControl>
+              <InputLabel id="schedule-frequency-label">Frequency</InputLabel>
+              <Select labelId="schedule-frequency-label" label="Frequency" value={frequency}
+                onChange={(e) => setFrequency(e.target.value as ReportSchedule['frequency'])}>
+                <MenuItem value="DAILY">Daily</MenuItem>
+                <MenuItem value="WEEKLY">Weekly</MenuItem>
+                <MenuItem value="MONTHLY">Monthly</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField label="Recipients (comma-separated emails)" fullWidth value={recipientsInput}
+              onChange={(e) => setRecipientsInput(e.target.value)}
+              placeholder="finance@school.org, head@school.org" />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setScheduleOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={saveSchedule} disabled={!recipientsInput.trim()}>
+            Save schedule
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

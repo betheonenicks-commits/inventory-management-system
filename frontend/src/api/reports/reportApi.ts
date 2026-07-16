@@ -81,3 +81,34 @@ export async function downloadExportJob(job: ExportJob) {
   const blob = new Blob([response.data as Blob], { type: EXPORT_MIME[job.format] ?? 'application/octet-stream' })
   saveBlob(blob, job.fileName ?? `${job.reportKey}.${job.format}`)
 }
+
+// US-RPT-13: standing report deliveries, own-rows-only.
+export interface ReportSchedule {
+  id: string
+  reportKey: string
+  exportFormat: string
+  frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY'
+  recipients: string[]
+  status: string
+  nextRunAt: string
+  lastRunAt: string | null
+  lastOutcome: string | null
+}
+
+export function createReportSchedule(key: string, params: ReportParams, exportFormat: ExportFormat,
+  frequency: ReportSchedule['frequency'], recipients: string[]) {
+  const stringParams = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)]),
+  )
+  return httpClient
+    .post<ReportSchedule>(`/reports/${key}/schedules`, { params: stringParams, exportFormat, frequency, recipients })
+    .then((r) => r.data)
+}
+
+export function fetchReportSchedules() {
+  return httpClient.get<ReportSchedule[]>('/reports/schedules').then((r) => r.data)
+}
+
+export function deleteReportSchedule(id: string) {
+  return httpClient.delete(`/reports/schedules/${id}`)
+}
