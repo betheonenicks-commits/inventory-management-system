@@ -23,6 +23,7 @@ import { InventoryItemDetailPage } from '../features/inventory/InventoryItemDeta
 import { WarehouseListPage } from '../features/inventory/WarehouseListPage'
 import { VendorListPage } from '../features/inventory/VendorListPage'
 import { ManualAdjustmentListPage } from '../features/inventory/ManualAdjustmentListPage'
+import { NotificationPreferencesPage } from '../features/notifications/NotificationPreferencesPage'
 import { NotFoundPage } from '../components/common/NotFoundPage'
 
 export const router = createBrowserRouter([
@@ -55,6 +56,7 @@ export const router = createBrowserRouter([
           { path: 'inventory/warehouses', element: <WarehouseListPage /> },
           { path: 'inventory/vendors', element: <VendorListPage /> },
           { path: 'inventory/adjustments', element: <ManualAdjustmentListPage /> },
+          { path: 'settings/notifications', element: <NotificationPreferencesPage /> },
         ],
       },
     ],

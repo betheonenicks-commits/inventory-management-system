@@ -10,6 +10,7 @@ import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUserProvider;
+import org.springframework.context.ApplicationEventPublisher;
 import com.iams.compliance.application.LegalHoldService;
 import com.iams.compliance.domain.LegalHoldScopeType;
 import com.iams.lifecycle.domain.AssetTransferRequest;
@@ -51,13 +52,15 @@ public class TransferService {
     private final OrgScopeGuard scopeGuard;
     private final LifecycleProperties lifecycleProperties;
     private final LegalHoldService legalHoldService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public TransferService(AssetTransferRequestRepository transferRepository, AssetRepository assetRepository,
                             OrgNodeRepository orgNodeRepository, AssetHistoryRecorder historyRecorder,
                             AssetAssignmentService assignmentService, ApprovalRoutingService routingService,
                             AuditScopeChangeService auditScopeChangeService, AppUserRepository appUserRepository,
                             CurrentUserProvider currentUserProvider, OrgScopeGuard scopeGuard,
-                            LifecycleProperties lifecycleProperties, LegalHoldService legalHoldService) {
+                            LifecycleProperties lifecycleProperties, LegalHoldService legalHoldService,
+                            ApplicationEventPublisher eventPublisher) {
         this.transferRepository = transferRepository;
         this.assetRepository = assetRepository;
         this.orgNodeRepository = orgNodeRepository;
@@ -70,6 +73,7 @@ public class TransferService {
         this.scopeGuard = scopeGuard;
         this.lifecycleProperties = lifecycleProperties;
         this.legalHoldService = legalHoldService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -148,6 +152,10 @@ public class TransferService {
 
         // US-AUD-23: flag this asset in any in-progress audit that expects it and hasn't scanned it yet.
         auditScopeChangeService.flagIfInActiveAudit(asset);
+        // US-NTF-04: same transaction, so the notification commits with the decision.
+        eventPublisher.publishEvent(new TransferDecidedEvent(request.getId(), asset.getId(), asset.getName(),
+                "approved", null, request.getCreatedBy(), request.getFromPersonId(), request.getToPersonId(),
+                currentUserProvider.current().username()));
         return request;
     }
 
@@ -166,7 +174,12 @@ public class TransferService {
         request.setDecidedAt(Instant.now());
         request.setRejectionReason(reason);
         request.setUpdatedBy(actor);
-        return transferRepository.saveAndFlush(request);
+        request = transferRepository.saveAndFlush(request);
+        // US-NTF-04's rejection AC: requester and affected holder are notified WITH the reason.
+        eventPublisher.publishEvent(new TransferDecidedEvent(request.getId(), request.getAsset().getId(),
+                request.getAsset().getName(), "rejected", reason, request.getCreatedBy(),
+                request.getFromPersonId(), request.getToPersonId(), currentUserProvider.current().username()));
+        return request;
     }
 
     /** US-LIF-13 (Partial - see ApprovalRoutingService's Javadoc for what's not automatic here). */

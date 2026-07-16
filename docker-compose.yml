@@ -53,6 +53,14 @@ services:
       IAMS_STORAGE_ENDPOINT: http://minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-iams-minio-bootstrap}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-iams_dev_minio_password}
+      # Email (EPIC-NTF): point at your organization's SMTP relay. With no
+      # reachable server, email deliveries retry and exhaust gracefully -
+      # in-app notifications are unaffected. Set IAMS_MAIL_ENABLED=false to
+      # skip creating email deliveries entirely.
+      IAMS_SMTP_HOST: ${IAMS_SMTP_HOST:-localhost}
+      IAMS_SMTP_PORT: ${IAMS_SMTP_PORT:-1025}
+      IAMS_MAIL_ENABLED: ${IAMS_MAIL_ENABLED:-true}
+      IAMS_MAIL_FROM: ${IAMS_MAIL_FROM:-iams@localhost}
     # No host port on purpose - the reverse proxy is the only entry point
     depends_on:
       postgres:

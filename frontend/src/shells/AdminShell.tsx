@@ -19,6 +19,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard'
 import Inventory2Icon from '@mui/icons-material/Inventory2'
 import CategoryIcon from '@mui/icons-material/Category'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
+import { NotificationBell } from '../features/notifications/NotificationBell'
 import PeopleIcon from '@mui/icons-material/People'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
@@ -114,6 +115,7 @@ export function AdminShell() {
           <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
             IAMS - Inventory Audit Management System
           </Typography>
+          <NotificationBell />
           <IconButton color="inherit" onClick={(e) => setAnchorEl(e.currentTarget)}>
             <AccountCircleIcon />
           </IconButton>

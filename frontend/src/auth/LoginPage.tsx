@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Paper from '@mui/material/Paper'
@@ -18,6 +18,7 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
   const setSession = useAuthStore((s) => s.setSession)
   const navigate = useNavigate()
+  const location = useLocation()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -31,7 +32,19 @@ export function LoginPage() {
         roles: claims?.roles ?? [],
         permissions: claims?.permissions ?? [],
       })
-      navigate('/assets', { replace: true })
+      // US-NTF-10: a deep link that bounced through login lands on its exact
+      // target afterwards, never a generic homepage. Only internal paths are
+      // honored - an absolute URL in ?next= is ignored (open-redirect guard).
+      const params = new URLSearchParams(location.search)
+      const next = params.get('next')
+      const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from
+      const target =
+        next && next.startsWith('/') && !next.startsWith('//')
+          ? next
+          : from?.pathname
+            ? `${from.pathname}${from.search ?? ''}`
+            : '/assets'
+      navigate(target, { replace: true })
     } catch (err) {
       if (isApiProblem(err)) {
         setError(err.detail || 'Invalid username or password')

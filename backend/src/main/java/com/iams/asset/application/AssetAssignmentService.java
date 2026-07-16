@@ -7,6 +7,7 @@ import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.OptimisticLockConflictException;
 import com.iams.common.security.CurrentUserProvider;
+import org.springframework.context.ApplicationEventPublisher;
 import com.iams.org.domain.Person;
 import com.iams.org.domain.PersonRepository;
 import java.util.UUID;
@@ -29,15 +30,18 @@ public class AssetAssignmentService {
     private final PersonRepository personRepository;
     private final AssetHistoryRecorder historyRecorder;
     private final CurrentUserProvider currentUserProvider;
+    private final ApplicationEventPublisher eventPublisher;
 
     public AssetAssignmentService(AssetRepository assetRepository,
                                    PersonRepository personRepository,
                                    AssetHistoryRecorder historyRecorder,
-                                   CurrentUserProvider currentUserProvider) {
+                                   CurrentUserProvider currentUserProvider,
+                                   ApplicationEventPublisher eventPublisher) {
         this.assetRepository = assetRepository;
         this.personRepository = personRepository;
         this.historyRecorder = historyRecorder;
         this.currentUserProvider = currentUserProvider;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -69,6 +73,10 @@ public class AssetAssignmentService {
         }
 
         historyRecorder.record(asset, AssetHistoryEventType.ASSIGNMENT_CHANGE, "assignedToPersonId", previousHolder, person.getFullName());
+        // US-NTF-04: same transaction, so the notification commits with the assignment.
+        eventPublisher.publishEvent(new AssetAssignmentChangedEvent(asset.getId(), asset.getAssetNumber(),
+                asset.getName(), person.getId(), person.getFullName(), "assigned to",
+                currentUserProvider.current().username()));
         return asset;
     }
 
@@ -84,6 +92,7 @@ public class AssetAssignmentService {
         }
 
         String previousHolder = previousHolderName(asset);
+        UUID previousPersonId = asset.getAssignedToPersonId();
         asset.setAssignedToPersonId(null);
         asset.setUpdatedBy(currentUserProvider.current().id());
 
@@ -95,6 +104,9 @@ public class AssetAssignmentService {
         }
 
         historyRecorder.record(asset, AssetHistoryEventType.ASSIGNMENT_CHANGE, "assignedToPersonId", previousHolder, null);
+        eventPublisher.publishEvent(new AssetAssignmentChangedEvent(asset.getId(), asset.getAssetNumber(),
+                asset.getName(), previousPersonId, previousHolder == null ? "previous holder" : previousHolder,
+                "unassigned", currentUserProvider.current().username()));
         return asset;
     }
 

@@ -42,11 +42,15 @@ class AssetAssignmentServiceTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     private AssetAssignmentService service;
 
     @BeforeEach
     void setUp() {
-        service = new AssetAssignmentService(assetRepository, personRepository, historyRecorder, currentUserProvider);
+        service = new AssetAssignmentService(assetRepository, personRepository, historyRecorder, currentUserProvider,
+                eventPublisher);
     }
 
     private Asset asset(long version) {

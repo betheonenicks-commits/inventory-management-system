@@ -50,6 +50,9 @@ class TransferServiceTest {
     @Mock private LifecycleProperties lifecycleProperties;
     @Mock private LegalHoldService legalHoldService;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     private TransferService service;
     private UUID actorId;
     private UUID assetId;
@@ -63,7 +66,7 @@ class TransferServiceTest {
     void setUp() {
         service = new TransferService(transferRepository, assetRepository, orgNodeRepository, historyRecorder,
                 assignmentService, routingService, auditScopeChangeService, appUserRepository, currentUserProvider,
-                scopeGuard, lifecycleProperties, legalHoldService);
+                scopeGuard, lifecycleProperties, legalHoldService, eventPublisher);
         actorId = UUID.randomUUID();
         assetId = UUID.randomUUID();
         toOrgNodeId = UUID.randomUUID();

@@ -23,6 +23,9 @@ spring:
     enabled: true
     locations: classpath:db/migration
     connect-retries: 10
+  mail:
+    host: ${IAMS_SMTP_HOST:localhost}
+    port: ${IAMS_SMTP_PORT:1025}
   servlet:
     multipart:
       # Kept in step with iams.storage.max-size-bytes - the servlet layer
@@ -77,6 +80,9 @@ iams:
   lifecycle:
     restore-window-days: 30
     escalation-threshold-hours: 72
+  notifications:
+    mail-enabled: ${IAMS_MAIL_ENABLED:true}
+    mail-from: ${IAMS_MAIL_FROM:iams@localhost}
   storage:
     endpoint: ${IAMS_STORAGE_ENDPOINT:http://localhost:9000}
     access-key: ${MINIO_ROOT_USER:iams-minio-bootstrap}

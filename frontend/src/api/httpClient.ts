@@ -21,7 +21,10 @@ httpClient.interceptors.response.use(
     if (error.response?.status === 401) {
       useAuthStore.getState().clearSession()
       if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
+        // US-NTF-10: carry the intended destination through login so an
+        // expired session never dead-ends a deep link on the homepage.
+        const next = encodeURIComponent(window.location.pathname + window.location.search)
+        window.location.href = `/login?next=${next}`
       }
     }
     if (isApiProblem(data)) {
