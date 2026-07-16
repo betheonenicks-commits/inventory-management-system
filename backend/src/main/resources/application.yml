@@ -23,6 +23,12 @@ spring:
     enabled: true
     locations: classpath:db/migration
     connect-retries: 10
+  servlet:
+    multipart:
+      # Kept in step with iams.storage.max-size-bytes - the servlet layer
+      # rejects grossly oversized bodies before the service even sees them.
+      max-file-size: 10MB
+      max-request-size: 12MB
 
 server:
   port: 8080
@@ -71,6 +77,12 @@ iams:
   lifecycle:
     restore-window-days: 30
     escalation-threshold-hours: 72
+  storage:
+    endpoint: ${IAMS_STORAGE_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ROOT_USER:iams-minio-bootstrap}
+    secret-key: ${MINIO_ROOT_PASSWORD:iams_dev_minio_password}
+    bucket: iams-attachments
+    max-size-bytes: 10485760
 
 logging:
   level:

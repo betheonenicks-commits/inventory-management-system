@@ -6,8 +6,10 @@ import {
   fetchAuditExceptions,
   fetchAudits,
   fetchAuditProgress,
+  fetchFindingEvidence,
   fetchPickableAudits,
   reconcileFinding,
+  uploadFindingEvidence,
 } from '../../../api/audits/auditApi'
 import type { AuditCreatePayload } from '../../../api/audits/auditApi'
 import type { AuditStatus } from '../types'
@@ -79,5 +81,23 @@ export function useReconcileFindingMutation(auditId: string) {
     mutationFn: ({ findingId, foundLocationNote }: { findingId: string; foundLocationNote: string }) =>
       reconcileFinding(auditId, findingId, foundLocationNote),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['AUD', 'exceptions', auditId] }),
+  })
+}
+
+// US-AUD-11: evidence list per finding - cached per finding id, invalidated on upload.
+export function useFindingEvidenceQuery(auditId: string, findingId: string) {
+  return useQuery({
+    queryKey: ['AUD', 'evidence', auditId, findingId],
+    queryFn: () => fetchFindingEvidence(auditId, findingId),
+  })
+}
+
+export function useUploadEvidenceMutation(auditId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ findingId, file }: { findingId: string; file: File }) =>
+      uploadFindingEvidence(auditId, findingId, file),
+    onSuccess: (_data, { findingId }) =>
+      queryClient.invalidateQueries({ queryKey: ['AUD', 'evidence', auditId, findingId] }),
   })
 }

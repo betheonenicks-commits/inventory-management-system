@@ -28,8 +28,12 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-iams-minio-bootstrap}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-iams_dev_minio_password}
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      # Loopback-only (US-PLAT-02): network clients must never reach the
+      # object store directly - all attachment traffic is brokered through
+      # the backend. Host-local access stays available for dev tooling and
+      # the MinIO console; full proxy isolation is US-PLAT-15's story.
+      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - iams_minio_data:/data
     healthcheck:
@@ -46,9 +50,14 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-iams_dev_password}
       IAMS_JWT_SECRET: ${IAMS_JWT_SECRET:-dev-only-please-change-32-bytes-minimum-secret-value}
       IAMS_DEV_ADMIN_PASSWORD: ${IAMS_DEV_ADMIN_PASSWORD:-admin123}
+      IAMS_STORAGE_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-iams-minio-bootstrap}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-iams_dev_minio_password}
     # No host port on purpose - the reverse proxy is the only entry point
     depends_on:
       postgres:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     healthcheck:
       # 127.0.0.1, not localhost: these alpine images resolve localhost to ::1

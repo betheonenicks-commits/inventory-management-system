@@ -98,6 +98,18 @@ export interface AuditExceptionReport {
   findings: AuditFinding[]
 }
 
+// US-AUD-11: attachment metadata only - the bytes are always fetched through
+// the backend's brokered download endpoint, never a direct storage URL.
+export interface FindingEvidence {
+  id: string
+  fileName: string
+  contentType: string
+  sizeBytes: number
+  sha256: string
+  uploadedByUsername: string
+  uploadedAt: string
+}
+
 export interface AuditCertificate {
   auditId: string
   auditName: string

@@ -12,11 +12,18 @@ import ListItemText from '@mui/material/ListItemText'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera'
 import { isApiProblem } from '../../../api/errors'
 import { useAuthStore, hasPermission } from '../../../auth/authStore'
 import { ErrorPanel } from '../../../components/common/ErrorPanel'
 import { LoadingSkeleton } from '../../../components/common/LoadingSkeleton'
-import { useAuditExceptionsQuery, useReconcileFindingMutation } from '../hooks/useAuditsQuery'
+import { fetchFindingEvidenceBlobUrl } from '../../../api/audits/auditApi'
+import {
+  useAuditExceptionsQuery,
+  useFindingEvidenceQuery,
+  useReconcileFindingMutation,
+  useUploadEvidenceMutation,
+} from '../hooks/useAuditsQuery'
 import type { AuditFinding, FindingStatus } from '../types'
 
 function describeError(err: unknown, fallback: string): string {
@@ -96,6 +103,71 @@ function ReconcileAction({ auditId, finding, canWrite }: { auditId: string; find
   )
 }
 
+/**
+ * US-AUD-11: photo evidence on a finding. The photo chips fetch bytes through
+ * the backend's brokered download (with the auth header) into an object URL -
+ * there is deliberately no direct object-store URL anywhere in the client.
+ */
+function FindingEvidence({ auditId, finding, canWrite }: { auditId: string; finding: AuditFinding; canWrite: boolean }) {
+  const evidenceQuery = useFindingEvidenceQuery(auditId, finding.id)
+  const uploadEvidence = useUploadEvidenceMutation(auditId)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setError(null)
+    try {
+      await uploadEvidence.mutateAsync({ findingId: finding.id, file })
+    } catch (err) {
+      setError(describeError(err, 'Failed to upload evidence'))
+    }
+  }
+
+  async function handleView(attachmentId: string) {
+    try {
+      const url = await fetchFindingEvidenceBlobUrl(auditId, finding.id, attachmentId)
+      window.open(url, '_blank', 'noopener')
+      // The new tab holds its own reference; revoke ours once it has had time to load.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (err) {
+      setError(describeError(err, 'Failed to open evidence'))
+    }
+  }
+
+  const evidence = evidenceQuery.data ?? []
+  if (!canWrite && evidence.length === 0) return null
+
+  return (
+    <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+        {evidence.map((item) => (
+          <Chip
+            key={item.id}
+            size="small"
+            variant="outlined"
+            icon={<PhotoCameraIcon />}
+            label={item.fileName}
+            onClick={() => handleView(item.id)}
+          />
+        ))}
+        {canWrite && (
+          <Button size="small" component="label" disabled={uploadEvidence.isPending}>
+            {uploadEvidence.isPending ? 'Uploading…' : 'Attach photo'}
+            <input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFile} />
+          </Button>
+        )}
+      </Stack>
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+    </Stack>
+  )
+}
+
 /** US-AUD-16: everything that wasn't clean - Missing, Damaged, Out of Scope, Scope Changed. */
 export function AuditExceptionsPanel({ auditId }: { auditId: string }) {
   const exceptionsQuery = useAuditExceptionsQuery(auditId)
@@ -132,16 +204,15 @@ export function AuditExceptionsPanel({ auditId }: { auditId: string }) {
                 }
                 slotProps={{ secondary: { component: 'div' } }}
                 secondary={
-                  (finding.remarks || finding.reconciliation) && (
-                    <Stack spacing={0.25}>
-                      {finding.remarks && <Typography variant="body2">{finding.remarks}</Typography>}
-                      {finding.reconciliation && (
-                        <Typography variant="caption" color="success.main">
-                          Reconciled by {finding.reconciliation.reconciledByUsername}: {finding.reconciliation.foundLocationNote}
-                        </Typography>
-                      )}
-                    </Stack>
-                  )
+                  <Stack spacing={0.25}>
+                    {finding.remarks && <Typography variant="body2">{finding.remarks}</Typography>}
+                    {finding.reconciliation && (
+                      <Typography variant="caption" color="success.main">
+                        Reconciled by {finding.reconciliation.reconciledByUsername}: {finding.reconciliation.foundLocationNote}
+                      </Typography>
+                    )}
+                    <FindingEvidence auditId={auditId} finding={finding} canWrite={canWrite} />
+                  </Stack>
                 }
               />
             </ListItem>

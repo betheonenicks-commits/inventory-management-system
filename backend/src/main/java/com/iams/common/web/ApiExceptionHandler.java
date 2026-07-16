@@ -9,6 +9,7 @@ import com.iams.common.security.AccountLockedException;
 import com.iams.common.security.InvalidCredentialsException;
 import com.iams.common.security.InvalidRefreshTokenException;
 import com.iams.compliance.application.LegalHoldActiveException;
+import com.iams.storage.infrastructure.StorageUnavailableException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.time.Instant;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
  * Central mapper from Java exceptions to RFC 7807 problem+json, per API spec Section 1.9.
@@ -201,6 +203,23 @@ public class ApiExceptionHandler {
                 "This resource does not support direct mutation. Use the correct state-transition endpoint.",
                 "METHOD_NOT_ALLOWED", req);
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(pd);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ProblemDetail> handleUploadTooLarge(MaxUploadSizeExceededException ex, HttpServletRequest req) {
+        ProblemDetail pd = build(HttpStatus.PAYLOAD_TOO_LARGE, "upload-too-large", "Upload Too Large",
+                "The uploaded file exceeds the maximum allowed size.", "UPLOAD_TOO_LARGE", req);
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(pd);
+    }
+
+    @ExceptionHandler(StorageUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleStorageUnavailable(StorageUnavailableException ex, HttpServletRequest req) {
+        // The client did nothing wrong and retrying later is correct - 503, not 400/500.
+        ProblemDetail pd = build(HttpStatus.SERVICE_UNAVAILABLE, "storage-unavailable", "Storage Unavailable",
+                "The object store is temporarily unavailable. Try again shortly.", "STORAGE_UNAVAILABLE", req);
+        log.error("Object store unavailable for {} {} (traceId={})", req.getMethod(), req.getRequestURI(),
+                pd.getProperties().get("traceId"), ex);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(pd);
     }
 
     @ExceptionHandler(Exception.class)

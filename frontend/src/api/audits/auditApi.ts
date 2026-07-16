@@ -6,6 +6,7 @@ import type {
   AuditExceptionReport,
   AuditFinding,
   AuditFindingReconciliation,
+  FindingEvidence,
   AuditProgress,
   AuditStatus,
   AuditSummary,
@@ -100,4 +101,26 @@ export function fetchAuditExceptions(id: string) {
 
 export function fetchAuditCertificate(id: string) {
   return httpClient.get<AuditCertificate>(`/audits/${id}/certificate`).then((r) => r.data)
+}
+
+/** US-AUD-11: photo evidence, brokered through the backend (US-PLAT-02) - never a direct object-store URL. */
+export function fetchFindingEvidence(auditId: string, findingId: string) {
+  return httpClient
+    .get<FindingEvidence[]>(`/audits/${auditId}/findings/${findingId}/evidence`)
+    .then((r) => r.data)
+}
+
+export function uploadFindingEvidence(auditId: string, findingId: string, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return httpClient
+    .post<FindingEvidence>(`/audits/${auditId}/findings/${findingId}/evidence`, form)
+    .then((r) => r.data)
+}
+
+/** Fetches the image bytes with auth and hands back an object URL the caller must revoke. */
+export function fetchFindingEvidenceBlobUrl(auditId: string, findingId: string, attachmentId: string) {
+  return httpClient
+    .get<Blob>(`/audits/${auditId}/findings/${findingId}/evidence/${attachmentId}`, { responseType: 'blob' })
+    .then((r) => URL.createObjectURL(r.data))
 }

@@ -31,10 +31,17 @@ import com.iams.audit.domain.Audit;
 import com.iams.audit.domain.AuditAssignment;
 import com.iams.audit.domain.AuditFinding;
 import com.iams.audit.domain.AuditStatus;
+import com.iams.storage.api.AttachmentResponse;
+import com.iams.storage.application.AttachmentService;
+import com.iams.storage.domain.Attachment;
+import com.iams.storage.domain.AttachmentOwnerType;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -45,6 +52,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * EPIC-AUD: physical audit management
@@ -63,17 +71,20 @@ public class AuditController {
     private final AuditFindingCorrectionService correctionService;
     private final AuditReportService reportService;
     private final AuditReconciliationService reconciliationService;
+    private final AttachmentService attachmentService;
     private final AuditMapper mapper;
 
     public AuditController(AuditService auditService, AuditScanService scanService, AuditWorkflowService workflowService,
                             AuditFindingCorrectionService correctionService, AuditReportService reportService,
-                            AuditReconciliationService reconciliationService, AuditMapper mapper) {
+                            AuditReconciliationService reconciliationService, AttachmentService attachmentService,
+                            AuditMapper mapper) {
         this.auditService = auditService;
         this.scanService = scanService;
         this.workflowService = workflowService;
         this.correctionService = correctionService;
         this.reportService = reportService;
         this.reconciliationService = reconciliationService;
+        this.attachmentService = attachmentService;
         this.mapper = mapper;
     }
 
@@ -169,6 +180,42 @@ public class AuditController {
         correctionService.correct(id, findingId, request.fieldName(), request.newValue());
         AuditFinding finding = correctionService.getFinding(id, findingId);
         return mapper.toResponse(finding, correctionService.corrections(findingId), reconciliationService.forFinding(findingId));
+    }
+
+    // US-AUD-11: photo evidence, brokered through the backend (US-PLAT-02).
+    // The getFinding() call is the authorization anchor: 404 unless the
+    // finding exists and belongs to this audit, same as corrections.
+    @PostMapping("/{id}/findings/{findingId}/evidence")
+    @PreAuthorize("@perm.has('audits:write')")
+    public ResponseEntity<AttachmentResponse> uploadEvidence(@PathVariable UUID id, @PathVariable UUID findingId,
+            @RequestParam("file") MultipartFile file) {
+        AuditFinding finding = correctionService.getFinding(id, findingId);
+        Attachment stored = attachmentService.storeImage(AttachmentOwnerType.AUDIT_FINDING, finding.getId(), file);
+        return ResponseEntity
+                .created(URI.create("/api/v1/audits/" + id + "/findings/" + findingId + "/evidence/" + stored.getId()))
+                .body(AttachmentResponse.from(stored));
+    }
+
+    @GetMapping("/{id}/findings/{findingId}/evidence")
+    @PreAuthorize("@perm.has('audits:read')")
+    public List<AttachmentResponse> listEvidence(@PathVariable UUID id, @PathVariable UUID findingId) {
+        AuditFinding finding = correctionService.getFinding(id, findingId);
+        return attachmentService.listFor(AttachmentOwnerType.AUDIT_FINDING, finding.getId()).stream()
+                .map(AttachmentResponse::from).toList();
+    }
+
+    @GetMapping("/{id}/findings/{findingId}/evidence/{attachmentId}")
+    @PreAuthorize("@perm.has('audits:read')")
+    public ResponseEntity<byte[]> downloadEvidence(@PathVariable UUID id, @PathVariable UUID findingId,
+            @PathVariable UUID attachmentId) {
+        AuditFinding finding = correctionService.getFinding(id, findingId);
+        AttachmentService.StoredAttachment stored =
+                attachmentService.load(AttachmentOwnerType.AUDIT_FINDING, finding.getId(), attachmentId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(stored.metadata().getContentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline().filename(stored.metadata().getFileName()).build().toString())
+                .body(stored.content());
     }
 
     @PostMapping("/{id}/submit")
