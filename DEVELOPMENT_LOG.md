@@ -820,3 +820,15 @@ Ran the demo the user asked for as a live walkthrough, not a slide deck: 8 flows
 **Status:** no story-tier change. Overall unchanged at **113 Built / 11 Partial / 56 Not started** (180 total).
 
 **Next session:** unchanged queue - (1) US-RPT-13 scheduled report delivery (email infra now exists), (2) EPIC-ANL, (3) the Partials sweep.
+
+## 2026-07-16, continued a fifth time — CI/CD goes LIVE: first GitHub Actions + CodeQL runs green, Dependabot active
+
+The pipeline committed on 2026-07-15 finally has somewhere to run. The user created https://github.com/betheonenicks-commits/inventory-management-system (public) and pushed `main` themselves (both steps are deliberately the user's in this environment - repo creation fixes owner/visibility, and a first push of the whole codebase to a public remote is theirs to trigger).
+
+**First runs on main, zero fixes needed: CI success, CodeQL success.** The locally-verified pipeline translated to the real runner environment unchanged - the Postgres 16 service container, mvn test (364/364 there too), npm ci/oxlint/tsc/vite build/npm audit all passed first try, and CodeQL's two language matrices (java-kotlin, javascript-typescript) completed without configuration changes. The "still pending a remote" caveat carried by every Epic Completion Gate since EPIC-INV's is now closed.
+
+**Dependabot woke up instantly and opened ~18 update PRs**, each triggering its own CI+CodeQL (several already green). The majors in the pile are real migration work, not auto-merges: Spring Boot 3.3.5→4.1.0, springdoc 2.6→3.0.3 (OpenAPI 3.1 line), minio 8→9, typescript 6→7, jjwt 0.12→0.13, plus actions/* 4→7. A dedicated dependency-triage session should work through these newest-compatible-first; the minors/patches (vite 8.1.4→8.1.5, oxlint 1.73→1.74, zxing 3.5.3→3.5.4, poi 5.3→5.5.1) are likely safe merges once their checks are green.
+
+**Status:** no story-tier change; overall unchanged at **113 Built / 11 Partial / 56 Not started**. US-SEC-12 ("surface dependency-scan status to security roles") gains its upstream data source - the scan now actually runs - but the in-app surfacing it asks for remains Not-started.
+
+**Next session:** unchanged queue - (1) US-RPT-13 scheduled report delivery; (2) EPIC-ANL; (3) Partials sweep - plus the new option (4) Dependabot triage (18 PRs, majors need real migration).
