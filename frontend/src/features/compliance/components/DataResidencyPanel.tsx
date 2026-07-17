@@ -75,6 +75,27 @@ export function DataResidencyPanel({ canWrite }: { canWrite: boolean }) {
         </Alert>
       )}
 
+      <Typography variant="subtitle2">Data Stores</Typography>
+      <List dense>
+        {(residency.stores ?? []).map((store) => (
+          <ListItem key={store.name} divider>
+            <ListItemText
+              primary={
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <Typography variant="body2">{store.name}</Typography>
+                  <Chip
+                    size="small"
+                    color={store.onPremises ? 'success' : 'error'}
+                    label={store.onPremises ? 'ON-PREMISES' : 'EXTERNAL'}
+                  />
+                </Stack>
+              }
+              secondary={store.holds}
+            />
+          </ListItem>
+        ))}
+      </List>
+
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="subtitle2">Outbound Integration Registry</Typography>
         {canWrite && (

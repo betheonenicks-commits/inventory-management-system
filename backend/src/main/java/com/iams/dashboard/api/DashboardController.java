@@ -1,5 +1,6 @@
 package com.iams.dashboard.api;
 
+import com.iams.analytics.application.TrackUsage;
 import com.iams.dashboard.api.dto.DashboardDtos.ActivityFeedEntryResponse;
 import com.iams.dashboard.api.dto.DashboardDtos.AssetSummaryResponse;
 import com.iams.dashboard.api.dto.DashboardDtos.AuditCalendarEntryResponse;
@@ -44,8 +45,12 @@ public class DashboardController {
         this.preferenceService = preferenceService;
     }
 
+    // The one tracked endpoint of this controller: asset-summary loads on every
+    // dashboard view, so it stands in for "viewed the dashboard" without
+    // recording six events per page load (US-ANL-01's curated-catalog rule).
     @GetMapping("/asset-summary")
     @PreAuthorize("@perm.has('dashboards:read')")
+    @TrackUsage(module = "dashboard", action = "view")
     public AssetSummaryResponse assetSummary() {
         DashboardService.AssetSummary summary = dashboardService.assetSummary();
         return new AssetSummaryResponse(summary.totalAssets(), toLabelCounts(summary.byCategory()),

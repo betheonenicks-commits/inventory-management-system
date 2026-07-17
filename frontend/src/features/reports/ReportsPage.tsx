@@ -62,6 +62,7 @@ type ReportKey =
   | 'depreciation'
   | 'maintenance-history'
   | 'security-events'
+  | 'usage-adoption'
 
 interface ReportDef {
   key: ReportKey
@@ -83,6 +84,7 @@ const REPORTS: ReportDef[] = [
   { key: 'depreciation', label: 'Depreciation & Net Book Value', description: 'NBV per asset from its stored schedule; unconfigured assets flagged, never zeroed (US-RPT-09).' },
   { key: 'maintenance-history', label: 'Maintenance History', description: 'Repairs plus preventive/corrective maintenance in one timeline (US-RPT-10).' },
   { key: 'security-events', label: 'Security & Access Log', description: 'The security log as a formal, exportable report (US-RPT-14).', requiresPermission: 'security:read' },
+  { key: 'usage-adoption', label: 'Feature Adoption', description: 'Usage by role and module, with expected-but-unused gaps flagged (US-ANL-03). Captured entirely inside this deployment.', requiresPermission: 'analytics:read' },
 ]
 
 // Reports whose only controls are an optional from/to date range.
@@ -163,6 +165,7 @@ export function ReportsPage() {
       case 'employee-assets':
         return personId ? { personId } : { error: 'Choose a person first.' }
       case 'expiry':
+      case 'usage-adoption':
         return { withinDays: Number(withinDays) }
       case 'asset-movements':
         return { from, to }
@@ -309,9 +312,9 @@ export function ReportsPage() {
               </FormControl>
             )}
 
-            {reportKey === 'expiry' && (
+            {(reportKey === 'expiry' || reportKey === 'usage-adoption') && (
               <TextField
-                label="Lookahead (days)"
+                label={reportKey === 'expiry' ? 'Lookahead (days)' : 'Period (days)'}
                 type="number"
                 value={withinDays}
                 onChange={(e) => setWithinDays(e.target.value)}

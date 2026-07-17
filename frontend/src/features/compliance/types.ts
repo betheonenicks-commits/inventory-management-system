@@ -55,7 +55,16 @@ export interface OutboundIntegrationFlag {
   complianceReviewNote: string | null
 }
 
+export interface DataStoreEntry {
+  name: string
+  holds: string
+  onPremises: boolean
+}
+
 export interface DataResidencyView {
   allStoresOnPremises: boolean
+  // US-ANL-02: each store named, so "analytics data is on-premises alongside
+  // every other store" is a readable line, not an inference.
+  stores: DataStoreEntry[]
   enabledOutboundFlows: OutboundIntegrationFlag[]
 }

@@ -23,6 +23,9 @@ public class NotificationProperties {
     private int overdueRepeatDays = 3;
     private int expiryLookaheadDays = 30;
 
+    /** US-ANL-04: the role whose holders receive submitted feedback; falls back to admins if nobody holds it. */
+    private String feedbackRecipientRole = "ADMIN";
+
     public boolean isMailEnabled() {
         return mailEnabled;
     }
@@ -85,5 +88,13 @@ public class NotificationProperties {
 
     public void setExpiryLookaheadDays(int expiryLookaheadDays) {
         this.expiryLookaheadDays = expiryLookaheadDays;
+    }
+
+    public String getFeedbackRecipientRole() {
+        return feedbackRecipientRole;
+    }
+
+    public void setFeedbackRecipientRole(String feedbackRecipientRole) {
+        this.feedbackRecipientRole = feedbackRecipientRole;
     }
 }

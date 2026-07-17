@@ -11,6 +11,7 @@ import com.iams.asset.application.AssetRegisterCommand;
 import com.iams.asset.application.AssetRegistrationService;
 import com.iams.asset.application.AssetStatusService;
 import com.iams.asset.application.AssetUpdateCommand;
+import com.iams.analytics.application.TrackUsage;
 import com.iams.asset.domain.Asset;
 import com.iams.common.web.PageResponse;
 import jakarta.validation.Valid;
@@ -58,6 +59,7 @@ public class AssetController {
 
     @PostMapping("/assets")
     @PreAuthorize("@perm.has('assets:write')")
+    @TrackUsage(module = "assets", action = "register")
     public ResponseEntity<AssetResponse> create(@Valid @RequestBody AssetCreateRequest request) {
         AssetRegisterCommand command = new AssetRegisterCommand(
                 request.categoryId(), request.name(), request.manufacturer(), request.model(),
@@ -70,6 +72,7 @@ public class AssetController {
     }
 
     @GetMapping("/assets")
+    @TrackUsage(module = "assets", action = "list-register")
     public PageResponse<AssetResponse> list(@RequestParam(required = false) UUID categoryId,
                                              @RequestParam(required = false) UUID statusId,
                                              @RequestParam(required = false) String q,

@@ -31,9 +31,22 @@ public class DataResidencyService {
         this.currentUserProvider = currentUserProvider;
     }
 
+    /**
+     * The store list is hardcoded for the same reason the boolean is: these
+     * ARE the product's data stores, fixed by its architecture, not rows any
+     * deployment can vary. Usage analytics and feedback (EPIC-ANL) named
+     * explicitly per US-ANL-02's AC - they live in the same PostgreSQL as
+     * everything else, with no outbound path in their code (see
+     * AnalyticsSovereigntyTest for the structural proof).
+     */
     @Transactional(readOnly = true)
     public DataResidencyView view() {
-        return new DataResidencyView(true, flagRepository.findByEnabledTrue());
+        List<DataResidencyView.StoreEntry> stores = List.of(
+                new DataResidencyView.StoreEntry("PostgreSQL (primary database)",
+                        "All business, security, audit, notification, usage-analytics, and feedback data", true),
+                new DataResidencyView.StoreEntry("MinIO (object store)",
+                        "Uploaded attachments (audit photo evidence)", true));
+        return new DataResidencyView(true, stores, flagRepository.findByEnabledTrue());
     }
 
     @Transactional(readOnly = true)

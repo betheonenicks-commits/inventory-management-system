@@ -48,6 +48,10 @@ public class ComplianceMapper {
     }
 
     public DataResidencyResponse toResponse(DataResidencyView view) {
-        return new DataResidencyResponse(view.allStoresOnPremises(), view.enabledOutboundFlows().stream().map(this::toResponse).toList());
+        return new DataResidencyResponse(view.allStoresOnPremises(),
+                view.stores().stream()
+                        .map(s -> new DataResidencyResponse.StoreResponse(s.name(), s.holds(), s.onPremises()))
+                        .toList(),
+                view.enabledOutboundFlows().stream().map(this::toResponse).toList());
     }
 }

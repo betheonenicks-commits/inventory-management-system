@@ -19,12 +19,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class ReportDispatchService {
 
-    /** The one report that doesn't ride on reports:read - callers gate it on security:read. */
+    /** Rides on security:read instead of reports:read - see ReportAccessPolicy. */
     public static final String SECURITY_EVENTS_KEY = "security-events";
+
+    /** Rides on analytics:read (US-ANL-03) - see ReportAccessPolicy. */
+    public static final String USAGE_ADOPTION_KEY = "usage-adoption";
 
     private static final java.util.Set<String> KNOWN_KEYS = java.util.Set.of("asset-register", "employee-assets",
             "expiry", "asset-movements", "loss", "vendor-purchases", "audit-compliance", "depreciation",
-            "maintenance-history", SECURITY_EVENTS_KEY);
+            "maintenance-history", SECURITY_EVENTS_KEY, USAGE_ADOPTION_KEY);
 
     /** Fail a bad key at submit time (400) rather than birthing a job doomed to FAIL asynchronously. */
     public void requireKnownKey(String key) {
@@ -34,9 +37,11 @@ public class ReportDispatchService {
     }
 
     private final ReportService reportService;
+    private final AdoptionReportService adoptionReportService;
 
-    public ReportDispatchService(ReportService reportService) {
+    public ReportDispatchService(ReportService reportService, AdoptionReportService adoptionReportService) {
         this.reportService = reportService;
+        this.adoptionReportService = adoptionReportService;
     }
 
     public TabularReport generate(String key, Map<String, String> params) {
@@ -54,6 +59,7 @@ public class ReportDispatchService {
             case "maintenance-history" -> reportService.maintenanceHistory(uuid(params, "assetId"));
             case SECURITY_EVENTS_KEY -> reportService.securityEvents(uuid(params, "actorUserId"),
                     enumOrNull(params.get("eventType")), instant(params, "from"), instant(params, "to"));
+            case USAGE_ADOPTION_KEY -> adoptionReportService.usageAdoption(intOrDefault(params, "withinDays", 90));
             default -> throw ValidationFailedException.singleField("report", "Unknown report key: " + key);
         };
     }

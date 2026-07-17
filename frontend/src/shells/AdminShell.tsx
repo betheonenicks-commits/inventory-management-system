@@ -19,7 +19,10 @@ import DashboardIcon from '@mui/icons-material/Dashboard'
 import Inventory2Icon from '@mui/icons-material/Inventory2'
 import CategoryIcon from '@mui/icons-material/Category'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
+import FeedbackOutlinedIcon from '@mui/icons-material/FeedbackOutlined'
+import Tooltip from '@mui/material/Tooltip'
 import { NotificationBell } from '../features/notifications/NotificationBell'
+import { FeedbackDialog } from '../features/feedback/FeedbackDialog'
 import PeopleIcon from '@mui/icons-material/People'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
@@ -90,6 +93,7 @@ export function AdminShell() {
   const clearSession = useAuthStore((s) => s.clearSession)
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   const visibleNavItems = NAV_ITEMS.filter((item) => {
     if (item.requiresAnyPermission) return item.requiresAnyPermission.some((p) => hasPermission(user, p))
@@ -115,6 +119,12 @@ export function AdminShell() {
           <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
             IAMS - Inventory Audit Management System
           </Typography>
+          {/* US-ANL-04: feedback from anywhere in the app - every role sees this. */}
+          <Tooltip title="Send feedback">
+            <IconButton color="inherit" aria-label="Send feedback" onClick={() => setFeedbackOpen(true)}>
+              <FeedbackOutlinedIcon />
+            </IconButton>
+          </Tooltip>
           <NotificationBell />
           <IconButton color="inherit" onClick={(e) => setAnchorEl(e.currentTarget)}>
             <AccountCircleIcon />
@@ -155,6 +165,8 @@ export function AdminShell() {
         <Toolbar />
         <Outlet />
       </Box>
+
+      <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </Box>
   )
 }

@@ -92,6 +92,8 @@ iams:
   notifications:
     mail-enabled: ${IAMS_MAIL_ENABLED:true}
     mail-from: ${IAMS_MAIL_FROM:iams@localhost}
+    # US-ANL-04: the role whose holders receive in-app feedback submissions.
+    feedback-recipient-role: ${IAMS_FEEDBACK_RECIPIENT_ROLE:ADMIN}
   storage:
     endpoint: ${IAMS_STORAGE_ENDPOINT:http://localhost:9000}
     access-key: ${MINIO_ROOT_USER:iams-minio-bootstrap}

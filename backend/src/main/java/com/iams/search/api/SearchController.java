@@ -1,5 +1,6 @@
 package com.iams.search.api;
 
+import com.iams.analytics.application.TrackUsage;
 import com.iams.search.application.SearchService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,12 +26,14 @@ public class SearchController {
     }
 
     @GetMapping
+    @TrackUsage(module = "search", action = "global-search")
     public SearchService.GlobalSearchResult global(@RequestParam String q) {
         return searchService.global(q);
     }
 
     /** US-SRC-02: exact lookup by asset number / barcode / QR payload / RFID tag. A 404 lets the UI offer "register this asset?" to authorized roles. */
     @GetMapping("/asset-code/{code}")
+    @TrackUsage(module = "search", action = "code-lookup")
     public SearchService.AssetHit byCode(@PathVariable String code) {
         return searchService.byCode(code);
     }

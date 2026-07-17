@@ -1,5 +1,6 @@
 package com.iams.asset.api;
 
+import com.iams.analytics.application.TrackUsage;
 import com.iams.asset.api.dto.LabelConfigResponse;
 import com.iams.asset.application.AssetQueryService;
 import com.iams.asset.application.BatchLabelService;
@@ -49,6 +50,7 @@ public class AssetLabelController {
     }
 
     @GetMapping("/{id}/label")
+    @TrackUsage(module = "assets", action = "print-label")
     public ResponseEntity<byte[]> label(@PathVariable UUID id,
                                          @RequestParam(defaultValue = "png") String format,
                                          @RequestParam(required = false) String size) {
@@ -88,6 +90,7 @@ public class AssetLabelController {
      * missing one). Authenticated read, same as the single-label endpoint.
      */
     @PostMapping("/labels/batch")
+    @TrackUsage(module = "assets", action = "print-batch-labels")
     public ResponseEntity<byte[]> batchLabels(@Valid @RequestBody BatchLabelRequest request) {
         String sizeKey = request.size() != null ? request.size() : DEFAULT_SIZE_KEY;
         BatchLabelService.BatchLabelResult result = batchLabelService.render(request.assetIds(), sizeKey);

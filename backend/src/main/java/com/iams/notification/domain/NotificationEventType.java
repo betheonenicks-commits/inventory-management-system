@@ -14,7 +14,9 @@ public enum NotificationEventType {
     PENDING_APPROVAL,
     SECURITY_ALERT,
     ASSIGNMENT,
-    TRANSFER_DECISION;
+    TRANSFER_DECISION,
+    /** US-ANL-04: in-app feedback routed to the configured recipient role. */
+    FEEDBACK_RECEIVED;
 
     /**
      * US-NTF-05: Administrator-locked types - the email channel cannot be

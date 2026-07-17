@@ -1,5 +1,6 @@
 package com.iams.inventory.api;
 
+import com.iams.analytics.application.TrackUsage;
 import com.iams.inventory.api.dto.ManualAdjustmentCreateRequest;
 import com.iams.inventory.api.dto.ManualAdjustmentResponse;
 import com.iams.inventory.application.ManualAdjustmentService;
@@ -35,6 +36,7 @@ public class ManualAdjustmentController {
 
     @PostMapping
     @PreAuthorize("@perm.has('inventory:write')")
+    @TrackUsage(module = "inventory", action = "adjust")
     public ResponseEntity<ManualAdjustmentResponse> create(@Valid @RequestBody ManualAdjustmentCreateRequest request) {
         InventoryManualAdjustmentRequest adjustment = adjustmentService.request(request.itemId(), request.warehouseId(),
                 request.subLocation(), request.lotNumber(), request.quantityDelta(), request.reason(), request.nominalApproverId());

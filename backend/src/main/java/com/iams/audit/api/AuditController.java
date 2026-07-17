@@ -1,5 +1,6 @@
 package com.iams.audit.api;
 
+import com.iams.analytics.application.TrackUsage;
 import com.iams.audit.api.dto.AuditAssignmentRequest;
 import com.iams.audit.api.dto.AuditAssignmentResponse;
 import com.iams.audit.api.dto.AuditBatchScanRequest;
@@ -90,6 +91,7 @@ public class AuditController {
 
     @PostMapping
     @PreAuthorize("@perm.has('audits:write')")
+    @TrackUsage(module = "audits", action = "create")
     public ResponseEntity<AuditResponse> create(@Valid @RequestBody AuditCreateRequest request) {
         Audit audit = auditService.create(new AuditCreateCommand(request.name(), request.auditType(),
                 request.scopeOrgNodeId(), request.scopeCategoryId(), request.assetIds(), request.nominalApproverId(),
@@ -153,6 +155,7 @@ public class AuditController {
 
     @PostMapping("/{id}/scans")
     @PreAuthorize("@perm.has('audits:write')")
+    @TrackUsage(module = "audits", action = "scan")
     public ResponseEntity<AuditFindingResponse> scan(@PathVariable UUID id, @Valid @RequestBody AuditScanRequest request) {
         AuditFinding finding = scanService.recordScan(id, toCommand(request));
         AuditFindingResponse response = mapper.toResponse(finding, correctionService.corrections(finding.getId()));
@@ -161,6 +164,7 @@ public class AuditController {
 
     @PostMapping("/{id}/scans/batch")
     @PreAuthorize("@perm.has('audits:write')")
+    @TrackUsage(module = "audits", action = "scan-batch")
     public AuditBatchScanResponse scanBatch(@PathVariable UUID id, @Valid @RequestBody AuditBatchScanRequest request) {
         List<AuditScanCommand> commands = request.scans().stream().map(this::toCommand).toList();
         return mapper.toBatchResponse(scanService.recordBatchScan(id, commands), correctionService::corrections);
@@ -218,6 +222,7 @@ public class AuditController {
                 .body(stored.content());
     }
 
+    @TrackUsage(module = "audits", action = "submit")
     @PostMapping("/{id}/submit")
     @PreAuthorize("@perm.has('audits:write')")
     public AuditResponse submit(@PathVariable UUID id, @Valid @RequestBody AuditSubmitRequest request) {

@@ -7,7 +7,9 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        // Overridable because dev backends on this machine run on 8081
+        // (port 8080 is occupied by an unrelated pre-existing httpd).
+        target: process.env.IAMS_API_TARGET ?? 'http://localhost:8080',
         changeOrigin: true,
       },
     },

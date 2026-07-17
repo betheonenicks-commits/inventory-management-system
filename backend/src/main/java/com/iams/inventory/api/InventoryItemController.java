@@ -1,5 +1,6 @@
 package com.iams.inventory.api;
 
+import com.iams.analytics.application.TrackUsage;
 import com.iams.inventory.api.dto.InventoryItemCostingMethodChangeResponse;
 import com.iams.inventory.api.dto.InventoryItemCreateRequest;
 import com.iams.inventory.api.dto.InventoryItemResponse;
@@ -44,6 +45,7 @@ public class InventoryItemController {
 
     @GetMapping
     @PreAuthorize("@perm.has('inventory:read')")
+    @TrackUsage(module = "inventory", action = "list-items")
     public List<InventoryItemResponse> list(@RequestParam(defaultValue = "false") boolean activeOnly) {
         return itemService.list(activeOnly).stream().map(mapper::toResponse).toList();
     }

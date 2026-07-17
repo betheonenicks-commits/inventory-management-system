@@ -1,6 +1,8 @@
 package com.iams.report.api;
 
+import com.iams.analytics.application.TrackUsage;
 import com.iams.common.exception.ValidationFailedException;
+import com.iams.report.application.AdoptionReportService;
 import com.iams.report.application.CsvExporter;
 import com.iams.report.application.ExportJobService;
 import com.iams.report.application.ExportJobService.RenderFunction;
@@ -52,6 +54,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportController {
 
     private final ReportService reportService;
+    private final AdoptionReportService adoptionReportService;
     private final CsvExporter csvExporter;
     private final XlsxExporter xlsxExporter;
     private final PdfExporter pdfExporter;
@@ -60,11 +63,13 @@ public class ReportController {
     private final ReportScheduleService scheduleService;
     private final ReportScheduleJob scheduleJob;
 
-    public ReportController(ReportService reportService, CsvExporter csvExporter, XlsxExporter xlsxExporter,
+    public ReportController(ReportService reportService, AdoptionReportService adoptionReportService,
+                            CsvExporter csvExporter, XlsxExporter xlsxExporter,
                             PdfExporter pdfExporter, ExportJobService exportJobService,
                             ReportDispatchService dispatchService, ReportScheduleService scheduleService,
                             ReportScheduleJob scheduleJob) {
         this.reportService = reportService;
+        this.adoptionReportService = adoptionReportService;
         this.csvExporter = csvExporter;
         this.xlsxExporter = xlsxExporter;
         this.pdfExporter = pdfExporter;
@@ -76,6 +81,7 @@ public class ReportController {
 
     @GetMapping("/asset-register")
     @PreAuthorize("@perm.has('reports:read')")
+    @TrackUsage(module = "reports", action = "run-asset-register")
     public ResponseEntity<?> assetRegister(@RequestParam(required = false) UUID orgNodeId,
                                             @RequestParam(required = false) UUID categoryId,
                                             @RequestParam(required = false) UUID statusId,
@@ -85,6 +91,7 @@ public class ReportController {
 
     @GetMapping("/employee-assets")
     @PreAuthorize("@perm.has('reports:read')")
+    @TrackUsage(module = "reports", action = "run-employee-assets")
     public ResponseEntity<?> employeeAssets(@RequestParam UUID personId,
                                              @RequestParam(defaultValue = "json") String format) {
         return render(reportService.employeeAssets(personId), format);
@@ -92,6 +99,7 @@ public class ReportController {
 
     @GetMapping("/expiry")
     @PreAuthorize("@perm.has('reports:read')")
+    @TrackUsage(module = "reports", action = "run-expiry")
     public ResponseEntity<?> expiry(@RequestParam(defaultValue = "90") int withinDays,
                                      @RequestParam(defaultValue = "json") String format) {
         return render(reportService.expiry(withinDays), format);
@@ -99,6 +107,7 @@ public class ReportController {
 
     @GetMapping("/asset-movements")
     @PreAuthorize("@perm.has('reports:read')")
+    @TrackUsage(module = "reports", action = "run-asset-movements")
     public ResponseEntity<?> assetMovements(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -108,6 +117,7 @@ public class ReportController {
 
     @GetMapping("/loss")
     @PreAuthorize("@perm.has('reports:read')")
+    @TrackUsage(module = "reports", action = "run-loss")
     public ResponseEntity<?> loss(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -117,6 +127,7 @@ public class ReportController {
 
     @GetMapping("/vendor-purchases")
     @PreAuthorize("@perm.has('reports:read')")
+    @TrackUsage(module = "reports", action = "run-vendor-purchases")
     public ResponseEntity<?> vendorPurchases(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -126,6 +137,7 @@ public class ReportController {
 
     @GetMapping("/audit-compliance")
     @PreAuthorize("@perm.has('reports:read')")
+    @TrackUsage(module = "reports", action = "run-audit-compliance")
     public ResponseEntity<?> auditCompliance(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -135,6 +147,7 @@ public class ReportController {
 
     @GetMapping("/depreciation")
     @PreAuthorize("@perm.has('reports:read')")
+    @TrackUsage(module = "reports", action = "run-depreciation")
     public ResponseEntity<?> depreciation(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf,
             @RequestParam(defaultValue = "json") String format) {
@@ -143,6 +156,7 @@ public class ReportController {
 
     @GetMapping("/maintenance-history")
     @PreAuthorize("@perm.has('reports:read')")
+    @TrackUsage(module = "reports", action = "run-maintenance-history")
     public ResponseEntity<?> maintenanceHistory(@RequestParam(required = false) UUID assetId,
                                                  @RequestParam(defaultValue = "json") String format) {
         return render(reportService.maintenanceHistory(assetId), format);
@@ -150,6 +164,7 @@ public class ReportController {
 
     @GetMapping("/security-events")
     @PreAuthorize("@perm.has('security:read')")
+    @TrackUsage(module = "reports", action = "run-security-events")
     public ResponseEntity<?> securityEvents(
             @RequestParam(required = false) UUID actorUserId,
             @RequestParam(required = false) SecurityEventType eventType,
@@ -159,14 +174,26 @@ public class ReportController {
         return render(reportService.securityEvents(actorUserId, eventType, from, to), format);
     }
 
+    /**
+     * US-ANL-03: feature adoption by role x module. analytics:read-gated -
+     * deliberately seeded to no role, so only a wildcard holder (Super
+     * Administrator) or a future deliberate grant sees it.
+     */
+    @GetMapping("/usage-adoption")
+    @PreAuthorize("@perm.has('analytics:read')")
+    @TrackUsage(module = "reports", action = "run-usage-adoption")
+    public ResponseEntity<?> usageAdoption(@RequestParam(defaultValue = "90") int withinDays,
+                                            @RequestParam(defaultValue = "json") String format) {
+        return render(adoptionReportService.usageAdoption(withinDays), format);
+    }
+
     // US-RPT-12's background path: a very large export runs as a job with
-    // progress instead of blocking. The permission split mirrors the typed
-    // endpoints: security-events requires security:read, everything else
-    // reports:read - checked HERE on the request thread; the worker thread
-    // then re-runs generation under the same delegated security context.
+    // progress instead of blocking. The per-key permission split lives in
+    // ReportAccessPolicy - checked HERE on the request thread; the worker
+    // thread then re-runs generation under the same delegated security context.
     @PostMapping("/{reportKey}/export-jobs")
-    @PreAuthorize("#reportKey == T(com.iams.report.application.ReportDispatchService).SECURITY_EVENTS_KEY "
-            + "? @perm.has('security:read') : @perm.has('reports:read')")
+    @PreAuthorize("@reportAccess.canRun(#reportKey)")
+    @TrackUsage(module = "reports", action = "export-background")
     public ResponseEntity<ExportJobResponse> submitExportJob(@PathVariable String reportKey,
             @RequestParam(defaultValue = "xlsx") String exportFormat,
             @RequestParam Map<String, String> allParams) {
@@ -222,8 +249,8 @@ public class ReportController {
     // --- US-RPT-13: recurring delivery schedules (own-rows-only, like export jobs) ---
 
     @PostMapping("/{reportKey}/schedules")
-    @PreAuthorize("#reportKey == T(com.iams.report.application.ReportDispatchService).SECURITY_EVENTS_KEY "
-            + "? @perm.has('security:read') : @perm.has('reports:read')")
+    @PreAuthorize("@reportAccess.canRun(#reportKey)")
+    @TrackUsage(module = "reports", action = "schedule")
     public ResponseEntity<ScheduleResponse> createSchedule(@PathVariable String reportKey,
             @Valid @RequestBody ScheduleCreateRequest request) {
         ReportSchedule schedule = scheduleService.create(reportKey, request.params(), request.exportFormat(),
