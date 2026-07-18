@@ -112,3 +112,61 @@ export function fetchReportSchedules() {
 export function deleteReportSchedule(id: string) {
   return httpClient.delete(`/reports/schedules/${id}`)
 }
+
+// US-RPT-15: ad hoc saved reports, own-rows-only.
+
+export interface AdHocFieldOption {
+  key: string
+  label: string
+}
+
+export interface AdHocReport {
+  id: string
+  name: string
+  fields: string[]
+  query: string | null
+  categoryId: string | null
+  statusId: string | null
+  orgNodeId: string | null
+  purchasedFrom: string | null
+  purchasedTo: string | null
+}
+
+export interface AdHocCreatePayload {
+  name: string
+  fields: string[]
+  query?: string
+  categoryId?: string
+  statusId?: string
+  orgNodeId?: string
+  purchasedFrom?: string
+  purchasedTo?: string
+}
+
+export function fetchAdHocFields() {
+  return httpClient.get<AdHocFieldOption[]>('/reports/ad-hoc/fields').then((r) => r.data)
+}
+
+export function createAdHocReport(payload: AdHocCreatePayload) {
+  return httpClient.post<AdHocReport>('/reports/ad-hoc', payload).then((r) => r.data)
+}
+
+export function fetchAdHocReports() {
+  return httpClient.get<AdHocReport[]>('/reports/ad-hoc').then((r) => r.data)
+}
+
+export function runAdHocReport(id: string) {
+  return httpClient.get<TabularReport>(`/reports/ad-hoc/${id}/run`).then((r) => r.data)
+}
+
+export async function downloadAdHocReport(report: AdHocReport, format: ExportFormat) {
+  const response = await httpClient.get(`/reports/ad-hoc/${report.id}/run`, {
+    params: { format },
+    responseType: 'blob',
+  })
+  saveBlob(response.data as Blob, `${report.name}-${new Date().toISOString().slice(0, 10)}.${format}`)
+}
+
+export function deleteAdHocReport(id: string) {
+  return httpClient.delete(`/reports/ad-hoc/${id}`)
+}

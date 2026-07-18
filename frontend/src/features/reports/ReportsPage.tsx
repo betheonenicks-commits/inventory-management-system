@@ -49,6 +49,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import ScheduleIcon from '@mui/icons-material/Schedule'
 import { fetchOrgNodes } from '../../api/org/orgNodeApi'
 import { fetchPersons } from '../../api/persons/personApi'
+import { AdHocReportsPanel } from './AdHocReportsPanel'
 import type { TabularReport } from './types'
 
 type ReportKey =
@@ -421,6 +422,15 @@ export function ReportsPage() {
           )}
         </Paper>
       )}
+
+      {/* US-RPT-15: build-your-own saved reports; results render in the table above. */}
+      <AdHocReportsPanel
+        exportFormat={exportFormat}
+        onRun={(adHocResult, runError) => {
+          setReport(adHocResult)
+          setError(runError ?? null)
+        }}
+      />
 
       {(schedulesQuery.data ?? []).length > 0 && (
         <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>

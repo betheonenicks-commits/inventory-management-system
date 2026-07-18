@@ -2,8 +2,10 @@ package com.iams.report.api;
 
 import com.iams.analytics.application.TrackUsage;
 import com.iams.common.exception.ValidationFailedException;
+import com.iams.report.application.AdHocReportService;
 import com.iams.report.application.AdoptionReportService;
 import com.iams.report.application.CsvExporter;
+import com.iams.report.domain.AdHocReport;
 import com.iams.report.application.ExportJobService;
 import com.iams.report.application.ExportJobService.RenderFunction;
 import com.iams.report.application.PdfExporter;
@@ -55,6 +57,7 @@ public class ReportController {
 
     private final ReportService reportService;
     private final AdoptionReportService adoptionReportService;
+    private final AdHocReportService adHocReportService;
     private final CsvExporter csvExporter;
     private final XlsxExporter xlsxExporter;
     private final PdfExporter pdfExporter;
@@ -64,12 +67,14 @@ public class ReportController {
     private final ReportScheduleJob scheduleJob;
 
     public ReportController(ReportService reportService, AdoptionReportService adoptionReportService,
+                            AdHocReportService adHocReportService,
                             CsvExporter csvExporter, XlsxExporter xlsxExporter,
                             PdfExporter pdfExporter, ExportJobService exportJobService,
                             ReportDispatchService dispatchService, ReportScheduleService scheduleService,
                             ReportScheduleJob scheduleJob) {
         this.reportService = reportService;
         this.adoptionReportService = adoptionReportService;
+        this.adHocReportService = adHocReportService;
         this.csvExporter = csvExporter;
         this.xlsxExporter = xlsxExporter;
         this.pdfExporter = pdfExporter;
@@ -243,6 +248,61 @@ public class ReportController {
         static ExportJobResponse from(ExportJobService.ExportJob job) {
             return new ExportJobResponse(job.getId(), job.getReportKey(), job.getFormat(), job.getStatus().name(),
                     job.getProgress(), job.getFileName(), job.getError());
+        }
+    }
+
+    // --- US-RPT-15: ad hoc saved reports (own-rows-only, like saved searches) ---
+    // All on reports:read: building a personal report grants nothing the
+    // asset register doesn't already show - rows come from the same
+    // org-scoped search, so a definition can never out-see its owner.
+
+    @GetMapping("/ad-hoc/fields")
+    @PreAuthorize("@perm.has('reports:read')")
+    public List<AdHocReportService.FieldOption> adHocFields() {
+        return adHocReportService.availableFields();
+    }
+
+    @PostMapping("/ad-hoc")
+    @PreAuthorize("@perm.has('reports:read')")
+    @TrackUsage(module = "reports", action = "adhoc-create")
+    public ResponseEntity<AdHocReportResponse> createAdHoc(@Valid @RequestBody AdHocCreateRequest request) {
+        AdHocReport report = adHocReportService.create(request.name(), request.fields(), request.query(),
+                request.categoryId(), request.statusId(), request.orgNodeId(),
+                request.purchasedFrom(), request.purchasedTo());
+        return ResponseEntity.status(201).body(AdHocReportResponse.from(report));
+    }
+
+    @GetMapping("/ad-hoc")
+    @PreAuthorize("@perm.has('reports:read')")
+    public List<AdHocReportResponse> listAdHoc() {
+        return adHocReportService.listOwn().stream().map(AdHocReportResponse::from).toList();
+    }
+
+    @GetMapping("/ad-hoc/{id}/run")
+    @PreAuthorize("@perm.has('reports:read')")
+    @TrackUsage(module = "reports", action = "run-adhoc")
+    public ResponseEntity<?> runAdHoc(@PathVariable UUID id, @RequestParam(defaultValue = "json") String format) {
+        return render(adHocReportService.run(id), format);
+    }
+
+    @DeleteMapping("/ad-hoc/{id}")
+    @PreAuthorize("@perm.has('reports:read')")
+    public ResponseEntity<Void> deleteAdHoc(@PathVariable UUID id) {
+        adHocReportService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    public record AdHocCreateRequest(@NotBlank String name, @NotNull List<String> fields, String query,
+                                      UUID categoryId, UUID statusId, UUID orgNodeId,
+                                      @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate purchasedFrom,
+                                      @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate purchasedTo) {
+    }
+
+    public record AdHocReportResponse(UUID id, String name, List<String> fields, String query, UUID categoryId,
+                                       UUID statusId, UUID orgNodeId, LocalDate purchasedFrom, LocalDate purchasedTo) {
+        static AdHocReportResponse from(AdHocReport r) {
+            return new AdHocReportResponse(r.getId(), r.getName(), r.getFields(), r.getQuery(), r.getCategoryId(),
+                    r.getStatusId(), r.getOrgNodeId(), r.getPurchasedFrom(), r.getPurchasedTo());
         }
     }
 
