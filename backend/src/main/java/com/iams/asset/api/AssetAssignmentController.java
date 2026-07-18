@@ -1,6 +1,7 @@
 package com.iams.asset.api;
 
 import com.iams.asset.api.dto.AssetAssignmentRequest;
+import com.iams.asset.api.dto.AssetDepartmentAssignmentRequest;
 import com.iams.asset.api.dto.AssetResponse;
 import com.iams.asset.api.mapper.AssetMapper;
 import com.iams.asset.application.AssetAssignmentService;
@@ -36,6 +37,15 @@ public class AssetAssignmentController {
     @PreAuthorize("@perm.has('assets:write')")
     public AssetResponse assign(@PathVariable UUID id, @Valid @RequestBody AssetAssignmentRequest request) {
         Asset asset = assignmentService.assign(id, request.personId(), request.version());
+        return mapper.toResponse(asset);
+    }
+
+    /** US-LIF-04: assign custodianship to a Department instead of a Person. */
+    @PostMapping("/{id}/assignment/department")
+    @PreAuthorize("@perm.has('assets:write')")
+    public AssetResponse assignToDepartment(@PathVariable UUID id,
+            @Valid @RequestBody AssetDepartmentAssignmentRequest request) {
+        Asset asset = assignmentService.assignToDepartment(id, request.departmentId(), request.version());
         return mapper.toResponse(asset);
     }
 

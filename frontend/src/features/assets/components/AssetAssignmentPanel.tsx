@@ -4,20 +4,42 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { usePersonQuery, usePersonsQuery, useCreatePersonMutation } from '../../persons/hooks/usePersonsQuery'
-import { useAssignAssetMutation, useUnassignAssetMutation } from '../hooks/useAssetAssignment'
+import {
+  useAssignAssetMutation,
+  useAssignAssetToDepartmentMutation,
+  useDepartmentsQuery,
+  useUnassignAssetMutation,
+} from '../hooks/useAssetAssignment'
 import type { Asset } from '../types'
 import type { Person, PersonType } from '../../persons/types'
+import type { Department } from '../../../api/org/departmentApi'
 
-// Person-only (FR-LIF-04): "or department" is not built here since department
-// isn't a real entity yet (FR-ORG-03) - only what asset.assignedToPersonId
-// already supports.
+// US-LIF-04: custodian is a Person OR a Department. Assigning either kind
+// closes any prior assignment (of either kind); the backend keeps them
+// mutually exclusive, so the panel only ever shows one current custodian.
 export function AssetAssignmentPanel({ asset }: { asset: Asset }) {
   const assignedPersonQuery = usePersonQuery(asset.assignedToPersonId)
+  const departmentsForLabel = useDepartmentsQuery(asset.assignedToDepartmentId !== null)
   const unassign = useUnassignAssetMutation(asset.id)
+
+  const departmentName = asset.assignedToDepartmentId
+    ? departmentsForLabel.data?.find((d) => d.id === asset.assignedToDepartmentId)
+    : undefined
+
+  const currentCustodian = asset.assignedToPersonId
+    ? { label: assignedPersonQuery.data ? assignedPersonQuery.data.fullName : 'Loading…', kind: 'Person' }
+    : asset.assignedToDepartmentId
+      ? {
+          label: departmentName ? `${departmentName.name} (${departmentName.costCenterCode})` : 'Loading…',
+          kind: 'Department',
+        }
+      : null
 
   return (
     <Box>
@@ -25,10 +47,13 @@ export function AssetAssignmentPanel({ asset }: { asset: Asset }) {
         Assigned To
       </Typography>
 
-      {asset.assignedToPersonId ? (
+      {currentCustodian ? (
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
           <Typography variant="body2" sx={{ flexGrow: 1 }}>
-            {assignedPersonQuery.data ? assignedPersonQuery.data.fullName : 'Loading…'}
+            {currentCustodian.label}
+            <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+              {currentCustodian.kind}
+            </Typography>
           </Typography>
           <Button
             size="small"
@@ -47,6 +72,28 @@ export function AssetAssignmentPanel({ asset }: { asset: Asset }) {
 }
 
 function AssignPicker({ asset }: { asset: Asset }) {
+  const [kind, setKind] = useState<'person' | 'department'>('person')
+  return (
+    <Stack spacing={1.5}>
+      <Typography variant="body2" color="text.secondary">
+        Unassigned
+      </Typography>
+      <ToggleButtonGroup
+        size="small"
+        exclusive
+        value={kind}
+        onChange={(_, next) => next && setKind(next)}
+        aria-label="Custodian kind"
+      >
+        <ToggleButton value="person">Person</ToggleButton>
+        <ToggleButton value="department">Department</ToggleButton>
+      </ToggleButtonGroup>
+      {kind === 'person' ? <AssignPersonPicker asset={asset} /> : <AssignDepartmentPicker asset={asset} />}
+    </Stack>
+  )
+}
+
+function AssignPersonPicker({ asset }: { asset: Asset }) {
   const assign = useAssignAssetMutation(asset.id)
   const createPerson = useCreatePersonMutation()
 
@@ -74,10 +121,6 @@ function AssignPicker({ asset }: { asset: Asset }) {
 
   return (
     <Stack spacing={1}>
-      <Typography variant="body2" color="text.secondary">
-        Unassigned
-      </Typography>
-
       <Autocomplete
         size="small"
         options={candidatesQuery.data ?? []}
@@ -123,5 +166,30 @@ function AssignPicker({ asset }: { asset: Asset }) {
         </Stack>
       )}
     </Stack>
+  )
+}
+
+function AssignDepartmentPicker({ asset }: { asset: Asset }) {
+  const assign = useAssignAssetToDepartmentMutation(asset.id)
+  const departmentsQuery = useDepartmentsQuery(true)
+  const options = (departmentsQuery.data ?? []).filter((d) => d.active)
+
+  return (
+    <Autocomplete
+      size="small"
+      options={options}
+      loading={departmentsQuery.isFetching}
+      getOptionLabel={(option: Department) => `${option.name} (${option.costCenterCode})`}
+      isOptionEqualToValue={(option, value) => option.id === value.id}
+      onChange={(_, value) => {
+        if (value) {
+          assign.mutate({ departmentId: value.id, version: asset.version })
+        }
+      }}
+      value={null}
+      renderInput={(params) => (
+        <TextField {...params} label="Assign to department" placeholder="Search by name or cost center" />
+      )}
+    />
   )
 }

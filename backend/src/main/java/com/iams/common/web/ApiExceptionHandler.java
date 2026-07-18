@@ -110,7 +110,14 @@ public class ApiExceptionHandler {
                 ex.getMessage(), "OPTIMISTIC_LOCK_CONFLICT", req);
         pd.setProperty("expectedVersion", ex.getExpectedVersion());
         pd.setProperty("currentVersion", ex.getCurrentVersion());
-        pd.setProperty("currentResource", ex.getCurrentResource());
+        // Deliberately NOT the raw currentResource: the callers pass the JPA
+        // entity, and serializing one with uninitialized LAZY associations
+        // (e.g. Asset -> OrgNode -> OrgLevel) throws LazyInitializationException
+        // AFTER this handler returns, during response writing - which cascaded
+        // to a servlet /error dispatch and a misleading 401 on EVERY optimistic
+        // conflict app-wide. The version scalars are the actionable part (reload
+        // and retry); a full server-side snapshot per API 5.1 would need a
+        // resource-specific DTO mapping and is tracked as its own follow-up.
         return ResponseEntity.status(HttpStatus.CONFLICT).body(pd);
     }
 

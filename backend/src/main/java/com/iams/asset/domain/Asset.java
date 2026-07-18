@@ -51,6 +51,12 @@ public class Asset extends BaseEntity {
     @Column(name = "assigned_to_person_id")
     private UUID assignedToPersonId;
 
+    // US-LIF-04: custodian is a Person XOR a Department - exactly one of these
+    // is non-null at a time (or both null when unassigned). The exclusivity is
+    // enforced in AssetAssignmentService, the single writer of both columns.
+    @Column(name = "assigned_to_department_id")
+    private UUID assignedToDepartmentId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_asset_id")
     private Asset parentAsset;

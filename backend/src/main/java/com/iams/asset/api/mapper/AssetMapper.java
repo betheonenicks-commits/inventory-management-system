@@ -32,6 +32,7 @@ public class AssetMapper {
                 asset.getOrgNode().getId(),
                 asset.getOrgNode().getName(),
                 asset.getAssignedToPersonId(),
+                asset.getAssignedToDepartmentId(),
                 asset.getParentAsset() != null ? asset.getParentAsset().getId() : null,
                 asset.getSerialNumber(),
                 asset.getManufacturer(),

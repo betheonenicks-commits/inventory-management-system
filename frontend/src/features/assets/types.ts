@@ -44,6 +44,7 @@ export interface Asset {
   orgNodeId: string
   orgNodeName: string
   assignedToPersonId: string | null
+  assignedToDepartmentId: string | null
   parentAssetId: string | null
   serialNumber: string | null
   manufacturer: string | null

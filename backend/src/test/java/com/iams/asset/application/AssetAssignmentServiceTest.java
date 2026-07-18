@@ -15,6 +15,8 @@ import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.OptimisticLockConflictException;
 import com.iams.common.security.CurrentUser;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.org.domain.Department;
+import com.iams.org.domain.DepartmentRepository;
 import com.iams.org.domain.Person;
 import com.iams.org.domain.PersonRepository;
 import com.iams.org.domain.PersonType;
@@ -37,6 +39,9 @@ class AssetAssignmentServiceTest {
     private PersonRepository personRepository;
 
     @Mock
+    private DepartmentRepository departmentRepository;
+
+    @Mock
     private AssetHistoryRecorder historyRecorder;
 
     @Mock
@@ -49,8 +54,17 @@ class AssetAssignmentServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AssetAssignmentService(assetRepository, personRepository, historyRecorder, currentUserProvider,
-                eventPublisher);
+        service = new AssetAssignmentService(assetRepository, personRepository, departmentRepository, historyRecorder,
+                currentUserProvider, eventPublisher);
+    }
+
+    private Department department(String name, String code, boolean active) {
+        Department department = new Department();
+        department.setId(UUID.randomUUID());
+        department.setName(name);
+        department.setCostCenterCode(code);
+        department.setActive(active);
+        return department;
     }
 
     private Asset asset(long version) {
@@ -86,7 +100,7 @@ class AssetAssignmentServiceTest {
         Asset result = service.assign(asset.getId(), alice.getId(), 0);
 
         assertThat(result.getAssignedToPersonId()).isEqualTo(alice.getId());
-        verify(historyRecorder).record(asset, AssetHistoryEventType.ASSIGNMENT_CHANGE, "assignedToPersonId", null, "Alice");
+        verify(historyRecorder).record(asset, AssetHistoryEventType.ASSIGNMENT_CHANGE, "custodian", null, "Alice");
     }
 
     @Test
@@ -103,7 +117,7 @@ class AssetAssignmentServiceTest {
 
         service.assign(asset.getId(), carol.getId(), 0);
 
-        verify(historyRecorder).record(asset, AssetHistoryEventType.ASSIGNMENT_CHANGE, "assignedToPersonId", "Bob", "Carol");
+        verify(historyRecorder).record(asset, AssetHistoryEventType.ASSIGNMENT_CHANGE, "custodian", "Bob", "Carol");
     }
 
     @Test
@@ -154,7 +168,7 @@ class AssetAssignmentServiceTest {
         Asset result = service.unassign(asset.getId(), 0);
 
         assertThat(result.getAssignedToPersonId()).isNull();
-        verify(historyRecorder).record(asset, AssetHistoryEventType.ASSIGNMENT_CHANGE, "assignedToPersonId", "Alice", null);
+        verify(historyRecorder).record(asset, AssetHistoryEventType.ASSIGNMENT_CHANGE, "custodian", "Alice", null);
     }
 
     @Test
@@ -166,5 +180,96 @@ class AssetAssignmentServiceTest {
 
         verify(historyRecorder, never()).record(any(), any(), any(), any(), any());
         verify(assetRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void assignToDepartment_succeeds_recordsHistory_andDoesNotNotify() {
+        Asset asset = asset(0);
+        Department facilities = department("Facilities", "CC-100", true);
+        stubCurrentUser();
+        when(assetRepository.findByIdWithAssociations(asset.getId())).thenReturn(Optional.of(asset));
+        when(departmentRepository.findById(facilities.getId())).thenReturn(Optional.of(facilities));
+        when(assetRepository.saveAndFlush(asset)).thenReturn(asset);
+
+        Asset result = service.assignToDepartment(asset.getId(), facilities.getId(), 0);
+
+        assertThat(result.getAssignedToDepartmentId()).isEqualTo(facilities.getId());
+        assertThat(result.getAssignedToPersonId()).isNull();
+        verify(historyRecorder).record(asset, AssetHistoryEventType.ASSIGNMENT_CHANGE, "custodian", null,
+                "Facilities (CC-100)");
+        // A department is not a notifiable recipient - no assignment event is published.
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void assignToDepartment_rejectsInactiveDepartment() {
+        Asset asset = asset(0);
+        Department retired = department("Retired Dept", "CC-999", false);
+        when(assetRepository.findByIdWithAssociations(asset.getId())).thenReturn(Optional.of(asset));
+        when(departmentRepository.findById(retired.getId())).thenReturn(Optional.of(retired));
+
+        assertThatThrownBy(() -> service.assignToDepartment(asset.getId(), retired.getId(), 0))
+                .isInstanceOf(ConflictException.class);
+
+        verify(historyRecorder, never()).record(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void assignPerson_toAnAssetHeldByADepartment_closesTheDepartmentInOneRow() {
+        Asset asset = asset(0);
+        Department facilities = department("Facilities", "CC-100", true);
+        asset.setAssignedToDepartmentId(facilities.getId());
+        Person erin = person("Erin", true);
+        stubCurrentUser();
+        when(assetRepository.findByIdWithAssociations(asset.getId())).thenReturn(Optional.of(asset));
+        when(departmentRepository.findById(facilities.getId())).thenReturn(Optional.of(facilities));
+        when(personRepository.findById(erin.getId())).thenReturn(Optional.of(erin));
+        when(assetRepository.saveAndFlush(asset)).thenReturn(asset);
+
+        service.assign(asset.getId(), erin.getId(), 0);
+
+        // The prior department custodian is explicitly closed - old=department, new=person - and the column cleared.
+        assertThat(asset.getAssignedToDepartmentId()).isNull();
+        assertThat(asset.getAssignedToPersonId()).isEqualTo(erin.getId());
+        verify(historyRecorder).record(asset, AssetHistoryEventType.ASSIGNMENT_CHANGE, "custodian",
+                "Facilities (CC-100)", "Erin");
+    }
+
+    @Test
+    void assignToDepartment_forAnAssetHeldByAPerson_closesThePersonInOneRow() {
+        Asset asset = asset(0);
+        Person frank = person("Frank", true);
+        asset.setAssignedToPersonId(frank.getId());
+        Department ops = department("Operations", "CC-200", true);
+        stubCurrentUser();
+        when(assetRepository.findByIdWithAssociations(asset.getId())).thenReturn(Optional.of(asset));
+        when(personRepository.findById(frank.getId())).thenReturn(Optional.of(frank));
+        when(departmentRepository.findById(ops.getId())).thenReturn(Optional.of(ops));
+        when(assetRepository.saveAndFlush(asset)).thenReturn(asset);
+
+        service.assignToDepartment(asset.getId(), ops.getId(), 0);
+
+        assertThat(asset.getAssignedToPersonId()).isNull();
+        assertThat(asset.getAssignedToDepartmentId()).isEqualTo(ops.getId());
+        verify(historyRecorder).record(asset, AssetHistoryEventType.ASSIGNMENT_CHANGE, "custodian", "Frank",
+                "Operations (CC-200)");
+    }
+
+    @Test
+    void unassign_fromADepartmentCustodian_recordsHistoryButPublishesNoEvent() {
+        Asset asset = asset(0);
+        Department facilities = department("Facilities", "CC-100", true);
+        asset.setAssignedToDepartmentId(facilities.getId());
+        stubCurrentUser();
+        when(assetRepository.findByIdWithAssociations(asset.getId())).thenReturn(Optional.of(asset));
+        when(departmentRepository.findById(facilities.getId())).thenReturn(Optional.of(facilities));
+        when(assetRepository.saveAndFlush(asset)).thenReturn(asset);
+
+        service.unassign(asset.getId(), 0);
+
+        assertThat(asset.getAssignedToDepartmentId()).isNull();
+        verify(historyRecorder).record(asset, AssetHistoryEventType.ASSIGNMENT_CHANGE, "custodian",
+                "Facilities (CC-100)", null);
+        verify(eventPublisher, never()).publishEvent(any());
     }
 }

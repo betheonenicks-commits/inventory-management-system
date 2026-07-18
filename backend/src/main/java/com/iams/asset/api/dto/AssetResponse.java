@@ -18,6 +18,7 @@ public record AssetResponse(
         UUID orgNodeId,
         String orgNodeName,
         UUID assignedToPersonId,
+        UUID assignedToDepartmentId,
         UUID parentAssetId,
         String serialNumber,
         String manufacturer,

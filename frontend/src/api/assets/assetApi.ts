@@ -76,6 +76,13 @@ export function assignAsset(assetId: string, personId: string, version: number) 
   return httpClient.post<Asset>(`/assets/${assetId}/assignment`, { personId, version }).then((r) => r.data)
 }
 
+// US-LIF-04: assign custodianship to a department instead of a person.
+export function assignAssetToDepartment(assetId: string, departmentId: string, version: number) {
+  return httpClient
+    .post<Asset>(`/assets/${assetId}/assignment/department`, { departmentId, version })
+    .then((r) => r.data)
+}
+
 export function unassignAsset(assetId: string, version: number) {
   return httpClient
     .delete<Asset>(`/assets/${assetId}/assignment`, { params: { version } })
