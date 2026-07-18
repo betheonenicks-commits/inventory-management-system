@@ -11,6 +11,7 @@ public record AuditCertificateResponse(
         long missingCount,
         long damagedCount,
         UUID approvedBy,
+        String approverName,
         Instant approvedAt
 ) {
 }

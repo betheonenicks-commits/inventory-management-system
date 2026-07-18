@@ -10,6 +10,8 @@ import com.iams.audit.domain.AuditStatus;
 import com.iams.audit.domain.FindingStatus;
 import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
+import com.iams.usr.domain.AppUser;
+import com.iams.usr.domain.AppUserRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -27,13 +29,16 @@ public class AuditReportService {
     private final AuditFindingRepository findingRepository;
     private final AuditExpectedAssetRepository expectedAssetRepository;
     private final AuditService auditService;
+    private final AppUserRepository userRepository;
 
     public AuditReportService(AuditRepository auditRepository, AuditFindingRepository findingRepository,
-                               AuditExpectedAssetRepository expectedAssetRepository, AuditService auditService) {
+                               AuditExpectedAssetRepository expectedAssetRepository, AuditService auditService,
+                               AppUserRepository userRepository) {
         this.auditRepository = auditRepository;
         this.findingRepository = findingRepository;
         this.expectedAssetRepository = expectedAssetRepository;
         this.auditService = auditService;
+        this.userRepository = userRepository;
     }
 
     /** US-AUD-16: anything not a clean Verified find - Missing, Out of Scope, Scope Changed, or Verified-but-damaged. */
@@ -59,8 +64,13 @@ public class AuditReportService {
         long damaged = findingRepository.findByAuditIdWithAsset(auditId).stream()
                 .filter(f -> f.getCondition() != null && DAMAGE_CONDITIONS.contains(f.getCondition()))
                 .count();
+        // A formal certificate names its approver; a UUID is an implementation
+        // detail. Resolved leniently - a since-deleted approver account must
+        // not make a historical certificate unretrievable.
+        String approverName = audit.getApprovedBy() == null ? null
+                : userRepository.findById(audit.getApprovedBy()).map(AppUser::getDisplayName).orElse(null);
         return new AuditCertificate(audit.getId(), audit.getName(), expected, verified, missing, damaged,
-                audit.getApprovedBy(), audit.getApprovedAt());
+                audit.getApprovedBy(), approverName, audit.getApprovedAt());
     }
 
     /** US-AUD-17: active audits in the caller's scope, with live progress and exception counts - no separate "recent/closed" section built this session. */
@@ -74,7 +84,8 @@ public class AuditReportService {
     }
 
     public record AuditCertificate(UUID auditId, String auditName, long expectedCount, long verifiedCount,
-                                    long missingCount, long damagedCount, UUID approvedBy, Instant approvedAt) {
+                                    long missingCount, long damagedCount, UUID approvedBy, String approverName,
+                                    Instant approvedAt) {
     }
 
     public record AuditDashboardItem(UUID auditId, String name, AuditStatus status, AuditService.AuditProgress progress,

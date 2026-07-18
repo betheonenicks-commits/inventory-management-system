@@ -142,6 +142,7 @@ public class AuditMapper {
                 certificate.missingCount(),
                 certificate.damagedCount(),
                 certificate.approvedBy(),
+                certificate.approverName(),
                 certificate.approvedAt()
         );
     }

@@ -118,5 +118,6 @@ export interface AuditCertificate {
   missingCount: number
   damagedCount: number
   approvedBy: string | null
+  approverName: string | null
   approvedAt: string | null
 }

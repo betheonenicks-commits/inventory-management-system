@@ -10,6 +10,7 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { isApiProblem } from '../../../api/errors'
+import { downloadAuditCertificatePdf } from '../../../api/audits/auditApi'
 import { useAuthStore, hasPermission } from '../../../auth/authStore'
 import { useAuditCertificateQuery } from '../hooks/useAuditsQuery'
 import {
@@ -144,6 +145,27 @@ export function AuditWorkflowPanel({ audit }: { audit: Audit }) {
                 Expected {certificateQuery.data.expectedCount} · Verified {certificateQuery.data.verifiedCount} · Missing{' '}
                 {certificateQuery.data.missingCount} · Damaged {certificateQuery.data.damagedCount}
               </Typography>
+              {certificateQuery.data.approverName && (
+                <Typography variant="body2" color="text.secondary">
+                  Approved by {certificateQuery.data.approverName}
+                  {certificateQuery.data.approvedAt
+                    ? ` on ${new Date(certificateQuery.data.approvedAt).toLocaleDateString()}`
+                    : ''}
+                </Typography>
+              )}
+              <Box>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() =>
+                    downloadAuditCertificatePdf(audit.id, audit.name).catch((err) =>
+                      setError(describeError(err, 'Failed to download the certificate')),
+                    )
+                  }
+                >
+                  Download certificate (PDF)
+                </Button>
+              </Box>
             </Stack>
           )}
         </Stack>

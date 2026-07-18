@@ -16,6 +16,8 @@ import com.iams.audit.domain.AuditStatus;
 import com.iams.audit.domain.FindingStatus;
 import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
+import com.iams.usr.domain.AppUser;
+import com.iams.usr.domain.AppUserRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,13 +34,15 @@ class AuditReportServiceTest {
     @Mock private AuditFindingRepository findingRepository;
     @Mock private AuditExpectedAssetRepository expectedAssetRepository;
     @Mock private AuditService auditService;
+    @Mock private AppUserRepository userRepository;
 
     private AuditReportService service;
     private UUID auditId;
 
     @BeforeEach
     void setUp() {
-        service = new AuditReportService(auditRepository, findingRepository, expectedAssetRepository, auditService);
+        service = new AuditReportService(auditRepository, findingRepository, expectedAssetRepository, auditService,
+                userRepository);
         auditId = UUID.randomUUID();
     }
 
@@ -90,6 +94,9 @@ class AuditReportServiceTest {
         AuditFinding fine = new AuditFinding();
         fine.setCondition(AssetCondition.GOOD);
         when(findingRepository.findByAuditIdWithAsset(auditId)).thenReturn(List.of(damaged, fine));
+        AppUser approverUser = new AppUser();
+        approverUser.setDisplayName("Dana Head");
+        when(userRepository.findById(approver)).thenReturn(Optional.of(approverUser));
 
         AuditReportService.AuditCertificate cert = service.certificate(auditId);
 
@@ -98,5 +105,24 @@ class AuditReportServiceTest {
         assertThat(cert.missingCount()).isEqualTo(1);
         assertThat(cert.damagedCount()).isEqualTo(1);
         assertThat(cert.approvedBy()).isEqualTo(approver);
+        assertThat(cert.approverName()).isEqualTo("Dana Head");
+    }
+
+    @Test
+    void certificate_staysRetrievable_whenApproverAccountWasSinceDeleted() {
+        Audit audit = new Audit();
+        audit.setId(auditId);
+        audit.setName("Old Audit");
+        audit.setStatus(AuditStatus.CLOSED);
+        UUID goneApprover = UUID.randomUUID();
+        audit.setApprovedBy(goneApprover);
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(audit));
+        when(userRepository.findById(goneApprover)).thenReturn(Optional.empty());
+        when(findingRepository.findByAuditIdWithAsset(auditId)).thenReturn(List.of());
+
+        AuditReportService.AuditCertificate cert = service.certificate(auditId);
+
+        assertThat(cert.approvedBy()).isEqualTo(goneApprover);
+        assertThat(cert.approverName()).isNull();
     }
 }

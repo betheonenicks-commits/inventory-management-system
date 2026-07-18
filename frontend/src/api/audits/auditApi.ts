@@ -103,6 +103,22 @@ export function fetchAuditCertificate(id: string) {
   return httpClient.get<AuditCertificate>(`/audits/${id}/certificate`).then((r) => r.data)
 }
 
+/** US-AUD-15: the certificate as a formal, downloadable PDF document. */
+export async function downloadAuditCertificatePdf(id: string, auditName: string) {
+  const response = await httpClient.get(`/audits/${id}/certificate`, {
+    params: { format: 'pdf' },
+    responseType: 'blob',
+  })
+  const url = URL.createObjectURL(response.data as Blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `audit-certificate-${auditName}.pdf`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 /** US-AUD-11: photo evidence, brokered through the backend (US-PLAT-02) - never a direct object-store URL. */
 export function fetchFindingEvidence(auditId: string, findingId: string) {
   return httpClient

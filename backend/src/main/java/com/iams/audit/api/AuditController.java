@@ -20,6 +20,7 @@ import com.iams.audit.api.dto.AuditScanRequest;
 import com.iams.audit.api.dto.AuditSubmitRequest;
 import com.iams.audit.api.dto.AuditSummaryResponse;
 import com.iams.audit.api.mapper.AuditMapper;
+import com.iams.audit.application.AuditCertificatePdfRenderer;
 import com.iams.audit.application.AuditCreateCommand;
 import com.iams.audit.application.AuditFindingCorrectionService;
 import com.iams.audit.application.AuditReconciliationService;
@@ -32,6 +33,7 @@ import com.iams.audit.domain.Audit;
 import com.iams.audit.domain.AuditAssignment;
 import com.iams.audit.domain.AuditFinding;
 import com.iams.audit.domain.AuditStatus;
+import com.iams.common.exception.ValidationFailedException;
 import com.iams.storage.api.AttachmentResponse;
 import com.iams.storage.application.AttachmentService;
 import com.iams.storage.domain.Attachment;
@@ -73,12 +75,13 @@ public class AuditController {
     private final AuditReportService reportService;
     private final AuditReconciliationService reconciliationService;
     private final AttachmentService attachmentService;
+    private final AuditCertificatePdfRenderer certificatePdfRenderer;
     private final AuditMapper mapper;
 
     public AuditController(AuditService auditService, AuditScanService scanService, AuditWorkflowService workflowService,
                             AuditFindingCorrectionService correctionService, AuditReportService reportService,
                             AuditReconciliationService reconciliationService, AttachmentService attachmentService,
-                            AuditMapper mapper) {
+                            AuditCertificatePdfRenderer certificatePdfRenderer, AuditMapper mapper) {
         this.auditService = auditService;
         this.scanService = scanService;
         this.workflowService = workflowService;
@@ -86,6 +89,7 @@ public class AuditController {
         this.reportService = reportService;
         this.reconciliationService = reconciliationService;
         this.attachmentService = attachmentService;
+        this.certificatePdfRenderer = certificatePdfRenderer;
         this.mapper = mapper;
     }
 
@@ -262,10 +266,26 @@ public class AuditController {
         return mapper.toExceptionReport(id, reportService.exceptions(id), correctionService::corrections, reconciliationService::forFinding);
     }
 
+    /**
+     * US-AUD-15: json for the in-app summary, pdf for the AC's formal
+     * downloadable document. Both share one service call, so the gate
+     * (closed audits only) and the counts can never disagree by format.
+     */
     @GetMapping("/{id}/certificate")
     @PreAuthorize("@perm.has('audits:read')")
-    public AuditCertificateResponse certificate(@PathVariable UUID id) {
-        return mapper.toResponse(reportService.certificate(id));
+    public ResponseEntity<?> certificate(@PathVariable UUID id,
+            @RequestParam(defaultValue = "json") String format) {
+        AuditReportService.AuditCertificate certificate = reportService.certificate(id);
+        return switch (format.toLowerCase()) {
+            case "json" -> ResponseEntity.ok(mapper.toResponse(certificate));
+            case "pdf" -> ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"audit-certificate-" + certificate.auditId() + ".pdf\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(certificatePdfRenderer.render(certificate));
+            default -> throw ValidationFailedException.singleField("format",
+                    "format must be one of json, pdf - got " + format);
+        };
     }
 
     private AuditScanCommand toCommand(AuditScanRequest request) {
