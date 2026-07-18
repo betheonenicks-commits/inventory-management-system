@@ -2,6 +2,7 @@ package com.iams.dashboard.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -92,6 +93,31 @@ class DashboardServiceTest {
 
         assertThat(completion.audits()).isEmpty();
         assertThat(completion.averagePercentComplete()).isNull();
+        assertThat(completion.recentlyClosed()).isEmpty();
+    }
+
+    @Test
+    void auditCompletion_surfacesExceptionCountsAndAveragesActiveAuditsOnly() {
+        // US-AUD-17: active audits carry their exception count; the average is
+        // over ACTIVE audits only, so recently-closed 100%s must not skew it.
+        when(auditReportService.dashboard()).thenReturn(List.of(
+                dashboardItem("Audit A", AuditStatus.IN_PROGRESS, 10, 4, 3),
+                dashboardItem("Audit B", AuditStatus.PENDING_APPROVAL, 10, 8, 0)));
+        when(auditReportService.recentlyClosed(anyInt())).thenReturn(List.of(
+                dashboardItem("Closed X", AuditStatus.CLOSED, 5, 5, 1)));
+
+        DashboardService.AuditCompletion completion = service.auditCompletion();
+
+        assertThat(completion.audits())
+                .extracting(DashboardService.AuditCompletionItem::status,
+                        DashboardService.AuditCompletionItem::exceptionCount)
+                .containsExactly(tuple("IN_PROGRESS", 3L), tuple("PENDING_APPROVAL", 0L));
+        assertThat(completion.averagePercentComplete()).isEqualTo(60); // (40 + 80) / 2, closed audit excluded
+        assertThat(completion.recentlyClosed())
+                .extracting(DashboardService.AuditCompletionItem::name,
+                        DashboardService.AuditCompletionItem::status,
+                        DashboardService.AuditCompletionItem::exceptionCount)
+                .containsExactly(tuple("Closed X", "CLOSED", 1L));
     }
 
     @Test
@@ -164,8 +190,13 @@ class DashboardServiceTest {
     }
 
     private static AuditReportService.AuditDashboardItem dashboardItem(String name, long expected, long verified) {
-        return new AuditReportService.AuditDashboardItem(UUID.randomUUID(), name, AuditStatus.IN_PROGRESS,
-                new AuditService.AuditProgress(expected, verified, 0, 0, 0), 0);
+        return dashboardItem(name, AuditStatus.IN_PROGRESS, expected, verified, 0);
+    }
+
+    private static AuditReportService.AuditDashboardItem dashboardItem(String name, AuditStatus status, long expected,
+                                                                       long verified, long exceptionCount) {
+        return new AuditReportService.AuditDashboardItem(UUID.randomUUID(), name, status,
+                new AuditService.AuditProgress(expected, verified, 0, 0, 0), exceptionCount);
     }
 
     private static MaintenanceSchedule schedule(String assetName, LocalDate dueDate) {

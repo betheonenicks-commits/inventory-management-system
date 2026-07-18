@@ -24,12 +24,15 @@ export interface AuditCompletionItem {
   name: string
   status: string
   percentComplete: number
+  exceptionCount: number
 }
 
 export interface AuditCompletion {
   audits: AuditCompletionItem[]
   // null = no active audits in scope (the AC-DSH-02 empty state), never 0
   averagePercentComplete: number | null
+  // US-AUD-17: the "recent" half of the dashboard - most-recently-closed audits
+  recentlyClosed: AuditCompletionItem[]
 }
 
 export type ExpirationKind = 'WARRANTY' | 'INSURANCE' | 'MAINTENANCE'

@@ -160,36 +160,88 @@ export function DashboardPage() {
             {tile === 'AUDIT_COMPLETION' && (
               <QueryStates query={auditCompletion}>
                 {(data) =>
-                  data.averagePercentComplete === null ? (
-                    <Typography color="text.secondary">No active audits in your scope.</Typography>
+                  data.averagePercentComplete === null && data.recentlyClosed.length === 0 ? (
+                    <Typography color="text.secondary">No audits in your scope.</Typography>
                   ) : (
                     <Stack spacing={1.5}>
-                      <Typography variant="h3" component="div">
-                        {data.averagePercentComplete}%
-                        <Typography component="span" variant="body1" color="text.secondary" sx={{ ml: 1 }}>
-                          average completion across {data.audits.length} active audit{data.audits.length === 1 ? '' : 's'}
-                        </Typography>
-                      </Typography>
-                      <List dense disablePadding>
-                        {data.audits.slice(0, 6).map((a) => (
-                          <ListItem key={a.auditId} disableGutters>
-                            <ListItemText
-                              primary={
-                                <Link component={RouterLink} to={`/audits/${a.auditId}`} underline="hover">
-                                  {a.name}
-                                </Link>
-                              }
-                              secondary={
-                                <LinearProgress variant="determinate" value={a.percentComplete} sx={{ mt: 0.5 }} />
-                              }
-                              slotProps={{ secondary: { component: 'div' } }}
-                            />
-                            <Typography variant="body2" sx={{ ml: 2, minWidth: 40, textAlign: 'right' }}>
-                              {a.percentComplete}%
+                      {data.averagePercentComplete !== null && (
+                        <>
+                          <Typography variant="h3" component="div">
+                            {data.averagePercentComplete}%
+                            <Typography component="span" variant="body1" color="text.secondary" sx={{ ml: 1 }}>
+                              average completion across {data.audits.length} active audit
+                              {data.audits.length === 1 ? '' : 's'}
                             </Typography>
-                          </ListItem>
-                        ))}
-                      </List>
+                          </Typography>
+                          <List dense disablePadding>
+                            {data.audits.slice(0, 6).map((a) => (
+                              <ListItem key={a.auditId} disableGutters>
+                                <ListItemText
+                                  primary={
+                                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                                      <Link component={RouterLink} to={`/audits/${a.auditId}`} underline="hover">
+                                        {a.name}
+                                      </Link>
+                                      {a.status === 'PENDING_APPROVAL' && (
+                                        <Chip size="small" color="warning" label="Pending approval" />
+                                      )}
+                                      {a.exceptionCount > 0 && (
+                                        <Chip
+                                          size="small"
+                                          color="error"
+                                          variant="outlined"
+                                          label={`${a.exceptionCount} exception${a.exceptionCount === 1 ? '' : 's'}`}
+                                        />
+                                      )}
+                                    </Stack>
+                                  }
+                                  secondary={
+                                    <LinearProgress variant="determinate" value={a.percentComplete} sx={{ mt: 0.5 }} />
+                                  }
+                                  slotProps={{ secondary: { component: 'div' } }}
+                                />
+                                <Typography variant="body2" sx={{ ml: 2, minWidth: 40, textAlign: 'right' }}>
+                                  {a.percentComplete}%
+                                </Typography>
+                              </ListItem>
+                            ))}
+                          </List>
+                        </>
+                      )}
+
+                      {data.recentlyClosed.length > 0 && (
+                        <>
+                          <Divider textAlign="left">
+                            <Typography variant="caption" color="text.secondary">
+                              Recently closed
+                            </Typography>
+                          </Divider>
+                          <List dense disablePadding>
+                            {data.recentlyClosed.map((a) => (
+                              <ListItem key={a.auditId} disableGutters>
+                                <ListItemText
+                                  primary={
+                                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                                      <Link component={RouterLink} to={`/audits/${a.auditId}`} underline="hover">
+                                        {a.name}
+                                      </Link>
+                                      {a.exceptionCount > 0 && (
+                                        <Chip
+                                          size="small"
+                                          color="error"
+                                          variant="outlined"
+                                          label={`${a.exceptionCount} exception${a.exceptionCount === 1 ? '' : 's'}`}
+                                        />
+                                      )}
+                                    </Stack>
+                                  }
+                                />
+                                <Chip size="small" color="success" variant="outlined" label="Closed" />
+                              </ListItem>
+                            ))}
+                          </List>
+                        </>
+                      )}
                     </Stack>
                   )
                 }

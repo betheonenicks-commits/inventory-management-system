@@ -35,6 +35,7 @@ public class DashboardService {
 
     private static final int MAX_LOOKAHEAD_DAYS = 365;
     private static final int MAX_FEED_LIMIT = 100;
+    private static final int RECENT_CLOSED_LIMIT = 5;
 
     private final DashboardQueries queries;
     private final OrgScopeGuard scopeGuard;
@@ -64,20 +65,33 @@ public class DashboardService {
     }
 
     /**
-     * US-DSH-02: per-audit completion for every active audit in scope, plus the
-     * average. Reuses AuditReportService.dashboard() (US-AUD-17), which is
+     * US-DSH-02 / US-AUD-17: per-audit completion for every active audit in
+     * scope (with its exception count, and status - PENDING_APPROVAL being the
+     * "pending approval" the AC wants visible), the average across those active
+     * audits, plus a "recently closed" section so the dashboard shows in-progress
+     * AND recent audits without opening each one. Reuses AuditReportService,
      * already scope-filtered via AuditService.list(). An audit with an empty
-     * expected set counts as 100% - there is nothing left to verify.
+     * expected set counts as 100% - there is nothing left to verify. The average
+     * is over ACTIVE audits only: a pile of 100%-complete closed audits must not
+     * flatter the "how are the audits I still have to finish doing" number.
      */
     @Transactional(readOnly = true)
     public AuditCompletion auditCompletion() {
         List<AuditCompletionItem> items = auditReportService.dashboard().stream()
-                .map(item -> new AuditCompletionItem(item.auditId(), item.name(), item.status().name(),
-                        percentComplete(item.progress().expectedCount(), item.progress().verifiedCount())))
+                .map(this::toCompletionItem)
                 .toList();
         Integer average = items.isEmpty() ? null
                 : (int) Math.round(items.stream().mapToInt(AuditCompletionItem::percentComplete).average().orElse(0));
-        return new AuditCompletion(items, average);
+        List<AuditCompletionItem> recentlyClosed = auditReportService.recentlyClosed(RECENT_CLOSED_LIMIT).stream()
+                .map(this::toCompletionItem)
+                .toList();
+        return new AuditCompletion(items, average, recentlyClosed);
+    }
+
+    private AuditCompletionItem toCompletionItem(AuditReportService.AuditDashboardItem item) {
+        return new AuditCompletionItem(item.auditId(), item.name(), item.status().name(),
+                percentComplete(item.progress().expectedCount(), item.progress().verifiedCount()),
+                item.exceptionCount());
     }
 
     /**
@@ -158,10 +172,12 @@ public class DashboardService {
     public record AssetSummary(long totalAssets, List<LabelCount> byCategory, List<LabelCount> byStatus) {
     }
 
-    public record AuditCompletion(List<AuditCompletionItem> audits, Integer averagePercentComplete) {
+    public record AuditCompletion(List<AuditCompletionItem> audits, Integer averagePercentComplete,
+                                  List<AuditCompletionItem> recentlyClosed) {
     }
 
-    public record AuditCompletionItem(UUID auditId, String name, String status, int percentComplete) {
+    public record AuditCompletionItem(UUID auditId, String name, String status, int percentComplete,
+                                      long exceptionCount) {
     }
 
     public enum ExpirationKind { WARRANTY, INSURANCE, MAINTENANCE }

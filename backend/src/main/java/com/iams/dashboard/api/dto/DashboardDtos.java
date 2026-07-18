@@ -24,11 +24,17 @@ public final class DashboardDtos {
                                         List<LabelCountResponse> byStatus) {
     }
 
-    public record AuditCompletionItemResponse(UUID auditId, String name, String status, int percentComplete) {
+    public record AuditCompletionItemResponse(UUID auditId, String name, String status, int percentComplete,
+                                              long exceptionCount) {
     }
 
-    /** averagePercentComplete is null when no active audits exist - the AC-DSH-02 empty state, not a zero. */
-    public record AuditCompletionResponse(List<AuditCompletionItemResponse> audits, Integer averagePercentComplete) {
+    /**
+     * averagePercentComplete is null when no active audits exist - the AC-DSH-02
+     * empty state, not a zero. recentlyClosed is the US-AUD-17 "recent audits"
+     * half of the same dashboard.
+     */
+    public record AuditCompletionResponse(List<AuditCompletionItemResponse> audits, Integer averagePercentComplete,
+                                          List<AuditCompletionItemResponse> recentlyClosed) {
     }
 
     public record ExpirationResponse(String kind, UUID assetId, String assetName, LocalDate dueDate, String detail) {

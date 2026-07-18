@@ -3,6 +3,8 @@ package com.iams.audit.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.iams.asset.domain.Asset;
@@ -106,6 +108,31 @@ class AuditReportServiceTest {
         assertThat(cert.damagedCount()).isEqualTo(1);
         assertThat(cert.approvedBy()).isEqualTo(approver);
         assertThat(cert.approverName()).isEqualTo("Dana Head");
+    }
+
+    @Test
+    void recentlyClosed_ordersByApprovalNewestFirst_andHonorsLimit() {
+        Audit older = closedAudit("Older", java.time.Instant.parse("2026-01-01T00:00:00Z"));
+        Audit newer = closedAudit("Newer", java.time.Instant.parse("2026-06-01T00:00:00Z"));
+        Audit noStamp = closedAudit("NoStamp", null);
+        // Returned in a deliberately unsorted order; the service must sort them.
+        when(auditService.list(AuditStatus.CLOSED)).thenReturn(List.of(older, newer, noStamp));
+        lenient().when(auditService.progress(any())).thenReturn(new AuditService.AuditProgress(1, 1, 0, 0, 0));
+        lenient().when(findingRepository.findExceptionsByAuditId(any(), any(), anyList())).thenReturn(List.of());
+
+        List<AuditReportService.AuditDashboardItem> recent = service.recentlyClosed(2);
+
+        // Newest approval first; the null-approvedAt audit would sort last but is cut by the limit of 2.
+        assertThat(recent).extracting(AuditReportService.AuditDashboardItem::name).containsExactly("Newer", "Older");
+    }
+
+    private Audit closedAudit(String name, java.time.Instant approvedAt) {
+        Audit audit = new Audit();
+        audit.setId(UUID.randomUUID());
+        audit.setName(name);
+        audit.setStatus(AuditStatus.CLOSED);
+        audit.setApprovedAt(approvedAt);
+        return audit;
     }
 
     @Test

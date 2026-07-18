@@ -61,9 +61,15 @@ public class DashboardController {
     @PreAuthorize("@perm.has('dashboards:read')")
     public AuditCompletionResponse auditCompletion() {
         DashboardService.AuditCompletion completion = dashboardService.auditCompletion();
-        return new AuditCompletionResponse(completion.audits().stream()
-                .map(a -> new AuditCompletionItemResponse(a.auditId(), a.name(), a.status(), a.percentComplete()))
-                .toList(), completion.averagePercentComplete());
+        return new AuditCompletionResponse(
+                completion.audits().stream().map(DashboardController::toItemResponse).toList(),
+                completion.averagePercentComplete(),
+                completion.recentlyClosed().stream().map(DashboardController::toItemResponse).toList());
+    }
+
+    private static AuditCompletionItemResponse toItemResponse(DashboardService.AuditCompletionItem a) {
+        return new AuditCompletionItemResponse(a.auditId(), a.name(), a.status(), a.percentComplete(),
+                a.exceptionCount());
     }
 
     @GetMapping("/expirations")
