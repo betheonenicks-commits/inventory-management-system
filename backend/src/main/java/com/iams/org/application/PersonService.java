@@ -1,9 +1,12 @@
 package com.iams.org.application;
 
+import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.OptimisticLockConflictException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.org.domain.Department;
+import com.iams.org.domain.DepartmentRepository;
 import com.iams.org.domain.OrgNode;
 import com.iams.org.domain.OrgNodeRepository;
 import com.iams.org.domain.Person;
@@ -35,13 +38,16 @@ public class PersonService {
 
     private final PersonRepository personRepository;
     private final OrgNodeRepository orgNodeRepository;
+    private final DepartmentRepository departmentRepository;
     private final CurrentUserProvider currentUserProvider;
     private final OrgScopeGuard scopeGuard;
 
     public PersonService(PersonRepository personRepository, OrgNodeRepository orgNodeRepository,
-                          CurrentUserProvider currentUserProvider, OrgScopeGuard scopeGuard) {
+                          DepartmentRepository departmentRepository, CurrentUserProvider currentUserProvider,
+                          OrgScopeGuard scopeGuard) {
         this.personRepository = personRepository;
         this.orgNodeRepository = orgNodeRepository;
+        this.departmentRepository = departmentRepository;
         this.currentUserProvider = currentUserProvider;
         this.scopeGuard = scopeGuard;
     }
@@ -63,7 +69,7 @@ public class PersonService {
     }
 
     @Transactional
-    public Person create(String fullName, String email, PersonType personType, UUID orgNodeId) {
+    public Person create(String fullName, String email, PersonType personType, UUID orgNodeId, UUID departmentId) {
         if (fullName == null || fullName.isBlank()) {
             throw ValidationFailedException.singleField("fullName", "This field is required");
         }
@@ -76,6 +82,7 @@ public class PersonService {
         person.setEmail(email);
         person.setPersonType(personType);
         person.setOrgNode(resolveOrgNode(orgNodeId));
+        person.setDepartmentId(resolveActiveDepartmentId(departmentId));
         person.setActive(true);
         person.setCreatedBy(currentUserProvider.current().id());
 
@@ -84,7 +91,7 @@ public class PersonService {
 
     @Transactional
     public Person update(UUID id, String fullName, String email, PersonType personType, UUID orgNodeId,
-                          Boolean active, long expectedVersion) {
+                          UUID departmentId, Boolean active, long expectedVersion) {
         Person person = get(id); // enforces scope against the person's CURRENT org node
         if (person.getVersion() != expectedVersion) {
             throw new OptimisticLockConflictException(expectedVersion, person.getVersion(), person);
@@ -108,6 +115,10 @@ public class PersonService {
             scopeGuard.requireWithinScope(orgNodeId, "person", id);
             person.setOrgNode(resolveOrgNode(orgNodeId));
         }
+        if (departmentId != null) {
+            // null here means "leave unchanged", same convention as orgNode above.
+            person.setDepartmentId(resolveActiveDepartmentId(departmentId));
+        }
         if (active != null) {
             person.setActive(active);
         }
@@ -126,5 +137,19 @@ public class PersonService {
             return null;
         }
         return orgNodeRepository.findById(orgNodeId).orElseThrow(() -> NotFoundException.of("OrgNode", orgNodeId));
+    }
+
+    /** A person may only be placed into a department that exists and is active. */
+    private UUID resolveActiveDepartmentId(UUID departmentId) {
+        if (departmentId == null) {
+            return null;
+        }
+        Department department = departmentRepository.findById(departmentId)
+                .orElseThrow(() -> NotFoundException.of("Department", departmentId));
+        if (!department.isActive()) {
+            throw new ConflictException("DEPARTMENT_INACTIVE",
+                    "Department '" + department.getName() + "' is not active and cannot be assigned to a person.");
+        }
+        return department.getId();
     }
 }

@@ -9,6 +9,8 @@ import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUserProvider;
 import com.iams.org.domain.Department;
 import com.iams.org.domain.DepartmentRepository;
+import com.iams.org.domain.Person;
+import com.iams.org.domain.PersonRepository;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,23 +23,24 @@ import org.springframework.transaction.annotation.Transactional;
  * FR-ORG-03: departments/cost centers as their own dimension, independent of
  * the physical org_node hierarchy.
  * <p>
- * AC-ORG-03-X: {@link #delete} blocks while any asset still names this
- * department as its custodian (the {@code asset.assigned_to_department_id} FK
- * added with US-LIF-04), returning the dependent list rather than letting the
- * database FK constraint surface as a raw 500. The dependent-<em>person</em>
- * half of AC-ORG-03-H is still open: Person does not yet reference a Department.
+ * AC-ORG-03-X: {@link #delete} blocks while any asset or person still references
+ * this department (the {@code asset.assigned_to_department_id} FK from US-LIF-04
+ * and {@code person.department_id} from US-ORG-03), returning the dependent list
+ * rather than letting the database FK constraint surface as a raw 500.
  */
 @Service
 public class DepartmentService {
 
     private final DepartmentRepository departmentRepository;
     private final AssetRepository assetRepository;
+    private final PersonRepository personRepository;
     private final CurrentUserProvider currentUserProvider;
 
     public DepartmentService(DepartmentRepository departmentRepository, AssetRepository assetRepository,
-                             CurrentUserProvider currentUserProvider) {
+                             PersonRepository personRepository, CurrentUserProvider currentUserProvider) {
         this.departmentRepository = departmentRepository;
         this.assetRepository = assetRepository;
+        this.personRepository = personRepository;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -95,38 +98,46 @@ public class DepartmentService {
     public void delete(UUID id) {
         Department department = get(id);
 
-        // AC-ORG-03-X: block while assets still name this department as custodian,
-        // returning the dependent list (same structured shape as US-USR-08's
-        // offboarding block) instead of letting the FK constraint 500.
+        // AC-ORG-03-X: block while any asset or person still references this
+        // department, returning the dependent list (same structured shape as
+        // US-USR-08's offboarding block) instead of letting the FK constraint 500.
         List<Asset> blockingAssets = assetRepository.findByAssignedToDepartmentId(id);
-        if (!blockingAssets.isEmpty()) {
-            throw blockedByAssignedAssets(department, blockingAssets);
+        List<Person> blockingPersons = personRepository.findByDepartmentId(id);
+        if (!blockingAssets.isEmpty() || !blockingPersons.isEmpty()) {
+            throw blockedByDependents(department, blockingAssets, blockingPersons);
         }
 
         departmentRepository.delete(department);
     }
 
-    private ConflictException blockedByAssignedAssets(Department department, List<Asset> blockingAssets) {
-        List<Map<String, Object>> payload = blockingAssets.stream().map(asset -> {
+    private ConflictException blockedByDependents(Department department, List<Asset> blockingAssets,
+                                                  List<Person> blockingPersons) {
+        List<Map<String, Object>> assetPayload = blockingAssets.stream().map(asset -> {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("assetId", asset.getId());
             entry.put("assetNumber", asset.getAssetNumber());
             entry.put("name", asset.getName());
             return entry;
         }).toList();
+        List<Map<String, Object>> personPayload = blockingPersons.stream().map(person -> {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("personId", person.getId());
+            entry.put("fullName", person.getFullName());
+            return entry;
+        }).toList();
 
         Map<String, Object> extraProperties = new LinkedHashMap<>();
-        extraProperties.put("blockingAssets", payload);
+        extraProperties.put("blockingAssets", assetPayload);
+        extraProperties.put("blockingPersons", personPayload);
         extraProperties.put("resolutionActions", List.of(
-                "POST /api/v1/assets/{assetId}/assignment/department — reassign to another department",
-                "POST /api/v1/assets/{assetId}/assignment — reassign to a person",
-                "DELETE /api/v1/assets/{assetId}/assignment — unassign"));
+                "Reassign or unassign each listed asset (POST/DELETE /api/v1/assets/{assetId}/assignment[/department])",
+                "Move each listed person to another department (PATCH /api/v1/persons/{id})"));
 
         return new ConflictException(
-                "DEPARTMENT_HAS_ASSIGNED_ASSETS",
-                "Cannot delete department with assigned assets",
-                blockingAssets.size() + " asset(s) are currently assigned to department '" + department.getName()
-                        + "' and must be reassigned or unassigned before it can be deleted.",
+                "DEPARTMENT_HAS_DEPENDENTS",
+                "Cannot delete department with dependent assets or persons",
+                blockingAssets.size() + " asset(s) and " + blockingPersons.size() + " person(s) still reference "
+                        + "department '" + department.getName() + "' and must be reassigned before it can be deleted.",
                 extraProperties);
     }
 }

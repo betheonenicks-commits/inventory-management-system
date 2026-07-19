@@ -9,6 +9,7 @@ public record PersonCreateRequest(
         @NotBlank String fullName,
         String email,
         @NotNull PersonType personType,
-        UUID orgNodeId
+        UUID orgNodeId,
+        UUID departmentId
 ) {
 }

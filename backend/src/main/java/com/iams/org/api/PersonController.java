@@ -49,7 +49,8 @@ public class PersonController {
     @PostMapping
     @PreAuthorize("@perm.has('org:write')")
     public ResponseEntity<PersonResponse> create(@Valid @RequestBody PersonCreateRequest request) {
-        Person person = personService.create(request.fullName(), request.email(), request.personType(), request.orgNodeId());
+        Person person = personService.create(request.fullName(), request.email(), request.personType(),
+                request.orgNodeId(), request.departmentId());
         PersonResponse response = mapper.toResponse(person);
         return ResponseEntity.created(URI.create("/api/v1/persons/" + person.getId())).body(response);
     }
@@ -58,7 +59,7 @@ public class PersonController {
     @PreAuthorize("@perm.has('org:write')")
     public PersonResponse update(@PathVariable UUID id, @Valid @RequestBody PersonUpdateRequest request) {
         Person person = personService.update(id, request.fullName(), request.email(), request.personType(),
-                request.orgNodeId(), request.active(), request.version());
+                request.orgNodeId(), request.departmentId(), request.active(), request.version());
         return mapper.toResponse(person);
     }
 }

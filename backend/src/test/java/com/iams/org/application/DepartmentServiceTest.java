@@ -18,6 +18,8 @@ import com.iams.common.security.CurrentUser;
 import com.iams.common.security.CurrentUserProvider;
 import com.iams.org.domain.Department;
 import com.iams.org.domain.DepartmentRepository;
+import com.iams.org.domain.Person;
+import com.iams.org.domain.PersonRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,13 +36,14 @@ class DepartmentServiceTest {
 
     @Mock private DepartmentRepository departmentRepository;
     @Mock private AssetRepository assetRepository;
+    @Mock private PersonRepository personRepository;
     @Mock private CurrentUserProvider currentUserProvider;
 
     private DepartmentService service;
 
     @BeforeEach
     void setUp() {
-        service = new DepartmentService(departmentRepository, assetRepository, currentUserProvider);
+        service = new DepartmentService(departmentRepository, assetRepository, personRepository, currentUserProvider);
         lenient().when(currentUserProvider.current()).thenReturn(new CurrentUser(UUID.randomUUID(), "admin", Set.of("ADMIN")));
     }
 
@@ -84,12 +87,13 @@ class DepartmentServiceTest {
     }
 
     @Test
-    void delete_succeeds_whenNoAssetsAssigned() {
+    void delete_succeeds_whenNoDependents() {
         Department department = new Department();
         department.setId(UUID.randomUUID());
         department.setName("Facilities");
         when(departmentRepository.findById(department.getId())).thenReturn(Optional.of(department));
         when(assetRepository.findByAssignedToDepartmentId(department.getId())).thenReturn(List.of());
+        when(personRepository.findByDepartmentId(department.getId())).thenReturn(List.of());
 
         service.delete(department.getId());
 
@@ -108,16 +112,43 @@ class DepartmentServiceTest {
         asset.setName("Forklift");
         when(departmentRepository.findById(department.getId())).thenReturn(Optional.of(department));
         when(assetRepository.findByAssignedToDepartmentId(department.getId())).thenReturn(List.of(asset));
+        when(personRepository.findByDepartmentId(department.getId())).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.delete(department.getId()))
                 .isInstanceOfSatisfying(ConflictException.class, ex -> {
-                    assertThat(ex.getErrorCode()).isEqualTo("DEPARTMENT_HAS_ASSIGNED_ASSETS");
+                    assertThat(ex.getErrorCode()).isEqualTo("DEPARTMENT_HAS_DEPENDENTS");
                     @SuppressWarnings("unchecked")
                     List<Map<String, Object>> blocking =
                             (List<Map<String, Object>>) ex.getExtraProperties().get("blockingAssets");
                     assertThat(blocking).hasSize(1);
                     assertThat(blocking.get(0)).containsEntry("assetNumber", "AST-2026-000042");
                     assertThat(ex.getExtraProperties()).containsKey("resolutionActions");
+                });
+
+        verify(departmentRepository, never()).delete(any());
+    }
+
+    @Test
+    void delete_blockedWithDependentList_whenPersonsReferenceIt() {
+        // AC-ORG-03-X, person half: a department a person belongs to also blocks.
+        Department department = new Department();
+        department.setId(UUID.randomUUID());
+        department.setName("Facilities");
+        Person person = new Person();
+        person.setId(UUID.randomUUID());
+        person.setFullName("Jordan Lee");
+        when(departmentRepository.findById(department.getId())).thenReturn(Optional.of(department));
+        when(assetRepository.findByAssignedToDepartmentId(department.getId())).thenReturn(List.of());
+        when(personRepository.findByDepartmentId(department.getId())).thenReturn(List.of(person));
+
+        assertThatThrownBy(() -> service.delete(department.getId()))
+                .isInstanceOfSatisfying(ConflictException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo("DEPARTMENT_HAS_DEPENDENTS");
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> blocking =
+                            (List<Map<String, Object>>) ex.getExtraProperties().get("blockingPersons");
+                    assertThat(blocking).hasSize(1);
+                    assertThat(blocking.get(0)).containsEntry("fullName", "Jordan Lee");
                 });
 
         verify(departmentRepository, never()).delete(any());

@@ -16,6 +16,7 @@ public class PersonMapper {
                 person.getPersonType(),
                 person.getOrgNode() != null ? person.getOrgNode().getId() : null,
                 person.getOrgNode() != null ? person.getOrgNode().getName() : null,
+                person.getDepartmentId(),
                 person.isActive(),
                 person.getCreatedBy(),
                 person.getCreatedAt(),

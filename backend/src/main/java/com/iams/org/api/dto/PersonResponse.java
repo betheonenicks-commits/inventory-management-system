@@ -12,6 +12,7 @@ public record PersonResponse(
         PersonType personType,
         UUID orgNodeId,
         String orgNodeName,
+        UUID departmentId,
         boolean active,
         UUID createdBy,
         Instant createdAt,

@@ -9,6 +9,7 @@ public record PersonUpdateRequest(
         String email,
         PersonType personType,
         UUID orgNodeId,
+        UUID departmentId,
         Boolean active,
         @NotNull Long version
 ) {

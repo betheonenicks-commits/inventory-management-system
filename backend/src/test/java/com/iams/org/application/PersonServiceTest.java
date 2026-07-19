@@ -6,11 +6,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
+import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.OptimisticLockConflictException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUser;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.org.domain.Department;
+import com.iams.org.domain.DepartmentRepository;
 import com.iams.org.domain.OrgNode;
 import com.iams.org.domain.OrgNodeRepository;
 import com.iams.org.domain.Person;
@@ -40,6 +43,9 @@ class PersonServiceTest {
     private OrgNodeRepository orgNodeRepository;
 
     @Mock
+    private DepartmentRepository departmentRepository;
+
+    @Mock
     private CurrentUserProvider currentUserProvider;
 
     @Mock
@@ -53,7 +59,16 @@ class PersonServiceTest {
     @BeforeEach
     void setUp() {
         OrgScopeGuard scopeGuard = new OrgScopeGuard(currentUserProvider, scopeResolver, orgNodeRepository, securityEventLogger);
-        service = new PersonService(personRepository, orgNodeRepository, currentUserProvider, scopeGuard);
+        service = new PersonService(personRepository, orgNodeRepository, departmentRepository, currentUserProvider, scopeGuard);
+    }
+
+    private Department activeDepartment() {
+        Department department = new Department();
+        department.setId(UUID.randomUUID());
+        department.setName("Facilities");
+        department.setCostCenterCode("CC-100");
+        department.setActive(true);
+        return department;
     }
 
     // get()/update() now resolve org scope (FR-USR-04) on every call, which requires
@@ -80,12 +95,46 @@ class PersonServiceTest {
         when(personRepository.save(org.mockito.ArgumentMatchers.any(Person.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        Person result = service.create("Alice Employee", "alice@example.org", PersonType.EMPLOYEE, null);
+        Person result = service.create("Alice Employee", "alice@example.org", PersonType.EMPLOYEE, null, null);
 
         assertThat(result.getFullName()).isEqualTo("Alice Employee");
         assertThat(result.getPersonType()).isEqualTo(PersonType.EMPLOYEE);
         assertThat(result.isActive()).isTrue();
         assertThat(result.getOrgNode()).isNull();
+        assertThat(result.getDepartmentId()).isNull();
+    }
+
+    @Test
+    void create_resolvesActiveDepartment_whenProvided() {
+        stubCurrentUser();
+        Department department = activeDepartment();
+        when(departmentRepository.findById(department.getId())).thenReturn(Optional.of(department));
+        when(personRepository.save(org.mockito.ArgumentMatchers.any(Person.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        Person result = service.create("Dee Dept", null, PersonType.EMPLOYEE, null, department.getId());
+
+        assertThat(result.getDepartmentId()).isEqualTo(department.getId());
+    }
+
+    @Test
+    void create_rejectsInactiveDepartment() {
+        // create() resolves the department before stamping createdBy, so no CurrentUser stub is needed.
+        Department department = activeDepartment();
+        department.setActive(false);
+        when(departmentRepository.findById(department.getId())).thenReturn(Optional.of(department));
+
+        assertThatThrownBy(() -> service.create("Ed", null, PersonType.EMPLOYEE, null, department.getId()))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void create_rejectsUnknownDepartment() {
+        UUID departmentId = UUID.randomUUID();
+        when(departmentRepository.findById(departmentId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.create("Fay", null, PersonType.EMPLOYEE, null, departmentId))
+                .isInstanceOf(NotFoundException.class);
     }
 
     @Test
@@ -98,14 +147,14 @@ class PersonServiceTest {
         when(personRepository.save(org.mockito.ArgumentMatchers.any(Person.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        Person result = service.create("Bob Volunteer", null, PersonType.VOLUNTEER, node.getId());
+        Person result = service.create("Bob Volunteer", null, PersonType.VOLUNTEER, node.getId(), null);
 
         assertThat(result.getOrgNode()).isSameAs(node);
     }
 
     @Test
     void create_rejectsBlankFullName() {
-        assertThatThrownBy(() -> service.create("  ", null, PersonType.EMPLOYEE, null))
+        assertThatThrownBy(() -> service.create("  ", null, PersonType.EMPLOYEE, null, null))
                 .isInstanceOf(ValidationFailedException.class);
     }
 
@@ -114,7 +163,7 @@ class PersonServiceTest {
         UUID orgNodeId = UUID.randomUUID();
         when(orgNodeRepository.findById(orgNodeId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.create("Carol", null, PersonType.EMPLOYEE, orgNodeId))
+        assertThatThrownBy(() -> service.create("Carol", null, PersonType.EMPLOYEE, orgNodeId, null))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -126,7 +175,7 @@ class PersonServiceTest {
         person.setVersion(3L);
         when(personRepository.findById(person.getId())).thenReturn(Optional.of(person));
 
-        assertThatThrownBy(() -> service.update(person.getId(), "New Name", null, null, null, null, 2))
+        assertThatThrownBy(() -> service.update(person.getId(), "New Name", null, null, null, null, null, 2))
                 .isInstanceOf(OptimisticLockConflictException.class);
     }
 
@@ -141,9 +190,26 @@ class PersonServiceTest {
         when(personRepository.findById(person.getId())).thenReturn(Optional.of(person));
         when(personRepository.saveAndFlush(person)).thenReturn(person);
 
-        Person result = service.update(person.getId(), null, null, null, null, false, 0);
+        Person result = service.update(person.getId(), null, null, null, null, null, false, 0);
 
         assertThat(result.isActive()).isFalse();
+    }
+
+    @Test
+    void update_setsDepartment_whenProvided() {
+        stubCurrentUser();
+        Department department = activeDepartment();
+        Person person = new Person();
+        person.setId(UUID.randomUUID());
+        person.setVersion(0L);
+        person.setFullName("Gita");
+        when(personRepository.findById(person.getId())).thenReturn(Optional.of(person));
+        when(departmentRepository.findById(department.getId())).thenReturn(Optional.of(department));
+        when(personRepository.saveAndFlush(person)).thenReturn(person);
+
+        Person result = service.update(person.getId(), null, null, null, null, department.getId(), null, 0);
+
+        assertThat(result.getDepartmentId()).isEqualTo(department.getId());
     }
 
     @Test
@@ -235,7 +301,7 @@ class PersonServiceTest {
         // whose path simply doesn't match would be.
         UUID outOfScopeNodeId = UUID.randomUUID();
 
-        assertThatThrownBy(() -> service.update(person.getId(), null, null, null, outOfScopeNodeId, null, 0))
+        assertThatThrownBy(() -> service.update(person.getId(), null, null, null, outOfScopeNodeId, null, null, 0))
                 .isInstanceOf(AccessDeniedException.class);
     }
 }

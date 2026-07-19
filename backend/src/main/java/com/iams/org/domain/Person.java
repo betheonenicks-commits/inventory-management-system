@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -36,6 +37,15 @@ public class Person extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "org_node_id")
     private OrgNode orgNode;
+
+    /**
+     * US-ORG-03 (AC-ORG-03-H): the person's department/cost centre - its own
+     * dimension, independent of the physical org_node above. A plain id column
+     * with an FK (same shape as Asset.assignedToDepartmentId), not a mapped
+     * association, since nothing here navigates back to the Department.
+     */
+    @Column(name = "department_id")
+    private UUID departmentId;
 
     @Column(name = "is_active", nullable = false)
     private boolean active = true;

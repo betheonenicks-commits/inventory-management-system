@@ -10,6 +10,7 @@ export interface Person {
   personType: PersonType
   orgNodeId: string | null
   orgNodeName: string | null
+  departmentId: string | null
   active: boolean
   createdBy: string
   createdAt: string
