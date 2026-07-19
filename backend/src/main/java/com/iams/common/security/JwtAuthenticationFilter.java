@@ -29,9 +29,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String PREFIX = "Bearer ";
 
     private final JwtService jwtService;
+    private final AccessRevocationCheck accessRevocationCheck;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(JwtService jwtService, AccessRevocationCheck accessRevocationCheck) {
         this.jwtService = jwtService;
+        this.accessRevocationCheck = accessRevocationCheck;
     }
 
     @Override
@@ -41,6 +43,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith(PREFIX)) {
             String token = header.substring(PREFIX.length());
             Optional<CurrentUser> user = jwtService.parse(token);
+            // US-USR-08: a structurally-valid, unexpired token is still refused
+            // if its user has since been deactivated - the SecurityContext is
+            // left empty exactly as for a bad token, so the entry point produces
+            // the normal 401.
+            if (user.isPresent() && accessRevocationCheck.isRevoked(user.get().id())) {
+                chain.doFilter(request, response);
+                return;
+            }
             if (user.isPresent() && SecurityContextHolder.getContext().getAuthentication() == null) {
                 var authorities = user.get().roles().stream()
                         .map(role -> (GrantedAuthority) new SimpleGrantedAuthority("ROLE_" + role))

@@ -31,11 +31,11 @@ import org.springframework.transaction.annotation.Transactional;
  * generic message string wouldn't satisfy it.
  * <p>
  * Session/refresh-token revocation (also named in US-USR-08's happy-path AC)
- * now happens via RefreshTokenService.revokeAll - a deactivated user's
- * existing refresh tokens stop working immediately; their current access
- * token (if any) remains valid only until its own natural expiry, since
- * access tokens are still stateless JWTs with no per-request revocation
- * check - that's the one part of the AC still not fully closed.
+ * is now fully closed: RefreshTokenService.revokeAll stops the deactivated
+ * user's refresh tokens immediately, and DeactivatedUserRegistry stops their
+ * already-issued stateless access token at the very next request (the JWT
+ * filter consults the registry), rather than letting it live to its natural
+ * expiry.
  */
 @Service
 public class UserDeactivationService {
@@ -45,15 +45,18 @@ public class UserDeactivationService {
     private final CurrentUserProvider currentUserProvider;
     private final SecurityEventLogger securityEventLogger;
     private final RefreshTokenService refreshTokenService;
+    private final DeactivatedUserRegistry deactivatedUserRegistry;
 
     public UserDeactivationService(AppUserRepository userRepository, AssetRepository assetRepository,
                                     CurrentUserProvider currentUserProvider, SecurityEventLogger securityEventLogger,
-                                    RefreshTokenService refreshTokenService) {
+                                    RefreshTokenService refreshTokenService,
+                                    DeactivatedUserRegistry deactivatedUserRegistry) {
         this.userRepository = userRepository;
         this.assetRepository = assetRepository;
         this.currentUserProvider = currentUserProvider;
         this.securityEventLogger = securityEventLogger;
         this.refreshTokenService = refreshTokenService;
+        this.deactivatedUserRegistry = deactivatedUserRegistry;
     }
 
     @Transactional
@@ -77,6 +80,8 @@ public class UserDeactivationService {
         try {
             AppUser saved = userRepository.saveAndFlush(user);
             refreshTokenService.revokeAll(userId);
+            // US-USR-08: refuse this user's still-unexpired access tokens from the next request on.
+            deactivatedUserRegistry.markDeactivated(userId);
             securityEventLogger.record(SecurityEventType.USER_DEACTIVATED, actorId, user.getUsername(), null, null);
             return saved;
         } catch (OptimisticLockingFailureException e) {

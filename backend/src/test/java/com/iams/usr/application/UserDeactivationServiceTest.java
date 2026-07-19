@@ -2,6 +2,8 @@ package com.iams.usr.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.iams.asset.domain.Asset;
@@ -34,13 +36,14 @@ class UserDeactivationServiceTest {
     @Mock private CurrentUserProvider currentUserProvider;
     @Mock private SecurityEventLogger securityEventLogger;
     @Mock private RefreshTokenService refreshTokenService;
+    @Mock private DeactivatedUserRegistry deactivatedUserRegistry;
 
     private UserDeactivationService service;
 
     @BeforeEach
     void setUp() {
         service = new UserDeactivationService(userRepository, assetRepository, currentUserProvider, securityEventLogger,
-                refreshTokenService);
+                refreshTokenService, deactivatedUserRegistry);
     }
 
     private AppUser userWithPerson(UUID personId, long version) {
@@ -62,6 +65,9 @@ class UserDeactivationServiceTest {
         AppUser result = service.deactivate(user.getId(), 0L);
 
         assertThat(result.getStatus()).isEqualTo(UserStatus.DEACTIVATED);
+        // US-USR-08: the user's live access tokens are revoked at the next request.
+        verify(deactivatedUserRegistry).markDeactivated(user.getId());
+        verify(refreshTokenService).revokeAll(user.getId());
     }
 
     @Test
@@ -103,6 +109,8 @@ class UserDeactivationServiceTest {
                     assertThat(blockingAssets.get(0)).containsEntry("assetNumber", "AST-2026-000123");
                     assertThat(ex.getExtraProperties()).containsKey("resolutionActions");
                 });
+        // Blocked deactivation must NOT revoke tokens - the user stays active.
+        verify(deactivatedUserRegistry, never()).markDeactivated(user.getId());
     }
 
     @Test

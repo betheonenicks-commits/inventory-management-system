@@ -19,6 +19,10 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     /** US-ORG-01 delete-block AC: is any user still scoped to this org node. */
     boolean existsByOrgScopeNodeId(UUID orgNodeId);
 
+    /** US-USR-08: seed the access-revocation registry at startup. */
+    @Query("SELECT u.id FROM AppUser u WHERE u.status = :status")
+    List<UUID> findIdsByStatus(UserStatus status);
+
     /**
      * orgScopeNode is FetchType.LAZY and open-in-view is disabled, so a plain
      * findById() returns a proxy that throws LazyInitializationException the
