@@ -36,6 +36,9 @@ public interface AssetRepository extends JpaRepository<Asset, UUID>, AssetReposi
     /** US-USR-08: assets currently assigned to a person, to block offboarding while any remain. */
     List<Asset> findByAssignedToPersonId(UUID personId);
 
+    /** AC-ORG-03-X: assets whose custodian is this department, to block its deletion while any remain. */
+    List<Asset> findByAssignedToDepartmentId(UUID departmentId);
+
     /**
      * US-SRC-02: exact-match lookup by any of the asset's unique identifying
      * codes in one query - typed asset number, scanned barcode/QR payload, or

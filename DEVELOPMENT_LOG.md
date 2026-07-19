@@ -968,3 +968,17 @@ Fourth Partials-sweep item across this run, and the one the last three entries k
 **Updated status:** US-USR-08 Partial → **Built**. EPIC-USR: one of its Partials closed (US-USR-08). Overall: **123 Built / 7 Partial / 50 Not started** (180 total), up from 122/8/50.
 
 **Next session:** Partials sweep remainder — the genuinely-blocked/decision-needed ones are what's left: LIF-13 (no people-management hierarchy exists), AUD-03 (org-scope design question for category/asset-scoped audits), NTF-02 (SMS gateway decision), SEC-14 (service accounts, a sizable R1 build), CMP-01/ORG-03/USR-04. Or Dependabot triage (18 PRs), or open a fresh untouched epic (MIG/SCN/INT — INT-03 LDAP/SSO is the only R1 Must). The optimistic-lock `currentResource` DTO follow-up (from the previous entry) also still stands.
+
+---
+
+## 2026-07-19, continued — AC-ORG-03-X: department deletion now blocks on assigned assets (closing a 500 that US-LIF-04's FK had just created)
+
+Not a full story - a mandatory connected fix. US-LIF-04 (earlier today) added `asset.assigned_to_department_id` with a real FK to `department`. That immediately created a latent defect: `DepartmentService.delete` had **no** dependent-asset check (its own Javadoc said AC-ORG-03-X "only becomes enforceable once that FK exists" - which it now did), so deleting a department that still had an assigned asset would hit a database FK-constraint violation and surface as a raw **500**. Found by asking "what did my own new FK just make possible," fixed in the same run rather than deferred.
+
+`DepartmentService.delete` now queries `assetRepository.findByAssignedToDepartmentId(id)` and, if any exist, throws a `ConflictException` (`DEPARTMENT_HAS_ASSIGNED_ASSETS`) carrying the structured dependent list - the same `blockingAssets` + `resolutionActions` shape US-USR-08's offboarding block and US-ORG-01's org-node delete-block already use - instead of the FK 500. Reuses the existing `org → asset` module dependency (`OrgHierarchyService` already imports `AssetRepository` for the identical org-node delete-block, so no new coupling).
+
+**Verification:** 2 new `DepartmentServiceTest` cases (delete succeeds with no assets; delete blocked-with-dependent-list when an asset is assigned - asserting errorCode + the blockingAssets payload). **Full suite: 421/421** (419 + 2). **Live-verified** on 8081: created a department, assigned an asset to it, `DELETE` returned **409** `DEPARTMENT_HAS_ASSIGNED_ASSETS` with the asset in `blockingAssets` (not a 500); unassigned the asset; `DELETE` then returned **204**.
+
+**Status:** this closes **AC-ORG-03-X** (the delete-block half). **US-ORG-03 stays Partial**, honestly: its other half, AC-ORG-03-H's "persons can reference [a department]," is still not built - Person carries no department reference yet (only Asset does, as of US-LIF-04). No story-tier change; overall unchanged at **123 Built / 7 Partial / 50 Not started**. The value here is a removed 500-defect and one more AC satisfied, not a status bump.
+
+**Next session:** unchanged from the entry above. If US-ORG-03 is picked to fully close, its remaining work is Person→Department wiring (entity field + migration + PersonService + the delete-block extended to also count dependent persons) plus a person-edit UI to set it.
