@@ -86,6 +86,24 @@ public class OrgScopeGuard {
         }
     }
 
+    /**
+     * Refuse (403, recorded to the Security &amp; Access Log) when a scoped caller has no
+     * visibility of an entity whose in-scope determination the caller computes itself -
+     * used for entities whose footprint is a SET of locations rather than one org node
+     * (an audit spanning several expected-asset locations, with no single scope node of
+     * its own). No-op for an unrestricted caller or when {@code inScope} is true. Mirrors
+     * {@link #requireWithinScope}'s refusal exactly, so both paths log and 403 identically.
+     */
+    public void requireInScope(boolean inScope, String entityType, Object entityId) {
+        if (currentScopePathPrefix() == null || inScope) {
+            return;
+        }
+        log.warn("Permission denied: {} {} is outside requester's org scope", entityType, entityId);
+        securityEventLogger.record(SecurityEventType.PERMISSION_DENIED, currentUserProvider.current().id(), null, null,
+                entityType + " " + entityId + " is outside requester's org scope");
+        throw new AccessDeniedException("This " + entityType + " is outside your organizational scope");
+    }
+
     /** In-scope subset of a list of (entity, orgNodeId) pairs - for list endpoints, not single-record detail fetches. */
     public <T> List<T> filterToScope(List<T> entities, Function<T, UUID> orgNodeIdExtractor) {
         String scopePath = currentScopePathPrefix();

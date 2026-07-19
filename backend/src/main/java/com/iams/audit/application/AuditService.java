@@ -132,10 +132,27 @@ public class AuditService {
     @Transactional(readOnly = true)
     public Audit get(UUID id) {
         Audit audit = auditRepository.findByIdWithAssociations(id).orElseThrow(() -> NotFoundException.of("Audit", id));
-        if (audit.getScopeOrgNode() != null) {
-            scopeGuard.requireWithinScope(audit.getScopeOrgNode().getId(), "audit", id);
-        }
+        requireAuditInScope(audit);
         return audit;
+    }
+
+    /**
+     * US-USR-04 org-scope for audits, including the no-org-node case. An org-node-scoped
+     * audit is visible within its node's subtree (unchanged). A category- or asset-list-
+     * scoped audit has no org node of its own, so its footprint is the set of its
+     * expected-asset locations: a scoped caller may see it iff at least one of those
+     * assets falls within their scope - previously such audits bypassed scope entirely.
+     */
+    private void requireAuditInScope(Audit audit) {
+        String scopePrefix = scopeGuard.currentScopePathPrefix();
+        if (scopePrefix == null) {
+            return; // unrestricted caller
+        }
+        if (audit.getScopeOrgNode() != null) {
+            scopeGuard.requireWithinScope(audit.getScopeOrgNode().getId(), "audit", audit.getId());
+        } else {
+            scopeGuard.requireInScope(expectedAssetRepository.existsInScope(audit.getId(), scopePrefix), "audit", audit.getId());
+        }
     }
 
     @Transactional(readOnly = true)
@@ -147,10 +164,20 @@ public class AuditService {
         if (scopePrefix == null) {
             return audits;
         }
-        // US-AUD-03: category- or asset-list-scoped audits have no org node to filter by and
-        // pass through unrestricted here - a documented gap, not an oversight (see DEVELOPMENT_LOG.md).
+        // US-USR-04 / AUD-03: an org-node-scoped audit is filtered by its node's path;
+        // a no-org-node (category/asset-list) audit is visible iff it has an expected
+        // asset within the caller's scope - resolved with ONE batched query, not per row.
+        List<UUID> noNodeIds = audits.stream()
+                .filter(a -> a.getScopeOrgNode() == null)
+                .map(Audit::getId)
+                .toList();
+        java.util.Set<UUID> visibleNoNode = noNodeIds.isEmpty()
+                ? java.util.Set.of()
+                : java.util.Set.copyOf(expectedAssetRepository.findAuditIdsInScope(noNodeIds, scopePrefix));
         return audits.stream()
-                .filter(a -> a.getScopeOrgNode() == null || a.getScopeOrgNode().getPath().startsWith(scopePrefix))
+                .filter(a -> a.getScopeOrgNode() != null
+                        ? a.getScopeOrgNode().getPath().startsWith(scopePrefix)
+                        : visibleNoNode.contains(a.getId()))
                 .toList();
     }
 
@@ -187,14 +214,13 @@ public class AuditService {
 
     @Transactional(readOnly = true)
     public List<AuditAssignment> assignments(UUID auditId) {
+        get(auditId); // US-USR-04: 404 if missing, 403 if outside the caller's org scope
         return assignmentRepository.findByAuditIdOrderByCreatedAtAsc(auditId);
     }
 
     @Transactional(readOnly = true)
     public AuditProgress progress(UUID auditId) {
-        if (!auditRepository.existsById(auditId)) {
-            throw NotFoundException.of("Audit", auditId);
-        }
+        get(auditId); // US-USR-04: 404 if missing, 403 if outside the caller's org scope (previously unenforced here)
         long expected = expectedAssetRepository.countByAuditId(auditId);
         long verified = findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.VERIFIED);
         long missing = findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.MISSING);

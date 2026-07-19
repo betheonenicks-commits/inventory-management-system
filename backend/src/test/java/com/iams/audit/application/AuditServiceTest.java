@@ -81,6 +81,13 @@ class AuditServiceTest {
         return a;
     }
 
+    /** A minimal no-org-node audit; get()/progress()/assignments() load it via findByIdWithAssociations. */
+    private Audit auditWithId(UUID id) {
+        Audit a = new Audit();
+        a.setId(id);
+        return a;
+    }
+
     @Test
     void create_rejectsEmptyScope() {
         AuditCreateCommand command = new AuditCreateCommand("Q3 Audit", AuditType.SPOT_CHECK, null, null, null, approverId, null);
@@ -168,10 +175,67 @@ class AuditServiceTest {
         audit.setId(auditId);
         audit.setScopeOrgNode(orgNode);
         when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(audit));
+        when(scopeGuard.currentScopePathPrefix()).thenReturn("/campus/building-a/");
         org.mockito.Mockito.doThrow(new AccessDeniedException("out of scope"))
                 .when(scopeGuard).requireWithinScope(orgNodeId, "audit", auditId);
 
         assertThatThrownBy(() -> service.get(auditId)).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void get_noOrgNodeAudit_visibleWhenAnExpectedAssetIsInScope() {
+        // A category/asset-list audit (no scope org node) is visible to a scoped caller
+        // iff one of its expected assets falls within their scope.
+        UUID auditId = UUID.randomUUID();
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(auditWithId(auditId)));
+        when(scopeGuard.currentScopePathPrefix()).thenReturn("/campus/building-a/");
+        when(expectedAssetRepository.existsInScope(auditId, "/campus/building-a/")).thenReturn(true);
+
+        Audit result = service.get(auditId);
+
+        assertThat(result.getId()).isEqualTo(auditId);
+        // The refusal helper is consulted with the real overlap result (true -> permitted).
+        verify(scopeGuard).requireInScope(true, "audit", auditId);
+    }
+
+    @Test
+    void get_noOrgNodeAudit_403WhenNoExpectedAssetInScope() {
+        UUID auditId = UUID.randomUUID();
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(auditWithId(auditId)));
+        when(scopeGuard.currentScopePathPrefix()).thenReturn("/campus/building-a/");
+        when(expectedAssetRepository.existsInScope(auditId, "/campus/building-a/")).thenReturn(false);
+        org.mockito.Mockito.doThrow(new AccessDeniedException("out of scope"))
+                .when(scopeGuard).requireInScope(false, "audit", auditId);
+
+        assertThatThrownBy(() -> service.get(auditId)).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void list_filtersNoOrgNodeAuditsByExpectedAssetOverlap() {
+        // Three audits for a caller scoped to /campus/building-a/: an org-node audit under
+        // that subtree (visible), a no-node audit with an in-scope asset (visible), and a
+        // no-node audit with none in scope (hidden).
+        OrgNode inNode = new OrgNode();
+        inNode.setId(UUID.randomUUID());
+        inNode.setPath("/campus/building-a/floor-1/");
+        Audit orgNodeAudit = new Audit();
+        orgNodeAudit.setId(UUID.randomUUID());
+        orgNodeAudit.setScopeOrgNode(inNode);
+        Audit noNodeVisible = auditWithId(UUID.randomUUID());
+        Audit noNodeHidden = auditWithId(UUID.randomUUID());
+
+        when(auditRepository.findAllWithAssociationsOrderByCreatedAtDesc())
+                .thenReturn(List.of(orgNodeAudit, noNodeVisible, noNodeHidden));
+        when(scopeGuard.currentScopePathPrefix()).thenReturn("/campus/building-a/");
+        when(expectedAssetRepository.findAuditIdsInScope(
+                List.of(noNodeVisible.getId(), noNodeHidden.getId()), "/campus/building-a/"))
+                .thenReturn(List.of(noNodeVisible.getId()));
+
+        List<Audit> visible = service.list(null);
+
+        assertThat(visible).extracting(Audit::getId)
+                .containsExactlyInAnyOrder(orgNodeAudit.getId(), noNodeVisible.getId())
+                .doesNotContain(noNodeHidden.getId());
     }
 
     @Test
@@ -217,7 +281,7 @@ class AuditServiceTest {
     @Test
     void progress_countsEachFindingStatusSeparately() {
         UUID auditId = UUID.randomUUID();
-        when(auditRepository.existsById(auditId)).thenReturn(true);
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(auditWithId(auditId)));
         when(expectedAssetRepository.countByAuditId(auditId)).thenReturn(10L);
         when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.VERIFIED)).thenReturn(6L);
         when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.MISSING)).thenReturn(2L);
@@ -236,7 +300,7 @@ class AuditServiceTest {
         UUID auditId = UUID.randomUUID();
         UUID buildingA = UUID.randomUUID();
         UUID buildingB = UUID.randomUUID();
-        when(auditRepository.existsById(auditId)).thenReturn(true);
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(auditWithId(auditId)));
         // Flat totals: 10 expected, 6 verified, 2 missing, 1 out-of-scope, 1 scope-changed.
         when(expectedAssetRepository.countByAuditId(auditId)).thenReturn(10L);
         when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.VERIFIED)).thenReturn(6L);
@@ -286,7 +350,7 @@ class AuditServiceTest {
         UUID auditId = UUID.randomUUID();
         UUID expectedLoc = UUID.randomUUID();
         UUID strayLoc = UUID.randomUUID();
-        when(auditRepository.existsById(auditId)).thenReturn(true);
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(auditWithId(auditId)));
         when(expectedAssetRepository.countByAuditId(auditId)).thenReturn(2L);
         when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.VERIFIED)).thenReturn(2L);
         when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.MISSING)).thenReturn(0L);
@@ -314,7 +378,7 @@ class AuditServiceTest {
     @Test
     void progressDetail_emptyAuditHasNoSubScopes() {
         UUID auditId = UUID.randomUUID();
-        when(auditRepository.existsById(auditId)).thenReturn(true);
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(auditWithId(auditId)));
         when(expectedAssetRepository.countByAuditId(auditId)).thenReturn(0L);
         when(findingRepository.countByAuditIdAndStatus(any(), any())).thenReturn(0L);
         when(expectedAssetRepository.countExpectedByOrgNode(auditId)).thenReturn(List.of());
@@ -329,7 +393,7 @@ class AuditServiceTest {
     @Test
     void progressDetail_unknownAudit404s() {
         UUID auditId = UUID.randomUUID();
-        when(auditRepository.existsById(auditId)).thenReturn(false);
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.progressDetail(auditId)).isInstanceOf(NotFoundException.class);
     }
