@@ -3,6 +3,7 @@ package com.iams.audit.api.mapper;
 import com.iams.audit.api.dto.AuditAssignmentResponse;
 import com.iams.audit.api.dto.AuditBatchScanResponse;
 import com.iams.audit.api.dto.AuditCertificateResponse;
+import com.iams.audit.api.dto.AuditCycleTrendResponse;
 import com.iams.audit.api.dto.AuditDashboardItemResponse;
 import com.iams.audit.api.dto.AuditExceptionReportResponse;
 import com.iams.audit.api.dto.AuditFindingCorrectionResponse;
@@ -12,6 +13,7 @@ import com.iams.audit.api.dto.AuditProgressResponse;
 import com.iams.audit.api.dto.AuditResponse;
 import com.iams.audit.api.dto.AuditSubScopeProgressResponse;
 import com.iams.audit.api.dto.AuditSummaryResponse;
+import com.iams.audit.application.AuditAnalyticsService;
 import com.iams.audit.application.AuditFindingCorrectionService;
 import com.iams.audit.application.AuditReportService;
 import com.iams.audit.application.AuditScanService;
@@ -164,6 +166,16 @@ public class AuditMapper {
     private double percentComplete(long verified, long expected) {
         double percent = expected == 0 ? 0.0 : (verified * 100.0) / expected;
         return Math.round(percent * 10) / 10.0;
+    }
+
+    /** US-AUD-18: cross-cycle trend rows. */
+    public List<AuditCycleTrendResponse> toCycleTrendResponse(List<AuditAnalyticsService.AuditCycleTrend> cycles) {
+        return cycles.stream()
+                .map(c -> new AuditCycleTrendResponse(
+                        c.auditId(), c.name(), c.approvedAt(),
+                        c.expectedCount(), c.missingCount(), c.reconciledCount(), c.netMissingCount(),
+                        c.missingRatePct(), c.netMissingRatePct(), c.completionDays()))
+                .toList();
     }
 
     public AuditCertificateResponse toResponse(AuditReportService.AuditCertificate certificate) {

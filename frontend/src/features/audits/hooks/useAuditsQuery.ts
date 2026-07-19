@@ -6,6 +6,7 @@ import {
   fetchAuditExceptions,
   fetchAudits,
   fetchAuditProgress,
+  fetchCrossCycleTrends,
   fetchFindingEvidence,
   fetchPickableAudits,
   reconcileFinding,
@@ -27,6 +28,15 @@ export function useAuditQuery(id: string | undefined) {
     queryKey: ['AUD', 'audit', id],
     queryFn: () => fetchAudit(id as string),
     enabled: !!id,
+  })
+}
+
+// US-AUD-18: cross-cycle analytics; enabled-gated so it only fetches when the panel is shown.
+export function useCrossCycleTrendsQuery(enabled = true) {
+  return useQuery({
+    queryKey: ['AUD', 'cross-cycle-trends'],
+    queryFn: fetchCrossCycleTrends,
+    enabled,
   })
 }
 

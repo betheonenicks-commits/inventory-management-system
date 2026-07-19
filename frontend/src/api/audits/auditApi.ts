@@ -3,6 +3,7 @@ import type {
   Audit,
   AuditAssignment,
   AuditCertificate,
+  AuditCycleTrend,
   AuditExceptionReport,
   AuditFinding,
   AuditFindingReconciliation,
@@ -47,6 +48,11 @@ export function fetchAudit(id: string) {
 
 export function createAudit(payload: AuditCreatePayload) {
   return httpClient.post<Audit>('/audits', payload).then((r) => r.data)
+}
+
+// US-AUD-18: cross-cycle audit analytics (missing-rate + completion-time trends).
+export function fetchCrossCycleTrends() {
+  return httpClient.get<AuditCycleTrend[]>('/audits/analytics/cross-cycle').then((r) => r.data)
 }
 
 export function fetchAuditProgress(id: string) {

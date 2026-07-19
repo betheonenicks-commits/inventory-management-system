@@ -12,6 +12,7 @@ import com.iams.audit.api.dto.AuditDashboardItemResponse;
 import com.iams.audit.api.dto.AuditExceptionReportResponse;
 import com.iams.audit.api.dto.AuditFindingReconciliationResponse;
 import com.iams.audit.api.dto.AuditFindingResponse;
+import com.iams.audit.api.dto.AuditCycleTrendResponse;
 import com.iams.audit.api.dto.AuditProgressResponse;
 import com.iams.audit.api.dto.AuditReconciliationRequest;
 import com.iams.audit.api.dto.AuditRejectRequest;
@@ -24,6 +25,7 @@ import com.iams.audit.application.AuditCertificatePdfRenderer;
 import com.iams.audit.application.AuditCreateCommand;
 import com.iams.audit.application.AuditFindingCorrectionService;
 import com.iams.audit.application.AuditReconciliationService;
+import com.iams.audit.application.AuditAnalyticsService;
 import com.iams.audit.application.AuditReportService;
 import com.iams.audit.application.AuditScanCommand;
 import com.iams.audit.application.AuditScanService;
@@ -74,13 +76,15 @@ public class AuditController {
     private final AuditFindingCorrectionService correctionService;
     private final AuditReportService reportService;
     private final AuditReconciliationService reconciliationService;
+    private final AuditAnalyticsService analyticsService;
     private final AttachmentService attachmentService;
     private final AuditCertificatePdfRenderer certificatePdfRenderer;
     private final AuditMapper mapper;
 
     public AuditController(AuditService auditService, AuditScanService scanService, AuditWorkflowService workflowService,
                             AuditFindingCorrectionService correctionService, AuditReportService reportService,
-                            AuditReconciliationService reconciliationService, AttachmentService attachmentService,
+                            AuditReconciliationService reconciliationService, AuditAnalyticsService analyticsService,
+                            AttachmentService attachmentService,
                             AuditCertificatePdfRenderer certificatePdfRenderer, AuditMapper mapper) {
         this.auditService = auditService;
         this.scanService = scanService;
@@ -88,6 +92,7 @@ public class AuditController {
         this.correctionService = correctionService;
         this.reportService = reportService;
         this.reconciliationService = reconciliationService;
+        this.analyticsService = analyticsService;
         this.attachmentService = attachmentService;
         this.certificatePdfRenderer = certificatePdfRenderer;
         this.mapper = mapper;
@@ -136,6 +141,17 @@ public class AuditController {
     public AuditProgressResponse progress(@PathVariable UUID id) {
         // US-AUD-03: the detail view gets the per-sub-scope breakdown alongside the flat totals.
         return mapper.toResponse(auditService.progressDetail(id));
+    }
+
+    /**
+     * US-AUD-18: cross-cycle audit analytics (missing-rate + completion-time trends).
+     * OR-gated so both the Inventory Manager persona (reports:read) and auditors
+     * (audits:read) can view it; the data is already org-scope-filtered to the caller.
+     */
+    @GetMapping("/analytics/cross-cycle")
+    @PreAuthorize("@perm.has('reports:read') or @perm.has('audits:read')")
+    public List<AuditCycleTrendResponse> crossCycleTrends() {
+        return mapper.toCycleTrendResponse(analyticsService.crossCycleTrends());
     }
 
     @PostMapping("/{id}/assignments")

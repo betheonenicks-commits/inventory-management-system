@@ -58,6 +58,20 @@ export interface AuditProgress {
   subScopes: AuditSubScopeProgress[]
 }
 
+// US-AUD-18: one closed audit cycle's metrics for the cross-cycle trend.
+export interface AuditCycleTrend {
+  auditId: string
+  name: string
+  approvedAt: string | null
+  expectedCount: number
+  missingCount: number
+  reconciledCount: number
+  netMissingCount: number
+  missingRatePct: number
+  netMissingRatePct: number
+  completionDays: number | null
+}
+
 export interface AuditAssignment {
   id: string
   auditId: string

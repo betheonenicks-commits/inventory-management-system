@@ -50,6 +50,7 @@ import ScheduleIcon from '@mui/icons-material/Schedule'
 import { fetchOrgNodes } from '../../api/org/orgNodeApi'
 import { fetchPersons } from '../../api/persons/personApi'
 import { AdHocReportsPanel } from './AdHocReportsPanel'
+import { AuditTrendsPanel } from '../audits/components/AuditTrendsPanel'
 import type { TabularReport } from './types'
 
 type ReportKey =
@@ -431,6 +432,9 @@ export function ReportsPage() {
           setError(runError ?? null)
         }}
       />
+
+      {/* US-AUD-18: cross-cycle audit analytics (missing-rate + completion-time trends). */}
+      <AuditTrendsPanel />
 
       {(schedulesQuery.data ?? []).length > 0 && (
         <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
