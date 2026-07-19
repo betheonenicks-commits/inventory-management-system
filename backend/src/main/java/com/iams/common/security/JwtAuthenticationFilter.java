@@ -30,10 +30,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final AccessRevocationCheck accessRevocationCheck;
+    private final SessionActivityGuard sessionActivityGuard;
 
-    public JwtAuthenticationFilter(JwtService jwtService, AccessRevocationCheck accessRevocationCheck) {
+    public JwtAuthenticationFilter(JwtService jwtService, AccessRevocationCheck accessRevocationCheck,
+                                   SessionActivityGuard sessionActivityGuard) {
         this.jwtService = jwtService;
         this.accessRevocationCheck = accessRevocationCheck;
+        this.sessionActivityGuard = sessionActivityGuard;
     }
 
     @Override
@@ -48,6 +51,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // left empty exactly as for a bad token, so the entry point produces
             // the normal 401.
             if (user.isPresent() && accessRevocationCheck.isRevoked(user.get().id())) {
+                chain.doFilter(request, response);
+                return;
+            }
+            // US-SEC-06: refuse a token whose session has idled past the timeout,
+            // and record this request as activity otherwise. Same empty-context
+            // treatment, so the idle 401 is indistinguishable in shape from any other.
+            if (user.isPresent() && !sessionActivityGuard.recordActivity(user.get().id())) {
                 chain.doFilter(request, response);
                 return;
             }

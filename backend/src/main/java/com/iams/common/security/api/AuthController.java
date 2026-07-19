@@ -7,6 +7,7 @@ import com.iams.common.security.CurrentUserProvider;
 import com.iams.common.security.InvalidCredentialsException;
 import com.iams.common.security.InvalidRefreshTokenException;
 import com.iams.common.security.JwtService;
+import com.iams.common.security.SessionActivityGuard;
 import com.iams.sec.application.SecurityEventLogger;
 import com.iams.sec.domain.SecurityEventType;
 import com.iams.usr.application.RefreshTokenService;
@@ -49,6 +50,7 @@ public class AuthController {
     private final UserLockoutService lockoutService;
     private final SecurityEventLogger securityEventLogger;
     private final RefreshTokenService refreshTokenService;
+    private final SessionActivityGuard sessionActivityGuard;
     // A real BCrypt hash of a value nobody's actual password will ever be, encoded once at
     // startup and compared against on every login for a username that doesn't exist. This
     // keeps response timing (dominated by BCrypt's cost) the same whether the username is
@@ -61,7 +63,7 @@ public class AuthController {
     public AuthController(UserQueryService userQueryService, PasswordEncoder passwordEncoder,
                            JwtService jwtService, CurrentUserProvider currentUserProvider,
                            UserLockoutService lockoutService, SecurityEventLogger securityEventLogger,
-                           RefreshTokenService refreshTokenService) {
+                           RefreshTokenService refreshTokenService, SessionActivityGuard sessionActivityGuard) {
         this.userQueryService = userQueryService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -69,6 +71,7 @@ public class AuthController {
         this.lockoutService = lockoutService;
         this.securityEventLogger = securityEventLogger;
         this.refreshTokenService = refreshTokenService;
+        this.sessionActivityGuard = sessionActivityGuard;
         this.dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
@@ -116,6 +119,7 @@ public class AuthController {
         CurrentUser currentUser = new CurrentUser(user.getId(), user.getUsername(), roleCodes, permissions);
         String token = jwtService.issue(currentUser);
         String refreshToken = refreshTokenService.issue(user.getId());
+        sessionActivityGuard.start(user.getId()); // US-SEC-06: begin the idle clock for this fresh session
         return new LoginResponse(token, refreshToken, "Bearer", jwtService.expirationSeconds());
     }
 
@@ -139,6 +143,7 @@ public class AuthController {
         CurrentUser currentUser = new CurrentUser(found.user().getId(), found.user().getUsername(),
                 roleCodesOf(found), permissionsOf(found));
         String accessToken = jwtService.issue(currentUser);
+        sessionActivityGuard.start(found.user().getId()); // US-SEC-06: a refresh is activity - reset the idle clock
         return new LoginResponse(accessToken, rotated.rawToken(), "Bearer", jwtService.expirationSeconds());
     }
 

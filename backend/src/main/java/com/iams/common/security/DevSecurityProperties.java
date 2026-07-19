@@ -1,5 +1,6 @@
 package com.iams.common.security;
 
+import java.time.Duration;
 import java.util.UUID;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -16,6 +17,7 @@ public class DevSecurityProperties {
 
     private DevUser devUser = new DevUser();
     private Jwt jwt = new Jwt();
+    private Session session = new Session();
 
     public DevUser getDevUser() {
         return devUser;
@@ -31,6 +33,30 @@ public class DevSecurityProperties {
 
     public void setJwt(Jwt jwt) {
         this.jwt = jwt;
+    }
+
+    public Session getSession() {
+        return session;
+    }
+
+    public void setSession(Session session) {
+        this.session = session;
+    }
+
+    /** US-SEC-06: idle-session enforcement for the stateless access token. */
+    public static class Session {
+        // A session with no request for longer than this is treated as idle; the
+        // next request is refused and must re-authenticate. Duration-typed so it
+        // accepts "30m", "45s", "PT30M" etc. from config.
+        private Duration idleTimeout = Duration.ofMinutes(30);
+
+        public Duration getIdleTimeout() {
+            return idleTimeout;
+        }
+
+        public void setIdleTimeout(Duration idleTimeout) {
+            this.idleTimeout = idleTimeout;
+        }
     }
 
     public static class DevUser {

@@ -77,6 +77,10 @@ iams:
       expiration-minutes: 480
       refresh-expiration-minutes: 43200
       refresh-idle-timeout-minutes: 1440
+    session:
+      # US-SEC-06: idle-session timeout for the access token. A session with no
+      # request for longer than this must re-authenticate. Accepts 30m, 45s, etc.
+      idle-timeout: ${IAMS_SESSION_IDLE_TIMEOUT:30m}
   labels:
     sizes:
       - key: "50x25"
