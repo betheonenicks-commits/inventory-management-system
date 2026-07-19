@@ -20,6 +20,8 @@ import com.iams.audit.domain.AuditExpectedAssetRepository;
 import com.iams.audit.domain.AuditFindingRepository;
 import com.iams.audit.domain.AuditRepository;
 import com.iams.audit.domain.AuditStatus;
+import com.iams.audit.domain.AuditSubScopeCount;
+import com.iams.audit.domain.AuditSubScopeStatusCount;
 import com.iams.audit.domain.AuditType;
 import com.iams.audit.domain.FindingStatus;
 import com.iams.common.exception.NotFoundException;
@@ -227,6 +229,109 @@ class AuditServiceTest {
         assertThat(progress.expectedCount()).isEqualTo(10);
         assertThat(progress.verifiedCount()).isEqualTo(6);
         assertThat(progress.missingCount()).isEqualTo(2);
+    }
+
+    @Test
+    void progressDetail_breaksDownBySubScope_andReconcilesWithFlatTotals() {
+        UUID auditId = UUID.randomUUID();
+        UUID buildingA = UUID.randomUUID();
+        UUID buildingB = UUID.randomUUID();
+        when(auditRepository.existsById(auditId)).thenReturn(true);
+        // Flat totals: 10 expected, 6 verified, 2 missing, 1 out-of-scope, 1 scope-changed.
+        when(expectedAssetRepository.countByAuditId(auditId)).thenReturn(10L);
+        when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.VERIFIED)).thenReturn(6L);
+        when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.MISSING)).thenReturn(2L);
+        when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.OUT_OF_SCOPE)).thenReturn(1L);
+        when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.SCOPE_CHANGED)).thenReturn(1L);
+        // Sub-scope aggregates: Building A holds 7 expected, Building B holds 3.
+        when(expectedAssetRepository.countExpectedByOrgNode(auditId)).thenReturn(List.of(
+                new AuditSubScopeCount(buildingA, "Building A", "BA", 7L),
+                new AuditSubScopeCount(buildingB, "Building B", "BB", 3L)));
+        when(findingRepository.countFindingsByOrgNodeAndStatus(auditId)).thenReturn(List.of(
+                new AuditSubScopeStatusCount(buildingA, "Building A", "BA", FindingStatus.VERIFIED, 5L),
+                new AuditSubScopeStatusCount(buildingA, "Building A", "BA", FindingStatus.MISSING, 1L),
+                new AuditSubScopeStatusCount(buildingA, "Building A", "BA", FindingStatus.SCOPE_CHANGED, 1L),
+                new AuditSubScopeStatusCount(buildingB, "Building B", "BB", FindingStatus.VERIFIED, 1L),
+                new AuditSubScopeStatusCount(buildingB, "Building B", "BB", FindingStatus.MISSING, 1L),
+                new AuditSubScopeStatusCount(buildingB, "Building B", "BB", FindingStatus.OUT_OF_SCOPE, 1L)));
+
+        AuditService.AuditProgressDetail detail = service.progressDetail(auditId);
+
+        // Flat totals unchanged.
+        assertThat(detail.totals().expectedCount()).isEqualTo(10);
+        assertThat(detail.totals().verifiedCount()).isEqualTo(6);
+        // Two sub-scopes, sorted by name (Building A then Building B).
+        assertThat(detail.subScopes()).hasSize(2);
+        AuditService.SubScopeProgress a = detail.subScopes().get(0);
+        AuditService.SubScopeProgress b = detail.subScopes().get(1);
+        assertThat(a.orgNodeName()).isEqualTo("Building A");
+        assertThat(a.expectedCount()).isEqualTo(7);
+        assertThat(a.verifiedCount()).isEqualTo(5);
+        assertThat(a.missingCount()).isEqualTo(1);
+        assertThat(a.scopeChangedCount()).isEqualTo(1);
+        assertThat(a.outOfScopeCount()).isZero();
+        assertThat(b.orgNodeName()).isEqualTo("Building B");
+        assertThat(b.expectedCount()).isEqualTo(3);
+        assertThat(b.outOfScopeCount()).isEqualTo(1);
+        // The invariant this design guarantees: every column sums back to the flat total.
+        assertThat(a.expectedCount() + b.expectedCount()).isEqualTo(detail.totals().expectedCount());
+        assertThat(a.verifiedCount() + b.verifiedCount()).isEqualTo(detail.totals().verifiedCount());
+        assertThat(a.missingCount() + b.missingCount()).isEqualTo(detail.totals().missingCount());
+        assertThat(a.outOfScopeCount() + b.outOfScopeCount()).isEqualTo(detail.totals().outOfScopeCount());
+        assertThat(a.scopeChangedCount() + b.scopeChangedCount()).isEqualTo(detail.totals().scopeChangedCount());
+    }
+
+    @Test
+    void progressDetail_surfacesAnOutOfScopeFindingAtALocationWithNoExpectedAsset() {
+        UUID auditId = UUID.randomUUID();
+        UUID expectedLoc = UUID.randomUUID();
+        UUID strayLoc = UUID.randomUUID();
+        when(auditRepository.existsById(auditId)).thenReturn(true);
+        when(expectedAssetRepository.countByAuditId(auditId)).thenReturn(2L);
+        when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.VERIFIED)).thenReturn(2L);
+        when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.MISSING)).thenReturn(0L);
+        when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.OUT_OF_SCOPE)).thenReturn(1L);
+        when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.SCOPE_CHANGED)).thenReturn(0L);
+        when(expectedAssetRepository.countExpectedByOrgNode(auditId)).thenReturn(List.of(
+                new AuditSubScopeCount(expectedLoc, "Room 101", "R101", 2L)));
+        // The out-of-scope find is at a location that has NO expected asset - it must still appear.
+        when(findingRepository.countFindingsByOrgNodeAndStatus(auditId)).thenReturn(List.of(
+                new AuditSubScopeStatusCount(expectedLoc, "Room 101", "R101", FindingStatus.VERIFIED, 2L),
+                new AuditSubScopeStatusCount(strayLoc, "Corridor", "CORR", FindingStatus.OUT_OF_SCOPE, 1L)));
+
+        AuditService.AuditProgressDetail detail = service.progressDetail(auditId);
+
+        assertThat(detail.subScopes()).hasSize(2);
+        AuditService.SubScopeProgress stray = detail.subScopes().stream()
+                .filter(s -> s.orgNodeName().equals("Corridor")).findFirst().orElseThrow();
+        assertThat(stray.expectedCount()).isZero();
+        assertThat(stray.outOfScopeCount()).isEqualTo(1);
+        // Out-of-scope column still reconciles once the union brings the stray location in.
+        long outOfScopeSum = detail.subScopes().stream().mapToLong(AuditService.SubScopeProgress::outOfScopeCount).sum();
+        assertThat(outOfScopeSum).isEqualTo(detail.totals().outOfScopeCount());
+    }
+
+    @Test
+    void progressDetail_emptyAuditHasNoSubScopes() {
+        UUID auditId = UUID.randomUUID();
+        when(auditRepository.existsById(auditId)).thenReturn(true);
+        when(expectedAssetRepository.countByAuditId(auditId)).thenReturn(0L);
+        when(findingRepository.countByAuditIdAndStatus(any(), any())).thenReturn(0L);
+        when(expectedAssetRepository.countExpectedByOrgNode(auditId)).thenReturn(List.of());
+        when(findingRepository.countFindingsByOrgNodeAndStatus(auditId)).thenReturn(List.of());
+
+        AuditService.AuditProgressDetail detail = service.progressDetail(auditId);
+
+        assertThat(detail.totals().expectedCount()).isZero();
+        assertThat(detail.subScopes()).isEmpty();
+    }
+
+    @Test
+    void progressDetail_unknownAudit404s() {
+        UUID auditId = UUID.randomUUID();
+        when(auditRepository.existsById(auditId)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.progressDetail(auditId)).isInstanceOf(NotFoundException.class);
     }
 
 }

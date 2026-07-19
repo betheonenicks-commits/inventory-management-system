@@ -34,6 +34,18 @@ export interface Audit {
   version: number
 }
 
+export interface AuditSubScopeProgress {
+  orgNodeId: string
+  orgNodeName: string
+  orgNodeCode: string
+  expectedCount: number
+  verifiedCount: number
+  missingCount: number
+  outOfScopeCount: number
+  scopeChangedCount: number
+  percentComplete: number
+}
+
 export interface AuditProgress {
   expectedCount: number
   verifiedCount: number
@@ -41,6 +53,9 @@ export interface AuditProgress {
   outOfScopeCount: number
   scopeChangedCount: number
   percentComplete: number
+  // US-AUD-03: per-location breakdown of the same counts; empty/singleton for a
+  // narrow audit, multiple rows for a bulk audit spanning several locations.
+  subScopes: AuditSubScopeProgress[]
 }
 
 export interface AuditAssignment {

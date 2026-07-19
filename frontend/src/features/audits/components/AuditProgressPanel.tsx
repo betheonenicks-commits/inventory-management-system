@@ -1,7 +1,13 @@
 import Box from '@mui/material/Box'
+import Divider from '@mui/material/Divider'
 import Grid from '@mui/material/Grid'
 import LinearProgress from '@mui/material/LinearProgress'
 import Stack from '@mui/material/Stack'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
 import Typography from '@mui/material/Typography'
 import { LoadingSkeleton } from '../../../components/common/LoadingSkeleton'
 import { ErrorPanel } from '../../../components/common/ErrorPanel'
@@ -54,6 +60,59 @@ export function AuditProgressPanel({ auditId }: { auditId: string }) {
           <Stat label="Scope Changed" value={progress.scopeChangedCount} color="warning.main" />
         </Grid>
       </Grid>
+      {/* US-AUD-03: a bulk audit spanning several locations breaks its progress down
+          by sub-scope, not just one flat total. Shown only when there's more than one
+          location - a single-location audit is already fully described above. */}
+      {progress.subScopes.length > 1 && (
+        <Box>
+          <Divider sx={{ mb: 1 }} />
+          <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+            By sub-scope (location)
+          </Typography>
+          <Table size="small" aria-label="Progress by sub-scope">
+            <TableHead>
+              <TableRow>
+                <TableCell>Location</TableCell>
+                <TableCell align="right">%</TableCell>
+                <TableCell align="right">Expected</TableCell>
+                <TableCell align="right">Verified</TableCell>
+                <TableCell align="right">Missing</TableCell>
+                <TableCell align="right">Out&nbsp;of&nbsp;Scope</TableCell>
+                <TableCell align="right">Scope&nbsp;Changed</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {progress.subScopes.map((sub) => (
+                <TableRow key={sub.orgNodeId}>
+                  <TableCell>
+                    {sub.orgNodeName}
+                    {sub.orgNodeCode ? (
+                      <Typography component="span" variant="caption" color="text.secondary">
+                        {' '}
+                        ({sub.orgNodeCode})
+                      </Typography>
+                    ) : null}
+                  </TableCell>
+                  <TableCell align="right">{sub.percentComplete.toFixed(0)}%</TableCell>
+                  <TableCell align="right">{sub.expectedCount}</TableCell>
+                  <TableCell align="right" sx={{ color: 'success.main' }}>
+                    {sub.verifiedCount}
+                  </TableCell>
+                  <TableCell align="right" sx={{ color: sub.missingCount ? 'error.main' : undefined }}>
+                    {sub.missingCount}
+                  </TableCell>
+                  <TableCell align="right" sx={{ color: sub.outOfScopeCount ? 'warning.main' : undefined }}>
+                    {sub.outOfScopeCount}
+                  </TableCell>
+                  <TableCell align="right" sx={{ color: sub.scopeChangedCount ? 'warning.main' : undefined }}>
+                    {sub.scopeChangedCount}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Box>
+      )}
     </Stack>
   )
 }

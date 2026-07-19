@@ -10,6 +10,7 @@ import com.iams.audit.api.dto.AuditFindingReconciliationResponse;
 import com.iams.audit.api.dto.AuditFindingResponse;
 import com.iams.audit.api.dto.AuditProgressResponse;
 import com.iams.audit.api.dto.AuditResponse;
+import com.iams.audit.api.dto.AuditSubScopeProgressResponse;
 import com.iams.audit.api.dto.AuditSummaryResponse;
 import com.iams.audit.application.AuditFindingCorrectionService;
 import com.iams.audit.application.AuditReportService;
@@ -120,17 +121,49 @@ public class AuditMapper {
         );
     }
 
+    /** Flat totals only (dashboard tiles) - no sub-scope breakdown carried. */
     public AuditProgressResponse toResponse(AuditService.AuditProgress progress) {
-        double percent = progress.expectedCount() == 0 ? 0.0
-                : (progress.verifiedCount() * 100.0) / progress.expectedCount();
+        return progressResponse(progress, java.util.List.of());
+    }
+
+    /** US-AUD-03: flat totals plus the per-sub-scope (per-location) breakdown, for the audit-detail view. */
+    public AuditProgressResponse toResponse(AuditService.AuditProgressDetail detail) {
+        List<AuditSubScopeProgressResponse> subScopes = detail.subScopes().stream()
+                .map(this::toResponse)
+                .toList();
+        return progressResponse(detail.totals(), subScopes);
+    }
+
+    private AuditProgressResponse progressResponse(AuditService.AuditProgress progress,
+                                                   List<AuditSubScopeProgressResponse> subScopes) {
         return new AuditProgressResponse(
                 progress.expectedCount(),
                 progress.verifiedCount(),
                 progress.missingCount(),
                 progress.outOfScopeCount(),
                 progress.scopeChangedCount(),
-                Math.round(percent * 10) / 10.0
+                percentComplete(progress.verifiedCount(), progress.expectedCount()),
+                subScopes
         );
+    }
+
+    private AuditSubScopeProgressResponse toResponse(AuditService.SubScopeProgress sub) {
+        return new AuditSubScopeProgressResponse(
+                sub.orgNodeId(),
+                sub.orgNodeName(),
+                sub.orgNodeCode(),
+                sub.expectedCount(),
+                sub.verifiedCount(),
+                sub.missingCount(),
+                sub.outOfScopeCount(),
+                sub.scopeChangedCount(),
+                percentComplete(sub.verifiedCount(), sub.expectedCount())
+        );
+    }
+
+    private double percentComplete(long verified, long expected) {
+        double percent = expected == 0 ? 0.0 : (verified * 100.0) / expected;
+        return Math.round(percent * 10) / 10.0;
     }
 
     public AuditCertificateResponse toResponse(AuditReportService.AuditCertificate certificate) {

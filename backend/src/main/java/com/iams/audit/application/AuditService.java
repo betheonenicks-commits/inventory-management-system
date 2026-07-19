@@ -12,6 +12,8 @@ import com.iams.audit.domain.AuditExpectedAssetRepository;
 import com.iams.audit.domain.AuditFindingRepository;
 import com.iams.audit.domain.AuditRepository;
 import com.iams.audit.domain.AuditStatus;
+import com.iams.audit.domain.AuditSubScopeCount;
+import com.iams.audit.domain.AuditSubScopeStatusCount;
 import com.iams.audit.domain.FindingStatus;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationFailedException;
@@ -22,7 +24,10 @@ import com.iams.usr.application.OrgScopeGuard;
 import com.iams.usr.domain.AppUser;
 import com.iams.usr.domain.AppUserRepository;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -198,7 +203,82 @@ public class AuditService {
         return new AuditProgress(expected, verified, missing, outOfScope, scopeChanged);
     }
 
+    /**
+     * US-AUD-03: the audit's progress as a flat total AND broken down by sub-scope
+     * (the distinct org nodes/locations its expected-asset set spans), so a bulk
+     * audit "across a wide scope" doesn't collapse to a single opaque percentage.
+     * Kept separate from {@link #progress} on purpose: the dashboard calls
+     * {@code progress} once per audit and never wants the per-location breakdown's
+     * cost or payload - only the audit-detail view, which calls this, does.
+     */
+    @Transactional(readOnly = true)
+    public AuditProgressDetail progressDetail(UUID auditId) {
+        AuditProgress totals = progress(auditId); // 404s here if the audit doesn't exist
+        return new AuditProgressDetail(totals, buildSubScopes(auditId));
+    }
+
+    /**
+     * Assembles the per-location breakdown from two DB-side aggregates. The universe
+     * of sub-scopes is the UNION of locations that have an expected asset and
+     * locations that have a finding - so an OUT_OF_SCOPE find at a location holding
+     * no expected asset still surfaces (expected 0, outOfScope >= 1), which keeps the
+     * breakdown reconciling exactly with the flat totals for every status column.
+     */
+    private List<SubScopeProgress> buildSubScopes(UUID auditId) {
+        Map<UUID, SubScopeAccumulator> byNode = new LinkedHashMap<>();
+        for (AuditSubScopeCount row : expectedAssetRepository.countExpectedByOrgNode(auditId)) {
+            byNode.computeIfAbsent(row.orgNodeId(),
+                    k -> new SubScopeAccumulator(row.orgNodeId(), row.orgNodeName(), row.orgNodeCode()))
+                    .expected = row.count();
+        }
+        for (AuditSubScopeStatusCount row : findingRepository.countFindingsByOrgNodeAndStatus(auditId)) {
+            SubScopeAccumulator acc = byNode.computeIfAbsent(row.orgNodeId(),
+                    k -> new SubScopeAccumulator(row.orgNodeId(), row.orgNodeName(), row.orgNodeCode()));
+            switch (row.status()) {
+                case VERIFIED -> acc.verified = row.count();
+                case MISSING -> acc.missing = row.count();
+                case OUT_OF_SCOPE -> acc.outOfScope = row.count();
+                case SCOPE_CHANGED -> acc.scopeChanged = row.count();
+            }
+        }
+        return byNode.values().stream()
+                .sorted(Comparator.comparing((SubScopeAccumulator a) -> a.orgNodeName,
+                                Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(a -> a.orgNodeId))
+                .map(a -> new SubScopeProgress(a.orgNodeId, a.orgNodeName, a.orgNodeCode,
+                        a.expected, a.verified, a.missing, a.outOfScope, a.scopeChanged))
+                .toList();
+    }
+
+    /** Mutable per-location tally used only while assembling {@link #buildSubScopes}. */
+    private static final class SubScopeAccumulator {
+        private final UUID orgNodeId;
+        private final String orgNodeName;
+        private final String orgNodeCode;
+        private long expected;
+        private long verified;
+        private long missing;
+        private long outOfScope;
+        private long scopeChanged;
+
+        private SubScopeAccumulator(UUID orgNodeId, String orgNodeName, String orgNodeCode) {
+            this.orgNodeId = orgNodeId;
+            this.orgNodeName = orgNodeName;
+            this.orgNodeCode = orgNodeCode;
+        }
+    }
+
     /** US-AUD-08: live expected-vs-verified progress. No offline-queue concept exists (US-AUD-19 is not built), so there is no "pending sync" count. */
     public record AuditProgress(long expectedCount, long verifiedCount, long missingCount, long outOfScopeCount, long scopeChangedCount) {
+    }
+
+    /** US-AUD-03: one org node (location) the audit spans, with its own progress counts. */
+    public record SubScopeProgress(UUID orgNodeId, String orgNodeName, String orgNodeCode,
+                                   long expectedCount, long verifiedCount, long missingCount,
+                                   long outOfScopeCount, long scopeChangedCount) {
+    }
+
+    /** US-AUD-03: flat totals plus the per-sub-scope breakdown, for the audit-detail progress view. */
+    public record AuditProgressDetail(AuditProgress totals, List<SubScopeProgress> subScopes) {
     }
 }

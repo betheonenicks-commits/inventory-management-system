@@ -134,7 +134,8 @@ public class AuditController {
     @GetMapping("/{id}/progress")
     @PreAuthorize("@perm.has('audits:read')")
     public AuditProgressResponse progress(@PathVariable UUID id) {
-        return mapper.toResponse(auditService.progress(id));
+        // US-AUD-03: the detail view gets the per-sub-scope breakdown alongside the flat totals.
+        return mapper.toResponse(auditService.progressDetail(id));
     }
 
     @PostMapping("/{id}/assignments")

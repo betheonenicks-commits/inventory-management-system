@@ -33,6 +33,18 @@ public interface AuditFindingRepository extends JpaRepository<AuditFinding, UUID
 
     long countByAuditId(UUID auditId);
 
+    /**
+     * US-AUD-03: finding counts grouped by org node (location) and status for one
+     * audit - the per-sub-scope verified/missing/out-of-scope/scope-changed columns.
+     * Grouped in the database; asset.orgNode is non-null so nothing is dropped, and
+     * per-status these sum back to {@link #countByAuditIdAndStatus} exactly.
+     */
+    @Query("SELECT new com.iams.audit.domain.AuditSubScopeStatusCount("
+            + "f.asset.orgNode.id, f.asset.orgNode.name, f.asset.orgNode.code, f.status, count(f)) "
+            + "FROM AuditFinding f WHERE f.audit.id = :auditId "
+            + "GROUP BY f.asset.orgNode.id, f.asset.orgNode.name, f.asset.orgNode.code, f.status")
+    List<AuditSubScopeStatusCount> countFindingsByOrgNodeAndStatus(UUID auditId);
+
     /** US-AUD-23 closure gate: any SCOPE_CHANGED finding still without a resolved disposition. */
     boolean existsByAuditIdAndStatusAndScopeChangeDispositionIsNull(UUID auditId, FindingStatus status);
 
