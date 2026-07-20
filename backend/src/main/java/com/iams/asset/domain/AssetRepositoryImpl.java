@@ -41,21 +41,6 @@ public class AssetRepositoryImpl implements AssetRepositoryCustom {
         root.fetch("status", JoinType.INNER);
         root.fetch("orgNode", JoinType.INNER);
         root.fetch("parentAsset", JoinType.LEFT);
-        // KNOWN PRE-EXISTING BUG (found 2026-07-20 via US-AUD-20, documented in
-        // DEVELOPMENT_LOG.md): when a scope contains an asset that HAS a parent asset,
-        // getResultList() hydrates ONE FEWER entity than the query's rows - the child
-        // asset is dropped - so getContent().size() < getTotalElements(), and org-scoped
-        // searches (and the audits built on them) silently miss it. Diagnosed to the
-        // metal 2026-07-20 with SQL logging + direct DB counts: the generated SQL returns
-        // the FULL set (verified in psql), so it is purely a Hibernate entity-hydration
-        // anomaly on this fetch-join query. Ruled OUT as causes (each tested live, none
-        // fixed it): .distinct(true), the self-referential parentAsset LEFT JOIN FETCH,
-        // and the Integer.MAX_VALUE page size. The likely real fix is a two-step load - a
-        // scalar id projection (SELECT a.id ...) then loadById with an @EntityGraph -
-        // rather than SELECT-entity-with-fetch-joins. Left as a focused follow-up, not a
-        // rushed change to this shared, critical query. Meanwhile callers needing an exact
-        // scope count resolve via the same getContent() path so preview == reality
-        // (see AuditService.sampleSizePreview).
         dataQuery.select(root).distinct(true).where(buildPredicates(cb, root, categoryId, statusId, query,
                 locationPathPrefix, scopePathPrefix, purchasedFrom, purchasedTo));
         if (pageable.getSort().isSorted()) {

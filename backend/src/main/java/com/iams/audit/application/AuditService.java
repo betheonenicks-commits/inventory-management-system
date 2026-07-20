@@ -165,12 +165,12 @@ public class AuditService {
                     ? orgNodeRepository.findById(scopeOrgNodeId)
                             .orElseThrow(() -> NotFoundException.of("OrgNode", scopeOrgNodeId)).getPath()
                     : null;
-            // getContent().size(), NOT getTotalElements(): the search's count and content
-            // disagree for scopes containing child assets (documented AssetRepositoryImpl
-            // bug), and creation freezes getContent(). Counting the same way the audit
-            // freezes guarantees the preview equals what actually gets audited.
+            // A count-only page: getTotalElements() is the scope's asset count, which is
+            // exactly what creation freezes. (An earlier comment here claimed search's count
+            // and content disagreed for scopes with child assets - that was a false alarm
+            // from a test-harness parsing bug, since retracted; see DEVELOPMENT_LOG.md.)
             population = assetRepository.search(scopeCategoryId, null, null, null, pathPrefix, null, null,
-                    PageRequest.of(0, Integer.MAX_VALUE)).getContent().size();
+                    PageRequest.of(0, 1)).getTotalElements();
         }
         long sampleSize = SampleSizeCalculator.sampleSize(population, confidenceLevel, margin);
         return new SampleSizePreview(population, confidenceLevel, margin, sampleSize);
