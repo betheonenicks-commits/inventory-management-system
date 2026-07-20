@@ -31,6 +31,10 @@ export interface Audit {
   approvedAt: string | null
   lastRejectionReason: string | null
   scheduledDate: string | null
+  // US-AUD-20: non-null only for a statistically-sampled audit.
+  samplingConfidenceLevel: number | null
+  samplingMarginOfError: number | null
+  samplingPopulationSize: number | null
   version: number
 }
 

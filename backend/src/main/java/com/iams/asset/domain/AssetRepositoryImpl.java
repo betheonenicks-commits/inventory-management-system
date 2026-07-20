@@ -41,6 +41,15 @@ public class AssetRepositoryImpl implements AssetRepositoryCustom {
         root.fetch("status", JoinType.INNER);
         root.fetch("orgNode", JoinType.INNER);
         root.fetch("parentAsset", JoinType.LEFT);
+        // KNOWN PRE-EXISTING BUG (found 2026-07-20 via US-AUD-20, documented in
+        // DEVELOPMENT_LOG.md): the self-referential parentAsset JOIN FETCH makes Hibernate
+        // drop any asset that HAS a parent from the hydrated content, so
+        // getContent().size() < getTotalElements() and org-scoped searches - and the audits
+        // built on them - silently miss child assets. The raw SQL returns the full set;
+        // this is a Hibernate self-fetch hydration issue (removing .distinct() does NOT fix
+        // it). Left as a focused follow-up rather than a rushed change to this shared,
+        // critical query. Callers that need an exact scope count must resolve via the same
+        // getContent() path so preview and reality agree (see AuditService.sampleSizePreview).
         dataQuery.select(root).distinct(true).where(buildPredicates(cb, root, categoryId, statusId, query,
                 locationPathPrefix, scopePathPrefix, purchasedFrom, purchasedTo));
         if (pageable.getSort().isSorted()) {

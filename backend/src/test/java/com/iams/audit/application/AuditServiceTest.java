@@ -33,6 +33,7 @@ import com.iams.org.domain.OrgNodeRepository;
 import com.iams.usr.application.OrgScopeGuard;
 import com.iams.usr.domain.AppUser;
 import com.iams.usr.domain.AppUserRepository;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -90,7 +91,7 @@ class AuditServiceTest {
 
     @Test
     void create_rejectsEmptyScope() {
-        AuditCreateCommand command = new AuditCreateCommand("Q3 Audit", AuditType.SPOT_CHECK, null, null, null, approverId, null);
+        AuditCreateCommand command = new AuditCreateCommand("Q3 Audit", AuditType.SPOT_CHECK, null, null, null, approverId, null, null, null);
 
         assertThatThrownBy(() -> service.create(command))
                 .isInstanceOf(ValidationFailedException.class)
@@ -116,7 +117,7 @@ class AuditServiceTest {
         when(assetRepository.search(isNull(), isNull(), isNull(), isNull(), eq("/campus/building-b/"), isNull(), isNull(), any()))
                 .thenReturn(new PageImpl<>(List.of(a1, a2)));
 
-        Audit result = service.create(new AuditCreateCommand("Building B Sweep", AuditType.BULK, orgNodeId, null, null, approverId, null));
+        Audit result = service.create(new AuditCreateCommand("Building B Sweep", AuditType.BULK, orgNodeId, null, null, approverId, null, null, null));
 
         assertThat(result).isSameAs(saved);
         verify(expectedAssetRepository, org.mockito.Mockito.times(2)).save(any(AuditExpectedAsset.class));
@@ -134,9 +135,78 @@ class AuditServiceTest {
         when(auditRepository.save(any(Audit.class))).thenReturn(saved);
         when(auditRepository.findByIdWithAssociations(saved.getId())).thenReturn(Optional.of(saved));
 
-        service.create(new AuditCreateCommand("Spot Check", AuditType.SPOT_CHECK, null, null, ids, approverId, null));
+        service.create(new AuditCreateCommand("Spot Check", AuditType.SPOT_CHECK, null, null, ids, approverId, null, null, null));
 
         verify(expectedAssetRepository, org.mockito.Mockito.times(1)).save(any(AuditExpectedAsset.class));
+    }
+
+    @Test
+    void create_withSampling_freezesOnlyASampleAndRecordsMetadata() {
+        when(appUserRepository.existsById(approverId)).thenReturn(true);
+        List<UUID> ids = new ArrayList<>();
+        List<Asset> assets = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            Asset a = asset("AST-" + i);
+            ids.add(a.getId());
+            assets.add(a);
+        }
+        when(assetRepository.findAllById(ids)).thenReturn(assets);
+        Audit saved = new Audit();
+        saved.setId(UUID.randomUUID());
+        when(auditRepository.save(any(Audit.class))).thenReturn(saved);
+        when(auditRepository.findByIdWithAssociations(saved.getId())).thenReturn(Optional.of(saved));
+
+        service.create(new AuditCreateCommand("Sampled", AuditType.BULK, null, null, ids, approverId, null, 95, 5.0));
+
+        // 100 assets at 95% / 5% -> a sample of 80, so only 80 expected-asset rows are frozen (not 100).
+        verify(expectedAssetRepository, org.mockito.Mockito.times(80)).save(any(AuditExpectedAsset.class));
+        assertThat(saved.getSamplingConfidenceLevel()).isEqualTo(95);
+        assertThat(saved.getSamplingPopulationSize()).isEqualTo(100);
+        assertThat(saved.getSamplingMarginOfError()).isEqualByComparingTo(new java.math.BigDecimal("5.0"));
+    }
+
+    @Test
+    void create_withoutSampling_freezesEverythingAndLeavesMetadataNull() {
+        // AC-AUD-20: sampling is never silently assumed - no sampling params means a full 100% audit.
+        when(appUserRepository.existsById(approverId)).thenReturn(true);
+        Asset a1 = asset("AST-777");
+        List<UUID> ids = List.of(a1.getId());
+        when(assetRepository.findAllById(ids)).thenReturn(List.of(a1));
+        Audit saved = new Audit();
+        saved.setId(UUID.randomUUID());
+        when(auditRepository.save(any(Audit.class))).thenReturn(saved);
+        when(auditRepository.findByIdWithAssociations(saved.getId())).thenReturn(Optional.of(saved));
+
+        service.create(new AuditCreateCommand("Full", AuditType.SPOT_CHECK, null, null, ids, approverId, null, null, null));
+
+        verify(expectedAssetRepository, org.mockito.Mockito.times(1)).save(any(AuditExpectedAsset.class));
+        assertThat(saved.getSamplingConfidenceLevel()).isNull();
+        assertThat(saved.getSamplingPopulationSize()).isNull();
+    }
+
+    @Test
+    void sampleSizePreview_forAssetList_returnsPopulationAndSample() {
+        List<UUID> ids = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            ids.add(UUID.randomUUID());
+        }
+        AuditService.SampleSizePreview preview = service.sampleSizePreview(null, null, ids, 95, 5.0);
+
+        assertThat(preview.populationSize()).isEqualTo(100);
+        assertThat(preview.sampleSize()).isEqualTo(80);
+        assertThat(preview.confidenceLevel()).isEqualTo(95);
+    }
+
+    @Test
+    void sampleSizePreview_defaultsMarginToFivePercentWhenAbsent() {
+        List<UUID> ids = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            ids.add(UUID.randomUUID());
+        }
+        AuditService.SampleSizePreview preview = service.sampleSizePreview(null, null, ids, 95, null);
+
+        assertThat(preview.marginOfError()).isEqualTo(5.0);
+        assertThat(preview.sampleSize()).isEqualTo(80);
     }
 
     @Test
@@ -150,7 +220,7 @@ class AuditServiceTest {
         when(auditRepository.save(any(Audit.class))).thenReturn(saved);
 
         assertThatThrownBy(() -> service.create(
-                new AuditCreateCommand("Spot Check", AuditType.SPOT_CHECK, null, null, List.of(unknownId), approverId, null)))
+                new AuditCreateCommand("Spot Check", AuditType.SPOT_CHECK, null, null, List.of(unknownId), approverId, null, null, null)))
                 .isInstanceOf(ValidationFailedException.class);
     }
 
@@ -159,7 +229,7 @@ class AuditServiceTest {
         when(appUserRepository.existsById(approverId)).thenReturn(false);
 
         assertThatThrownBy(() -> service.create(
-                new AuditCreateCommand("Q3", AuditType.ANNUAL, null, null, List.of(UUID.randomUUID()), approverId, null)))
+                new AuditCreateCommand("Q3", AuditType.ANNUAL, null, null, List.of(UUID.randomUUID()), approverId, null, null, null)))
                 .isInstanceOf(NotFoundException.class);
     }
 

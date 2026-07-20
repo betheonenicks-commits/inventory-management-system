@@ -39,6 +39,13 @@ export function AuditDetailPage() {
           <Stack direction="row" spacing={1}>
             <Chip label={audit.status.replace('_', ' ')} color={STATUS_COLOR[audit.status]} />
             <Chip variant="outlined" label={audit.auditType.replace('_', ' ')} />
+            {audit.samplingConfidenceLevel != null && (
+              <Chip
+                variant="outlined"
+                color="info"
+                label={`Sample of ${audit.samplingPopulationSize ?? '?'} · ${audit.samplingConfidenceLevel}% conf`}
+              />
+            )}
           </Stack>
         }
       />

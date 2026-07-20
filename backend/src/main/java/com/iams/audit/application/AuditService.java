@@ -15,6 +15,7 @@ import com.iams.audit.domain.AuditStatus;
 import com.iams.audit.domain.AuditSubScopeCount;
 import com.iams.audit.domain.AuditSubScopeStatusCount;
 import com.iams.audit.domain.FindingStatus;
+import com.iams.audit.domain.SampleSizeCalculator;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUserProvider;
@@ -23,11 +24,15 @@ import com.iams.org.domain.OrgNodeRepository;
 import com.iams.usr.application.OrgScopeGuard;
 import com.iams.usr.domain.AppUser;
 import com.iams.usr.domain.AppUserRepository;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -41,6 +46,9 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class AuditService {
+
+    /** US-AUD-20: margin of error used when sampling is requested without an explicit one. */
+    private static final double DEFAULT_MARGIN_OF_ERROR = 5.0;
 
     private final AuditRepository auditRepository;
     private final AuditExpectedAssetRepository expectedAssetRepository;
@@ -104,13 +112,72 @@ public class AuditService {
         audit = auditRepository.save(audit);
 
         // US-AUD-04: resolved and frozen once, here, at creation - never re-run later.
-        for (Asset asset : resolveExpectedAssets(command, scopeOrgNode)) {
+        List<Asset> population = resolveExpectedAssets(command, scopeOrgNode);
+        List<Asset> expected = population;
+        if (command.samplingRequested()) {
+            // US-AUD-20: freeze a random statistical sample instead of the full population.
+            double margin = command.samplingMarginOfError() != null ? command.samplingMarginOfError() : DEFAULT_MARGIN_OF_ERROR;
+            long sampleSize = SampleSizeCalculator.sampleSize(population.size(), command.samplingConfidenceLevel(), margin);
+            expected = randomSample(population, (int) sampleSize);
+            audit.setSamplingConfidenceLevel(command.samplingConfidenceLevel());
+            audit.setSamplingMarginOfError(BigDecimal.valueOf(margin));
+            audit.setSamplingPopulationSize(population.size());
+        }
+        for (Asset asset : expected) {
             AuditExpectedAsset row = new AuditExpectedAsset();
             row.setAudit(audit);
             row.setAsset(asset);
             expectedAssetRepository.save(row);
         }
         return get(audit.getId());
+    }
+
+    /** A random subset of {@code size} assets (a fresh shuffle each time); size is already clamped to [0, population]. */
+    private List<Asset> randomSample(List<Asset> population, int size) {
+        if (size >= population.size()) {
+            return population;
+        }
+        List<Asset> shuffled = new ArrayList<>(population);
+        Collections.shuffle(shuffled, new Random());
+        return shuffled.subList(0, size);
+    }
+
+    /**
+     * US-AUD-20: preview how many assets a statistical sample of the given scope would
+     * cover, before any audit is created or scanning begins. Pure calculation over the
+     * scope's live population count - the exact same {@link SampleSizeCalculator} the
+     * frozen sample uses at creation, so the preview can never disagree with reality.
+     */
+    @Transactional(readOnly = true)
+    public SampleSizePreview sampleSizePreview(UUID scopeOrgNodeId, UUID scopeCategoryId, List<UUID> assetIds,
+                                               int confidenceLevel, Double marginOfError) {
+        boolean hasAssetList = assetIds != null && !assetIds.isEmpty();
+        if (scopeOrgNodeId == null && scopeCategoryId == null && !hasAssetList) {
+            throw ValidationFailedException.singleField("scope",
+                    "At least one scoping criterion (org node, category, or asset list) is required");
+        }
+        double margin = marginOfError != null ? marginOfError : DEFAULT_MARGIN_OF_ERROR;
+        long population;
+        if (hasAssetList) {
+            population = assetIds.size();
+        } else {
+            String pathPrefix = scopeOrgNodeId != null
+                    ? orgNodeRepository.findById(scopeOrgNodeId)
+                            .orElseThrow(() -> NotFoundException.of("OrgNode", scopeOrgNodeId)).getPath()
+                    : null;
+            // getContent().size(), NOT getTotalElements(): the search's count and content
+            // disagree for scopes containing child assets (documented AssetRepositoryImpl
+            // bug), and creation freezes getContent(). Counting the same way the audit
+            // freezes guarantees the preview equals what actually gets audited.
+            population = assetRepository.search(scopeCategoryId, null, null, null, pathPrefix, null, null,
+                    PageRequest.of(0, Integer.MAX_VALUE)).getContent().size();
+        }
+        long sampleSize = SampleSizeCalculator.sampleSize(population, confidenceLevel, margin);
+        return new SampleSizePreview(population, confidenceLevel, margin, sampleSize);
+    }
+
+    /** US-AUD-20: a sample-size preview for a scope. */
+    public record SampleSizePreview(long populationSize, int confidenceLevel, double marginOfError, long sampleSize) {
     }
 
     private List<Asset> resolveExpectedAssets(AuditCreateCommand command, OrgNode scopeOrgNode) {

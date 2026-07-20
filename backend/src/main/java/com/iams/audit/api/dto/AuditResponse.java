@@ -24,6 +24,11 @@ public record AuditResponse(
         Instant approvedAt,
         String lastRejectionReason,
         LocalDate scheduledDate,
+        // US-AUD-20: non-null only for a statistically-sampled audit (a sample of
+        // samplingPopulationSize assets); all null on a normal 100% audit.
+        Integer samplingConfidenceLevel,
+        java.math.BigDecimal samplingMarginOfError,
+        Integer samplingPopulationSize,
         long version
 ) {
 }

@@ -51,6 +51,9 @@ public class AuditMapper {
                 audit.getApprovedAt(),
                 audit.getLastRejectionReason(),
                 audit.getScheduledDate(),
+                audit.getSamplingConfidenceLevel(),
+                audit.getSamplingMarginOfError(),
+                audit.getSamplingPopulationSize(),
                 audit.getVersion()
         );
     }

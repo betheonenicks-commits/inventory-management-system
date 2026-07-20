@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -9,6 +10,7 @@ import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import FormControl from '@mui/material/FormControl'
+import FormControlLabel from '@mui/material/FormControlLabel'
 import InputLabel from '@mui/material/InputLabel'
 import List from '@mui/material/List'
 import ListItemButton from '@mui/material/ListItemButton'
@@ -17,6 +19,7 @@ import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
 import Select from '@mui/material/Select'
 import Stack from '@mui/material/Stack'
+import Switch from '@mui/material/Switch'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
@@ -31,6 +34,7 @@ import { usePickableUsersQuery } from '../users/hooks/useUsersQuery'
 import { useAssetCategoriesQuery } from '../assets/hooks/useAssetCategoriesQuery'
 import { useOrgNodesQuery } from './hooks/useOrgNodesQuery'
 import { useAuditsQuery, useCreateAuditMutation } from './hooks/useAuditsQuery'
+import { fetchSampleSizePreview } from '../../api/audits/auditApi'
 import type { AuditStatus, AuditType } from './types'
 
 const STATUS_TABS: Array<{ label: string; value: AuditStatus | undefined }> = [
@@ -56,6 +60,9 @@ interface CreateFormState {
   scopeCategoryId: string
   nominalApproverId: string
   scheduledDate: string
+  // US-AUD-20: sampling is opt-in; off = full 100% verification (never assumed).
+  samplingEnabled: boolean
+  samplingConfidenceLevel: number
 }
 
 const EMPTY_FORM: CreateFormState = {
@@ -66,6 +73,8 @@ const EMPTY_FORM: CreateFormState = {
   scopeCategoryId: '',
   nominalApproverId: '',
   scheduledDate: '',
+  samplingEnabled: false,
+  samplingConfidenceLevel: 95,
 }
 
 // US-AUD-01/02/03: define an audit's type and scope (org node or category -
@@ -93,6 +102,27 @@ export function AuditListPage() {
   const [form, setForm] = useState<CreateFormState>(EMPTY_FORM)
   const [error, setError] = useState<string | null>(null)
 
+  // US-AUD-20: live sample-size preview once sampling is on and a scope is chosen.
+  const samplingScopeChosen =
+    form.scopeMode === 'ORG_NODE' ? form.scopeOrgNodeId.length > 0 : form.scopeCategoryId.length > 0
+  const samplePreviewQuery = useQuery({
+    queryKey: [
+      'AUD',
+      'sample-preview',
+      form.scopeMode,
+      form.scopeOrgNodeId,
+      form.scopeCategoryId,
+      form.samplingConfidenceLevel,
+    ],
+    queryFn: () =>
+      fetchSampleSizePreview({
+        scopeOrgNodeId: form.scopeMode === 'ORG_NODE' ? form.scopeOrgNodeId : undefined,
+        scopeCategoryId: form.scopeMode === 'CATEGORY' ? form.scopeCategoryId : undefined,
+        confidenceLevel: form.samplingConfidenceLevel,
+      }),
+    enabled: dialogOpen && form.samplingEnabled && samplingScopeChosen,
+  })
+
   function openCreateDialog() {
     setForm(EMPTY_FORM)
     setError(null)
@@ -109,6 +139,8 @@ export function AuditListPage() {
         scopeCategoryId: form.scopeMode === 'CATEGORY' ? form.scopeCategoryId : undefined,
         nominalApproverId: form.nominalApproverId,
         scheduledDate: form.scheduledDate || undefined,
+        // US-AUD-20: only send sampling params when the auditor opts in.
+        samplingConfidenceLevel: form.samplingEnabled ? form.samplingConfidenceLevel : undefined,
       })
       setDialogOpen(false)
       navigate(`/audits/${audit.id}`)
@@ -271,6 +303,57 @@ export function AuditListPage() {
               slotProps={{ inputLabel: { shrink: true } }}
               helperText="Shown on the dashboard's audit calendar"
             />
+
+            {/* US-AUD-20: optional statistical sampling; off by default = full 100% verification. */}
+            <Box>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={form.samplingEnabled}
+                    onChange={(e) => setForm((f) => ({ ...f, samplingEnabled: e.target.checked }))}
+                  />
+                }
+                label="Statistical sampling (verify a representative subset, not 100%)"
+              />
+              {form.samplingEnabled && (
+                <Stack spacing={1} sx={{ mt: 1 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="confidence-label">Confidence level</InputLabel>
+                    <Select
+                      labelId="confidence-label"
+                      label="Confidence level"
+                      value={form.samplingConfidenceLevel}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, samplingConfidenceLevel: Number(e.target.value) }))
+                      }
+                    >
+                      <MenuItem value={90}>90%</MenuItem>
+                      <MenuItem value={95}>95%</MenuItem>
+                      <MenuItem value={99}>99%</MenuItem>
+                    </Select>
+                  </FormControl>
+                  {!samplingScopeChosen ? (
+                    <Alert severity="info" variant="outlined">
+                      Choose a scope above to preview the sample size.
+                    </Alert>
+                  ) : samplePreviewQuery.isLoading ? (
+                    <Typography variant="body2" color="text.secondary">
+                      Calculating sample size…
+                    </Typography>
+                  ) : samplePreviewQuery.isError ? (
+                    <Alert severity="warning" variant="outlined">
+                      Could not compute the sample size for this scope.
+                    </Alert>
+                  ) : samplePreviewQuery.data ? (
+                    <Alert severity="success" variant="outlined">
+                      Will verify a sample of <strong>{samplePreviewQuery.data.sampleSize}</strong> of{' '}
+                      {samplePreviewQuery.data.populationSize} assets ({form.samplingConfidenceLevel}% confidence,{' '}
+                      {samplePreviewQuery.data.marginOfError}% margin).
+                    </Alert>
+                  ) : null}
+                </Stack>
+              )}
+            </Box>
           </Stack>
         </DialogContent>
         <DialogActions>

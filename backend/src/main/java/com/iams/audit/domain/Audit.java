@@ -96,4 +96,15 @@ public class Audit extends BaseEntity {
      */
     @Column(name = "scheduled_date")
     private LocalDate scheduledDate;
+
+    // US-AUD-20: set only when the audit was created in statistical-sampling mode.
+    // All null on a normal 100%-verification audit - sampling is never assumed.
+    @Column(name = "sampling_confidence_level")
+    private Integer samplingConfidenceLevel;
+
+    @Column(name = "sampling_margin_of_error")
+    private java.math.BigDecimal samplingMarginOfError;
+
+    @Column(name = "sampling_population_size")
+    private Integer samplingPopulationSize;
 }

@@ -18,6 +18,14 @@ public record AuditCreateCommand(
         UUID scopeCategoryId,
         List<UUID> assetIds,
         UUID nominalApproverId,
-        LocalDate scheduledDate
+        LocalDate scheduledDate,
+        // US-AUD-20: optional statistical sampling. Both null (the common case) means a
+        // full 100% audit - sampling is opt-in and never assumed. When set, the frozen
+        // expected-asset set is a random sample of the resolved scope.
+        Integer samplingConfidenceLevel,
+        Double samplingMarginOfError
 ) {
+    public boolean samplingRequested() {
+        return samplingConfidenceLevel != null;
+    }
 }

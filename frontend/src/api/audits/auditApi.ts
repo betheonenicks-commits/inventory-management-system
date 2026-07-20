@@ -24,6 +24,27 @@ export interface AuditCreatePayload {
   nominalApproverId: string
   // US-DSH-05: optional planned date, plotted by the dashboard's audit calendar.
   scheduledDate?: string
+  // US-AUD-20: optional statistical sampling; omitted = full 100% audit.
+  samplingConfidenceLevel?: number
+  samplingMarginOfError?: number
+}
+
+// US-AUD-20: sample-size preview for a prospective scope, before the audit is created.
+export interface SampleSizePreview {
+  populationSize: number
+  confidenceLevel: number
+  marginOfError: number
+  sampleSize: number
+}
+
+export function fetchSampleSizePreview(input: {
+  scopeOrgNodeId?: string
+  scopeCategoryId?: string
+  assetIds?: string[]
+  confidenceLevel: number
+  marginOfError?: number
+}) {
+  return httpClient.post<SampleSizePreview>('/audits/sample-size', input).then((r) => r.data)
 }
 
 export interface AuditScanPayload {

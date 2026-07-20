@@ -14,6 +14,9 @@ public record AuditCreateRequest(
         UUID scopeCategoryId,
         List<UUID> assetIds,
         @NotNull UUID nominalApproverId,
-        LocalDate scheduledDate
+        LocalDate scheduledDate,
+        // US-AUD-20: optional statistical sampling; null (the default) = full 100% audit.
+        Integer samplingConfidenceLevel,
+        Double samplingMarginOfError
 ) {
 }

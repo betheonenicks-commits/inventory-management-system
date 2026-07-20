@@ -14,6 +14,8 @@ import com.iams.audit.api.dto.AuditFindingReconciliationResponse;
 import com.iams.audit.api.dto.AuditFindingResponse;
 import com.iams.audit.api.dto.AuditCycleTrendResponse;
 import com.iams.audit.api.dto.AuditProgressResponse;
+import com.iams.audit.api.dto.SampleSizePreviewRequest;
+import com.iams.audit.api.dto.SampleSizePreviewResponse;
 import com.iams.audit.api.dto.AuditReconciliationRequest;
 import com.iams.audit.api.dto.AuditRejectRequest;
 import com.iams.audit.api.dto.AuditResponse;
@@ -104,8 +106,19 @@ public class AuditController {
     public ResponseEntity<AuditResponse> create(@Valid @RequestBody AuditCreateRequest request) {
         Audit audit = auditService.create(new AuditCreateCommand(request.name(), request.auditType(),
                 request.scopeOrgNodeId(), request.scopeCategoryId(), request.assetIds(), request.nominalApproverId(),
-                request.scheduledDate()));
+                request.scheduledDate(), request.samplingConfidenceLevel(), request.samplingMarginOfError()));
         return ResponseEntity.created(URI.create("/api/v1/audits/" + audit.getId())).body(mapper.toResponse(audit));
+    }
+
+    /** US-AUD-20: preview how many assets a statistical sample of a scope would cover, before creating the audit. */
+    @PostMapping("/sample-size")
+    @PreAuthorize("@perm.has('audits:write')")
+    public SampleSizePreviewResponse sampleSize(@Valid @RequestBody SampleSizePreviewRequest request) {
+        AuditService.SampleSizePreview preview = auditService.sampleSizePreview(
+                request.scopeOrgNodeId(), request.scopeCategoryId(), request.assetIds(),
+                request.confidenceLevel(), request.marginOfError());
+        return new SampleSizePreviewResponse(preview.populationSize(), preview.confidenceLevel(),
+                preview.marginOfError(), preview.sampleSize());
     }
 
     @GetMapping
