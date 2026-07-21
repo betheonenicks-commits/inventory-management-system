@@ -199,7 +199,7 @@ public class AuditService {
     @Transactional(readOnly = true)
     public Audit get(UUID id) {
         Audit audit = auditRepository.findByIdWithAssociations(id).orElseThrow(() -> NotFoundException.of("Audit", id));
-        requireAuditInScope(audit);
+        requireInScope(audit);
         return audit;
     }
 
@@ -209,8 +209,15 @@ public class AuditService {
      * scoped audit has no org node of its own, so its footprint is the set of its
      * expected-asset locations: a scoped caller may see it iff at least one of those
      * assets falls within their scope - previously such audits bypassed scope entirely.
+     * <p>
+     * Public (not just used by {@link #get}) so that every other audit-module service -
+     * scan, workflow, report, reconciliation, correction - can enforce the identical check
+     * on an {@code Audit} it already loaded (directly, or via {@code AuditFinding.getAudit()}),
+     * instead of each re-deriving its own copy or silently skipping the check. Closes the
+     * gap where those write/action paths loaded records straight from their repository and
+     * bypassed scope entirely (US-AUD-05/11/13/14/15/16/21/24).
      */
-    private void requireAuditInScope(Audit audit) {
+    public void requireInScope(Audit audit) {
         String scopePrefix = scopeGuard.currentScopePathPrefix();
         if (scopePrefix == null) {
             return; // unrestricted caller

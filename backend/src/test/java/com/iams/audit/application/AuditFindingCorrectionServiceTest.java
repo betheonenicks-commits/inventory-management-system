@@ -32,6 +32,7 @@ class AuditFindingCorrectionServiceTest {
     @Mock private AuditFindingRepository findingRepository;
     @Mock private AuditFindingCorrectionRepository correctionRepository;
     @Mock private CurrentUserProvider currentUserProvider;
+    @Mock private AuditService auditService;
 
     private AuditFindingCorrectionService service;
     private UUID actorId;
@@ -42,7 +43,8 @@ class AuditFindingCorrectionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AuditFindingCorrectionService(findingRepository, correctionRepository, currentUserProvider);
+        service = new AuditFindingCorrectionService(findingRepository, correctionRepository, currentUserProvider,
+                auditService);
         actorId = UUID.randomUUID();
         auditId = UUID.randomUUID();
         findingId = UUID.randomUUID();
@@ -103,5 +105,27 @@ class AuditFindingCorrectionServiceTest {
 
         assertThatThrownBy(() -> service.correct(auditId, findingId, CorrectionField.REMARKS, "New value"))
                 .isInstanceOf(NotFoundException.class);
+    }
+
+    // US-AUD-11/24 fix: getFinding() - the single funnel for corrections AND evidence
+    // upload/list/delete - now enforces org-scope instead of silently skipping it.
+    @Test
+    void getFinding_refusesAnOutOfScopeFinding() {
+        when(findingRepository.findByIdWithAsset(findingId)).thenReturn(Optional.of(finding));
+        org.mockito.Mockito.doThrow(new org.springframework.security.access.AccessDeniedException("out of scope"))
+                .when(auditService).requireInScope(audit);
+
+        assertThatThrownBy(() -> service.getFinding(auditId, findingId))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+    }
+
+    @Test
+    void getFinding_callsTheScopeCheck_forAnInScopeFinding() {
+        when(findingRepository.findByIdWithAsset(findingId)).thenReturn(Optional.of(finding));
+
+        AuditFinding result = service.getFinding(auditId, findingId);
+
+        assertThat(result).isSameAs(finding);
+        org.mockito.Mockito.verify(auditService).requireInScope(audit);
     }
 }

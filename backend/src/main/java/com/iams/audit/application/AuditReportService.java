@@ -5,11 +5,9 @@ import com.iams.audit.domain.Audit;
 import com.iams.audit.domain.AuditExpectedAssetRepository;
 import com.iams.audit.domain.AuditFinding;
 import com.iams.audit.domain.AuditFindingRepository;
-import com.iams.audit.domain.AuditRepository;
 import com.iams.audit.domain.AuditStatus;
 import com.iams.audit.domain.FindingStatus;
 import com.iams.common.exception.ConflictException;
-import com.iams.common.exception.NotFoundException;
 import com.iams.usr.domain.AppUser;
 import com.iams.usr.domain.AppUserRepository;
 import java.time.Instant;
@@ -26,16 +24,14 @@ public class AuditReportService {
     private static final List<AssetCondition> DAMAGE_CONDITIONS =
             List.of(AssetCondition.MINOR_DAMAGE, AssetCondition.MAJOR_DAMAGE, AssetCondition.UNUSABLE);
 
-    private final AuditRepository auditRepository;
     private final AuditFindingRepository findingRepository;
     private final AuditExpectedAssetRepository expectedAssetRepository;
     private final AuditService auditService;
     private final AppUserRepository userRepository;
 
-    public AuditReportService(AuditRepository auditRepository, AuditFindingRepository findingRepository,
+    public AuditReportService(AuditFindingRepository findingRepository,
                                AuditExpectedAssetRepository expectedAssetRepository, AuditService auditService,
                                AppUserRepository userRepository) {
-        this.auditRepository = auditRepository;
         this.findingRepository = findingRepository;
         this.expectedAssetRepository = expectedAssetRepository;
         this.auditService = auditService;
@@ -45,16 +41,14 @@ public class AuditReportService {
     /** US-AUD-16: anything not a clean Verified find - Missing, Out of Scope, Scope Changed, or Verified-but-damaged. */
     @Transactional(readOnly = true)
     public List<AuditFinding> exceptions(UUID auditId) {
-        if (!auditRepository.existsById(auditId)) {
-            throw NotFoundException.of("Audit", auditId);
-        }
+        auditService.get(auditId); // US-AUD-16: throws NotFound, and enforces org-scope (was existsById-only)
         return findingRepository.findExceptionsByAuditId(auditId, FindingStatus.VERIFIED, DAMAGE_CONDITIONS);
     }
 
     /** US-AUD-15: only available once an audit is approved and closed - AC-AUD-15-X blocks closure itself while scope-change dispositions are open, so a certificate existing at all implies that gate already passed. */
     @Transactional(readOnly = true)
     public AuditCertificate certificate(UUID auditId) {
-        Audit audit = auditRepository.findByIdWithAssociations(auditId).orElseThrow(() -> NotFoundException.of("Audit", auditId));
+        Audit audit = auditService.get(auditId); // enforces org-scope, not just a direct repository load
         if (audit.getStatus() != AuditStatus.CLOSED) {
             throw new ConflictException("AUDIT_NOT_CLOSED",
                     "A completion certificate is only available once an audit is approved and closed");

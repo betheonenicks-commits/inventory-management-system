@@ -53,6 +53,7 @@ class AuditWorkflowServiceTest {
     @Mock private AssetStatusDefRepository statusDefRepository;
     @Mock private AssetHistoryRecorder historyRecorder;
     @Mock private ApprovalRoutingService routingService;
+    @Mock private AuditService auditService;
 
     private AuditWorkflowService service;
     private UUID actorId;
@@ -64,7 +65,7 @@ class AuditWorkflowServiceTest {
     void setUp() {
         service = new AuditWorkflowService(auditRepository, expectedAssetRepository, findingRepository,
                 sodWaiverRepository, appUserRepository, passwordEncoder, currentUserProvider, assetRepository,
-                statusDefRepository, historyRecorder, routingService, new LifecycleProperties());
+                statusDefRepository, historyRecorder, routingService, new LifecycleProperties(), auditService);
         actorId = UUID.randomUUID();
         auditId = UUID.randomUUID();
         audit = new Audit();
@@ -312,5 +313,24 @@ class AuditWorkflowServiceTest {
         Audit result = service.escalate(auditId);
 
         assertThat(result.getEffectiveApproverId()).isEqualTo(escalationTarget);
+    }
+
+    // US-AUD-13/14 fix: submit/approve/reject/escalate all funnel through requireStatus(),
+    // which now enforces org-scope instead of silently skipping it.
+    @Test
+    void submit_refusesAnOutOfScopeAudit() {
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(audit));
+        org.mockito.Mockito.doThrow(new AccessDeniedException("out of scope")).when(auditService).requireInScope(audit);
+
+        assertThatThrownBy(() -> service.submit(auditId, "pw", null)).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void approve_refusesAnOutOfScopeAudit() {
+        audit.setStatus(AuditStatus.PENDING_APPROVAL);
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(audit));
+        org.mockito.Mockito.doThrow(new AccessDeniedException("out of scope")).when(auditService).requireInScope(audit);
+
+        assertThatThrownBy(() -> service.approve(auditId)).isInstanceOf(AccessDeniedException.class);
     }
 }

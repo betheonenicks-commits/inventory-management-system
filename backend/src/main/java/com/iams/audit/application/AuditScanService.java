@@ -42,17 +42,19 @@ public class AuditScanService {
     private final AuditAssignmentRepository assignmentRepository;
     private final AssetRepository assetRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final AuditService auditService;
 
     public AuditScanService(AuditRepository auditRepository, AuditFindingRepository findingRepository,
                              AuditExpectedAssetRepository expectedAssetRepository,
                              AuditAssignmentRepository assignmentRepository, AssetRepository assetRepository,
-                             CurrentUserProvider currentUserProvider) {
+                             CurrentUserProvider currentUserProvider, AuditService auditService) {
         this.auditRepository = auditRepository;
         this.findingRepository = findingRepository;
         this.expectedAssetRepository = expectedAssetRepository;
         this.assignmentRepository = assignmentRepository;
         this.assetRepository = assetRepository;
         this.currentUserProvider = currentUserProvider;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -117,6 +119,7 @@ public class AuditScanService {
     private Audit requireInProgress(UUID auditId) {
         Audit audit = auditRepository.findByIdWithAssociations(auditId)
                 .orElseThrow(() -> NotFoundException.of("Audit", auditId));
+        auditService.requireInScope(audit); // US-AUD-05/07: scanning is org-scope-enforced, not just visible
         if (audit.getStatus() != AuditStatus.IN_PROGRESS) {
             throw new ConflictException("AUDIT_NOT_IN_PROGRESS",
                     "Audit is not accepting scans in its current status: " + audit.getStatus());

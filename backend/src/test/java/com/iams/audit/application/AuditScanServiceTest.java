@@ -39,6 +39,7 @@ class AuditScanServiceTest {
     @Mock private AuditAssignmentRepository assignmentRepository;
     @Mock private AssetRepository assetRepository;
     @Mock private CurrentUserProvider currentUserProvider;
+    @Mock private AuditService auditService;
 
     private AuditScanService service;
     private UUID actorId;
@@ -48,7 +49,7 @@ class AuditScanServiceTest {
     @BeforeEach
     void setUp() {
         service = new AuditScanService(auditRepository, findingRepository, expectedAssetRepository,
-                assignmentRepository, assetRepository, currentUserProvider);
+                assignmentRepository, assetRepository, currentUserProvider, auditService);
         actorId = UUID.randomUUID();
         auditId = UUID.randomUUID();
         audit = new Audit();
@@ -178,5 +179,27 @@ class AuditScanServiceTest {
         assertThat(result.created()).hasSize(1);
         assertThat(result.duplicateAssetIds()).containsExactly(duplicateAsset.getId());
         assertThat(result.unrecognizedAssetIds()).containsExactly(unrecognizedId);
+    }
+
+    // US-AUD-05/07 fix: scanning (single and batch) now enforces org-scope on the audit
+    // instead of silently skipping it.
+    @Test
+    void recordScan_refusesAnOutOfScopeAudit() {
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(audit));
+        org.mockito.Mockito.doThrow(new AccessDeniedException("out of scope")).when(auditService).requireInScope(audit);
+
+        assertThatThrownBy(() -> service.recordScan(auditId,
+                new AuditScanCommand(UUID.randomUUID(), AssetCondition.GOOD, null, null)))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void recordBatchScan_refusesAnOutOfScopeAudit() {
+        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(audit));
+        org.mockito.Mockito.doThrow(new AccessDeniedException("out of scope")).when(auditService).requireInScope(audit);
+
+        assertThatThrownBy(() -> service.recordBatchScan(auditId,
+                List.of(new AuditScanCommand(UUID.randomUUID(), AssetCondition.GOOD, null, null))))
+                .isInstanceOf(AccessDeniedException.class);
     }
 }

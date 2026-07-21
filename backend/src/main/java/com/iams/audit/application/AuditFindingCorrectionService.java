@@ -26,13 +26,15 @@ public class AuditFindingCorrectionService {
     private final AuditFindingRepository findingRepository;
     private final AuditFindingCorrectionRepository correctionRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final AuditService auditService;
 
     public AuditFindingCorrectionService(AuditFindingRepository findingRepository,
                                           AuditFindingCorrectionRepository correctionRepository,
-                                          CurrentUserProvider currentUserProvider) {
+                                          CurrentUserProvider currentUserProvider, AuditService auditService) {
         this.findingRepository = findingRepository;
         this.correctionRepository = correctionRepository;
         this.currentUserProvider = currentUserProvider;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -60,6 +62,11 @@ public class AuditFindingCorrectionService {
         return correctionRepository.findByFindingIdOrderByCreatedAtAsc(findingId);
     }
 
+    /**
+     * The single funnel every finding-scoped endpoint goes through (corrections, photo
+     * evidence upload/list/delete) - so enforcing org-scope here once (US-AUD-11/24) covers
+     * all of them, rather than each caller needing its own check.
+     */
     @Transactional(readOnly = true)
     public AuditFinding getFinding(UUID auditId, UUID findingId) {
         AuditFinding finding = findingRepository.findByIdWithAsset(findingId)
@@ -67,6 +74,7 @@ public class AuditFindingCorrectionService {
         if (!finding.getAudit().getId().equals(auditId)) {
             throw NotFoundException.of("AuditFinding", findingId);
         }
+        auditService.requireInScope(finding.getAudit());
         return finding;
     }
 

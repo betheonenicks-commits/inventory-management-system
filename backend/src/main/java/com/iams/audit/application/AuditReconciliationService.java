@@ -40,17 +40,20 @@ public class AuditReconciliationService {
     private final AssetStatusDefRepository statusDefRepository;
     private final AssetHistoryRecorder historyRecorder;
     private final CurrentUserProvider currentUserProvider;
+    private final AuditService auditService;
 
     public AuditReconciliationService(AuditFindingRepository findingRepository,
                                        AuditFindingReconciliationRepository reconciliationRepository,
                                        AssetRepository assetRepository, AssetStatusDefRepository statusDefRepository,
-                                       AssetHistoryRecorder historyRecorder, CurrentUserProvider currentUserProvider) {
+                                       AssetHistoryRecorder historyRecorder, CurrentUserProvider currentUserProvider,
+                                       AuditService auditService) {
         this.findingRepository = findingRepository;
         this.reconciliationRepository = reconciliationRepository;
         this.assetRepository = assetRepository;
         this.statusDefRepository = statusDefRepository;
         this.historyRecorder = historyRecorder;
         this.currentUserProvider = currentUserProvider;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -64,6 +67,7 @@ public class AuditReconciliationService {
         if (!finding.getAudit().getId().equals(auditId)) {
             throw NotFoundException.of("AuditFinding", findingId);
         }
+        auditService.requireInScope(finding.getAudit()); // US-AUD-21: reconciliation is org-scope-enforced
         // AC-AUD-21-X: reconciliation only ever targets a Missing finding - never a Verified/OutOfScope/ScopeChanged one.
         if (finding.getStatus() != FindingStatus.MISSING) {
             throw new ConflictException("FINDING_NOT_MISSING", "Only a finding classified Missing can be reconciled");

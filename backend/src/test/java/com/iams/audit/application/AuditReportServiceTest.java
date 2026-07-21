@@ -13,7 +13,6 @@ import com.iams.audit.domain.Audit;
 import com.iams.audit.domain.AuditExpectedAssetRepository;
 import com.iams.audit.domain.AuditFinding;
 import com.iams.audit.domain.AuditFindingRepository;
-import com.iams.audit.domain.AuditRepository;
 import com.iams.audit.domain.AuditStatus;
 import com.iams.audit.domain.FindingStatus;
 import com.iams.common.exception.ConflictException;
@@ -28,11 +27,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class AuditReportServiceTest {
 
-    @Mock private AuditRepository auditRepository;
     @Mock private AuditFindingRepository findingRepository;
     @Mock private AuditExpectedAssetRepository expectedAssetRepository;
     @Mock private AuditService auditService;
@@ -43,14 +42,20 @@ class AuditReportServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AuditReportService(auditRepository, findingRepository, expectedAssetRepository, auditService,
-                userRepository);
+        service = new AuditReportService(findingRepository, expectedAssetRepository, auditService, userRepository);
         auditId = UUID.randomUUID();
     }
 
+    // exceptions()/certificate() now go through auditService.get(auditId), which is itself
+    // responsible for NotFound and org-scope enforcement (AuditServiceTest covers that logic
+    // directly) - these tests just confirm THIS service actually calls get() rather than a
+    // scope-bypassing direct repository load, per the US-AUD-05/11/13/14/15/16/21/24 fix.
+
     @Test
     void exceptions_delegatesWithVerifiedStatusAndDamageConditions() {
-        when(auditRepository.existsById(auditId)).thenReturn(true);
+        Audit audit = new Audit();
+        audit.setId(auditId);
+        when(auditService.get(auditId)).thenReturn(audit);
         AuditFinding missing = new AuditFinding();
         when(findingRepository.findExceptionsByAuditId(auditId, FindingStatus.VERIFIED,
                 List.of(AssetCondition.MINOR_DAMAGE, AssetCondition.MAJOR_DAMAGE, AssetCondition.UNUSABLE)))
@@ -63,9 +68,24 @@ class AuditReportServiceTest {
 
     @Test
     void exceptions_throwsNotFound_whenAuditDoesNotExist() {
-        when(auditRepository.existsById(auditId)).thenReturn(false);
+        when(auditService.get(auditId)).thenThrow(NotFoundException.of("Audit", auditId));
 
         assertThatThrownBy(() -> service.exceptions(auditId)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void exceptions_refusesAnOutOfScopeAudit() {
+        // AC-USR-04: get() is where scope is enforced - exceptions() must call it, not bypass it.
+        when(auditService.get(auditId)).thenThrow(new AccessDeniedException("out of scope"));
+
+        assertThatThrownBy(() -> service.exceptions(auditId)).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void certificate_refusesAnOutOfScopeAudit() {
+        when(auditService.get(auditId)).thenThrow(new AccessDeniedException("out of scope"));
+
+        assertThatThrownBy(() -> service.certificate(auditId)).isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
@@ -73,7 +93,7 @@ class AuditReportServiceTest {
         Audit audit = new Audit();
         audit.setId(auditId);
         audit.setStatus(AuditStatus.PENDING_APPROVAL);
-        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(audit));
+        when(auditService.get(auditId)).thenReturn(audit);
 
         assertThatThrownBy(() -> service.certificate(auditId)).isInstanceOf(ConflictException.class);
     }
@@ -86,7 +106,7 @@ class AuditReportServiceTest {
         audit.setStatus(AuditStatus.CLOSED);
         UUID approver = UUID.randomUUID();
         audit.setApprovedBy(approver);
-        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(audit));
+        when(auditService.get(auditId)).thenReturn(audit);
         when(expectedAssetRepository.countByAuditId(auditId)).thenReturn(5L);
         when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.VERIFIED)).thenReturn(3L);
         when(findingRepository.countByAuditIdAndStatus(auditId, FindingStatus.MISSING)).thenReturn(1L);
@@ -143,7 +163,7 @@ class AuditReportServiceTest {
         audit.setStatus(AuditStatus.CLOSED);
         UUID goneApprover = UUID.randomUUID();
         audit.setApprovedBy(goneApprover);
-        when(auditRepository.findByIdWithAssociations(auditId)).thenReturn(Optional.of(audit));
+        when(auditService.get(auditId)).thenReturn(audit);
         when(userRepository.findById(goneApprover)).thenReturn(Optional.empty());
         when(findingRepository.findByAuditIdWithAsset(auditId)).thenReturn(List.of());
 

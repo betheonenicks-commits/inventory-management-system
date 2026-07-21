@@ -62,13 +62,15 @@ public class AuditWorkflowService {
     private final AssetHistoryRecorder historyRecorder;
     private final ApprovalRoutingService routingService;
     private final LifecycleProperties lifecycleProperties;
+    private final AuditService auditService;
 
     public AuditWorkflowService(AuditRepository auditRepository, AuditExpectedAssetRepository expectedAssetRepository,
                                  AuditFindingRepository findingRepository, SodWaiverRepository sodWaiverRepository,
                                  AppUserRepository appUserRepository, PasswordEncoder passwordEncoder,
                                  CurrentUserProvider currentUserProvider, AssetRepository assetRepository,
                                  AssetStatusDefRepository statusDefRepository, AssetHistoryRecorder historyRecorder,
-                                 ApprovalRoutingService routingService, LifecycleProperties lifecycleProperties) {
+                                 ApprovalRoutingService routingService, LifecycleProperties lifecycleProperties,
+                                 AuditService auditService) {
         this.auditRepository = auditRepository;
         this.expectedAssetRepository = expectedAssetRepository;
         this.findingRepository = findingRepository;
@@ -79,6 +81,7 @@ public class AuditWorkflowService {
         this.assetRepository = assetRepository;
         this.statusDefRepository = statusDefRepository;
         this.historyRecorder = historyRecorder;
+        this.auditService = auditService;
         this.routingService = routingService;
         this.lifecycleProperties = lifecycleProperties;
     }
@@ -240,6 +243,7 @@ public class AuditWorkflowService {
 
     private Audit requireStatus(UUID auditId, AuditStatus expected) {
         Audit audit = auditRepository.findByIdWithAssociations(auditId).orElseThrow(() -> NotFoundException.of("Audit", auditId));
+        auditService.requireInScope(audit); // US-AUD-13/14: submit/approve/reject/escalate are org-scope-enforced
         if (audit.getStatus() != expected) {
             throw new ConflictException("AUDIT_WRONG_STATUS",
                     "Audit must be " + expected + " for this action; current status is " + audit.getStatus());

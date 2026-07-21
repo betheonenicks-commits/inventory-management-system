@@ -38,6 +38,7 @@ class AuditReconciliationServiceTest {
     @Mock private AssetStatusDefRepository statusDefRepository;
     @Mock private AssetHistoryRecorder historyRecorder;
     @Mock private CurrentUserProvider currentUserProvider;
+    @Mock private AuditService auditService;
 
     private AuditReconciliationService service;
     private UUID auditId;
@@ -50,7 +51,7 @@ class AuditReconciliationServiceTest {
     @BeforeEach
     void setUp() {
         service = new AuditReconciliationService(findingRepository, reconciliationRepository, assetRepository,
-                statusDefRepository, historyRecorder, currentUserProvider);
+                statusDefRepository, historyRecorder, currentUserProvider, auditService);
         auditId = UUID.randomUUID();
         findingId = UUID.randomUUID();
         actorId = UUID.randomUUID();
@@ -160,5 +161,17 @@ class AuditReconciliationServiceTest {
         when(reconciliationRepository.findByFindingId(findingId)).thenReturn(Optional.of(existing));
 
         assertThat(service.forFinding(findingId)).isSameAs(existing);
+    }
+
+    // US-AUD-21 fix: reconcile() now enforces org-scope on the finding's parent audit
+    // instead of silently skipping it.
+    @Test
+    void reconcile_refusesAnOutOfScopeFinding() {
+        when(findingRepository.findByIdWithAsset(findingId)).thenReturn(Optional.of(finding));
+        org.mockito.Mockito.doThrow(new org.springframework.security.access.AccessDeniedException("out of scope"))
+                .when(auditService).requireInScope(audit);
+
+        assertThatThrownBy(() -> service.reconcile(auditId, findingId, "Found it"))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
     }
 }
