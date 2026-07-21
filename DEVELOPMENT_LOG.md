@@ -1341,3 +1341,19 @@ Frontend: `RoleListPage` catches a `STEP_UP_REQUIRED` response from create/updat
 **Story-status effect:** US-SEC-06 moves to **Built**.
 
 **RTM tally so far this effort: 24 of the 50 original Partials cleared**, 26 remain. Batch D is now fully closed except SEC-13 (penetration-testing vendor engagement - not a code deliverable; flagging rather than fabricating a build). Moving to Batch E: USR-05 (System Operator scoping + PII gate), USR-06 (SoD self-approval block on transfer/disposal), AST-04 (per-child disposition on transfer/dispose), AST-06 (custom-field filterable in search).
+
+---
+
+## 2026-07-22, continued - Batch D closes: US-SEC-13 (patching, disclosure, and pen-test gate)
+
+Flagging, not building - and explaining why, rather than silently skipping it or force-fitting a fake "Built" status.
+
+US-SEC-13 has two ACs. The first - "a completed penetration test report is a required, checked go-live gate item" - genuinely cannot be produced by writing code or documents: it needs an actual engaged third-party firm, an actual staging environment, and actual elapsed time on both sides. `IAMS_Penetration_Test_Engagement_Checklist_v1.0.md` (authored in an earlier session) already prepares that engagement; its own §6 explicitly flagged one thing still missing - a standing vulnerability disclosure/patching policy, separate from the one-time test - and marked it "still needs to be authored."
+
+That second half **is** buildable today, so it got built: `IAMS_Vulnerability_Disclosure_And_Patching_Policy_v1.0.md` (new, in `July 10 Updates/files/`). It defines a reporting channel + safe-harbor language for good-faith researchers, reuses the Incident Response process's existing four-tier severity scale (Critical/High/Medium/Low, `Middleware_Infrastructure_Security_Specification_v1.1.md` §13.2) rather than inventing a second one, response-time SLA targets by severity (explicitly marked as placeholders pending IT Security Officer sign-off, matching this project's own established convention of flagging rather than fabricating unconfirmed numbers - see the Incident Response doc's own "placeholder: 1 hour for Critical" caveat), a coordinated-disclosure timeline, and - the part specific to this system's own architecture - a patch-distribution model grounded in BRD §5.2's "zero mandatory outbound internet connectivity" constraint: patches ship as ordinary versioned releases/image tags, pulled and applied via the existing US-PLAT-10/NFR-DEPLOY-04 upgrade path (mandatory pre-upgrade backup, automatic migrations, restore-based rollback), never an auto-push or background silent update, since that would contradict the on-premises deployment model outright.
+
+**Story-status effect:** US-SEC-13 stays **Partial**, not Built - correctly, since the pen-test-execution half is a real external dependency this session cannot close. But it is now a documented, actionable Partial (both required artifacts exist; only vendor engagement/execution and SLA sign-off remain, not authorship), rather than the prior "Not started."
+
+**Batch D is now fully closed.** Final tally for this batch: SEC-11, SEC-04, SEC-05, SEC-10, SEC-09, SEC-06 moved to Built; SEC-13 moved from Not-started to a documented Partial.
+
+**RTM tally so far this effort: 24 of the 50 original Partials cleared** (SEC-13 doesn't count toward this, since it was Not-started, not Partial, going in). 26 Partials remain. Moving to Batch E: USR-05 (System Operator scoping + PII gate), USR-06 (SoD self-approval block on transfer/disposal), AST-04 (per-child disposition on transfer/dispose), AST-06 (custom-field filterable in search).
