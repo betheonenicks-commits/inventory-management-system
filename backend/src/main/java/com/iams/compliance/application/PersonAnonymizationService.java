@@ -2,18 +2,24 @@ package com.iams.compliance.application;
 
 import com.iams.asset.domain.Asset;
 import com.iams.asset.domain.AssetRepository;
+import com.iams.audit.domain.AuditRepository;
 import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.compliance.api.dto.PersonDataExportResponse;
+import com.iams.compliance.domain.LegalHoldScopeType;
 import com.iams.org.domain.Person;
 import com.iams.org.domain.PersonRepository;
 import com.iams.sec.application.SecurityEventLogger;
 import com.iams.sec.domain.SecurityEventType;
+import com.iams.usr.domain.AppUser;
+import com.iams.usr.domain.AppUserRepository;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,13 +45,21 @@ public class PersonAnonymizationService {
 
     private final PersonRepository personRepository;
     private final AssetRepository assetRepository;
+    private final AppUserRepository appUserRepository;
+    private final AuditRepository auditRepository;
+    private final LegalHoldService legalHoldService;
     private final CurrentUserProvider currentUserProvider;
     private final SecurityEventLogger securityEventLogger;
 
     public PersonAnonymizationService(PersonRepository personRepository, AssetRepository assetRepository,
-                                       CurrentUserProvider currentUserProvider, SecurityEventLogger securityEventLogger) {
+                                       AppUserRepository appUserRepository, AuditRepository auditRepository,
+                                       LegalHoldService legalHoldService, CurrentUserProvider currentUserProvider,
+                                       SecurityEventLogger securityEventLogger) {
         this.personRepository = personRepository;
         this.assetRepository = assetRepository;
+        this.appUserRepository = appUserRepository;
+        this.auditRepository = auditRepository;
+        this.legalHoldService = legalHoldService;
         this.currentUserProvider = currentUserProvider;
         this.securityEventLogger = securityEventLogger;
     }
@@ -55,6 +69,28 @@ public class PersonAnonymizationService {
         return personRepository.findAllByOrderByFullNameAsc().stream()
                 .filter(p -> !p.isActive() && p.getAnonymizedAt() == null)
                 .toList();
+    }
+
+    /**
+     * US-SEC-10 (AC-SEC-10-H): "an export was available beforehand" - a Compliance Officer
+     * pulls this before running erasure. Deliberately available regardless of eligibility
+     * (an export is harmless read access; only anonymize() itself needs the departed/no-holds
+     * gating) so a request can be honored even before someone is marked inactive.
+     */
+    @Transactional(readOnly = true)
+    public PersonDataExportResponse exportData(UUID personId) {
+        Person person = personRepository.findById(personId).orElseThrow(() -> NotFoundException.of("Person", personId));
+        List<PersonDataExportResponse.AssignedAsset> assignedAssets =
+                assetRepository.findByAssignedToPersonId(personId).stream()
+                        .map(a -> new PersonDataExportResponse.AssignedAsset(a.getId(), a.getAssetNumber(), a.getName()))
+                        .toList();
+        return new PersonDataExportResponse(
+                person.getId(), person.getFullName(), person.getEmail(),
+                person.getPersonType() != null ? person.getPersonType().name() : null,
+                person.getOrgNode() != null ? person.getOrgNode().getId() : null,
+                person.getOrgNode() != null ? person.getOrgNode().getName() : null,
+                person.getDepartmentId(), person.isActive(), person.getCreatedAt(), person.getUpdatedAt(),
+                assignedAssets, Instant.now());
     }
 
     @Transactional
@@ -73,6 +109,7 @@ public class PersonAnonymizationService {
             // AC-CMP-02-X / US-LIF-14: blocked with the asset list, same shape UserDeactivationService uses.
             throw blockedByAssignedAssets(blockingAssets);
         }
+        requireNoHoldOnALinkedAudit(personId);
 
         UUID actor = currentUserProvider.current().id();
         person.setFullName(ANONYMIZED_NAME);
@@ -84,6 +121,23 @@ public class PersonAnonymizationService {
         // historical audit findings/history rows that reference this id still resolve.
         securityEventLogger.record(SecurityEventType.PERSON_ANONYMIZED, actor, null, null, "Anonymized person " + personId);
         return saved;
+    }
+
+    /**
+     * AC-SEC-10-X: "an active legal hold on a linked audit" blocks anonymization (423) - a
+     * departed person may also have held a login account (AppUser.personId) that acted as an
+     * audit's submitter, approver, or an assigned auditor; if any such audit is currently
+     * under legal hold, anonymizing this person is refused until the hold is lifted. Most
+     * departed persons never had a login at all, so this is a no-op for the common case.
+     */
+    private void requireNoHoldOnALinkedAudit(UUID personId) {
+        Optional<AppUser> linkedUser = appUserRepository.findByPersonId(personId);
+        if (linkedUser.isEmpty()) {
+            return;
+        }
+        for (UUID auditId : auditRepository.findAuditIdsLinkedToUser(linkedUser.get().getId())) {
+            legalHoldService.requireNoActiveHold(LegalHoldScopeType.AUDIT, auditId);
+        }
     }
 
     private ConflictException blockedByAssignedAssets(List<Asset> blockingAssets) {

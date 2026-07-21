@@ -1,6 +1,7 @@
 package com.iams.compliance.api;
 
 import com.iams.compliance.api.dto.PersonAnonymizationResponse;
+import com.iams.compliance.api.dto.PersonDataExportResponse;
 import com.iams.compliance.application.PersonAnonymizationService;
 import java.util.List;
 import java.util.UUID;
@@ -34,5 +35,12 @@ public class PersonAnonymizationController {
     @PreAuthorize("@perm.has('compliance:write')")
     public PersonAnonymizationResponse anonymize(@PathVariable UUID personId) {
         return mapper.toResponse(anonymizationService.anonymize(personId));
+    }
+
+    /** US-SEC-10 (AC-SEC-10-H): "an export was available beforehand" - pulled ahead of erasure. */
+    @GetMapping("/{personId}/export")
+    @PreAuthorize("@perm.has('compliance:read')")
+    public PersonDataExportResponse export(@PathVariable UUID personId) {
+        return anonymizationService.exportData(personId);
     }
 }

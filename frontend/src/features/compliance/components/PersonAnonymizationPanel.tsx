@@ -15,15 +15,41 @@ import { ErrorPanel } from '../../../components/common/ErrorPanel'
 import { LoadingSkeleton } from '../../../components/common/LoadingSkeleton'
 import { isApiProblem } from '../../../api/errors'
 import type { ApiProblem } from '../../../api/errors'
-import { useAnonymizationEligibleQuery, useAnonymizePersonMutation } from '../hooks/usePersonAnonymizationQuery'
+import {
+  useAnonymizationEligibleQuery,
+  useAnonymizePersonMutation,
+  useExportPersonDataMutation,
+} from '../hooks/usePersonAnonymizationQuery'
 import type { PersonAnonymization } from '../types'
 
-/** US-CMP-02 / US-LIF-14: departed persons eligible for anonymization, approved explicitly one at a time. */
+/**
+ * US-CMP-02 / US-LIF-14 / US-SEC-10: departed persons eligible for
+ * anonymization, an on-demand data export available beforehand (AC-SEC-10-H),
+ * and anonymization itself approved explicitly one at a time.
+ */
 export function PersonAnonymizationPanel({ canWrite }: { canWrite: boolean }) {
   const eligibleQuery = useAnonymizationEligibleQuery()
   const anonymize = useAnonymizePersonMutation()
+  const exportData = useExportPersonDataMutation()
   const [target, setTarget] = useState<PersonAnonymization | null>(null)
   const [blockedProblem, setBlockedProblem] = useState<ApiProblem | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
+
+  async function handleExport(person: PersonAnonymization) {
+    setExportError(null)
+    try {
+      const data = await exportData.mutateAsync(person.id)
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `person-${person.id}-export.json`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setExportError(isApiProblem(err) ? err.detail : 'Failed to export this person’s data')
+    }
+  }
 
   async function handleConfirm() {
     if (!target) return
@@ -48,8 +74,13 @@ export function PersonAnonymizationPanel({ canWrite }: { canWrite: boolean }) {
       <Typography variant="subtitle1">Anonymization-Eligible Persons</Typography>
       <Typography variant="body2" color="text.secondary">
         Departed (inactive) persons not yet anonymized. Anonymizing is deliberate, not automatic - it is blocked while
-        any asset is still assigned to the person.
+        any asset is still assigned to the person. Export their data before anonymizing if a copy is needed.
       </Typography>
+      {exportError && (
+        <Alert severity="error" onClose={() => setExportError(null)}>
+          {exportError}
+        </Alert>
+      )}
 
       <List dense>
         {(eligibleQuery.data ?? []).map((person) => (
@@ -57,11 +88,16 @@ export function PersonAnonymizationPanel({ canWrite }: { canWrite: boolean }) {
             key={person.id}
             divider
             secondaryAction={
-              canWrite && (
-                <Button size="small" color="error" onClick={() => setTarget(person)}>
-                  Anonymize
+              <Stack direction="row" spacing={0.5}>
+                <Button size="small" onClick={() => handleExport(person)} disabled={exportData.isPending}>
+                  Export data
                 </Button>
-              )
+                {canWrite && (
+                  <Button size="small" color="error" onClick={() => setTarget(person)}>
+                    Anonymize
+                  </Button>
+                )}
+              </Stack>
             }
           >
             <ListItemText primary={person.fullName} />

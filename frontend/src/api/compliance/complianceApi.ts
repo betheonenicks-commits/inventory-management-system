@@ -53,6 +53,26 @@ export function anonymizePerson(personId: string) {
   return httpClient.post<PersonAnonymization>(`/compliance/person-anonymization/${personId}/anonymize`).then((r) => r.data)
 }
 
+export interface PersonDataExport {
+  id: string
+  fullName: string
+  email: string | null
+  personType: string | null
+  orgNodeId: string | null
+  orgNodeName: string | null
+  departmentId: string | null
+  active: boolean
+  createdAt: string
+  updatedAt: string | null
+  currentlyAssignedAssets: { assetId: string; assetNumber: string; name: string }[]
+  exportedAt: string
+}
+
+// US-SEC-10 (AC-SEC-10-H): "an export was available beforehand" - pulled ahead of erasure.
+export function exportPersonData(personId: string) {
+  return httpClient.get<PersonDataExport>(`/compliance/person-anonymization/${personId}/export`).then((r) => r.data)
+}
+
 // --- Privacy notices (US-CMP-03) ---
 
 export function fetchPrivacyNotices() {

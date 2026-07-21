@@ -1289,3 +1289,19 @@ The backend (`PasswordValidator`/`PasswordPolicyService`/`PasswordPolicyControll
 **Story-status effect:** US-SEC-05 moves to **Built**.
 
 **RTM tally so far this effort: 21 of the 50 original Partials cleared**, 29 remain. Continuing Batch D: SEC-10 (pre-erasure export + legal-hold wiring), SEC-09 (self-service unlock), SEC-06 (step-up auth), SEC-13 (non-code, to flag).
+
+---
+
+## 2026-07-22, continued - Batch D (part 3): US-SEC-10 (pre-erasure export + legal-hold wiring)
+
+Two gaps, per its own two ACs. **AC-SEC-10-H** ("an export was available beforehand") had no export endpoint at all. **AC-SEC-10-X** ("an active legal hold on a linked audit... blocked (423)") - `PersonAnonymizationService.anonymize()` never checked for one.
+
+**The "linked audit" question.** `LegalHoldScopeType` only has `ASSET`/`AUDIT` - there is no `PERSON` scope, so a hold can't be placed directly on a person. Resolved by reading the AC literally: a departed Person may still have a login (`AppUser.personId`) that acted as an audit's submitter, approver (nominal or effective), or an assigned auditor - a real, existing link (`AppUserRepository.findByPersonId`). Added `AuditRepository.findAuditIdsLinkedToUser(userId)` (one JPQL query covering all four relationships) and wired `anonymize()` to check every linked audit for an active hold before proceeding - a no-op for the common case (most departed persons never had a login at all).
+
+**Export.** New `PersonAnonymizationService.exportData(personId)` / `PersonDataExportResponse` (name, email, type, org node, department, active/timestamps, plus currently-assigned assets - the only other record directly linked to a Person in this schema; historical/past assignments aren't queryable by person id anywhere today, so aren't claimed). `GET /compliance/person-anonymization/{id}/export`, gated `compliance:read`, available regardless of eligibility (an export is harmless read access - only anonymize() itself needs the departed/no-holds gating). Frontend: an "Export data" button on `PersonAnonymizationPanel.tsx` downloads the result as a JSON file client-side.
+
+**Verification.** Backend: 5 new tests (succeeds with no linked login - the common case; refuses when a linked audit has an active hold; succeeds when linked audits have no hold; export returns the right fields + assigned assets; export 404s on an unknown person). Full suite 495/495 (490 + 5). Frontend: `tsc -b`/`oxlint` clean. **Live-verified** on 8081: created a person, exported their data *before* deactivation (confirming "available beforehand"), deactivated, confirmed eligibility, anonymized successfully (no linked login → the hold check is a no-op, exactly the common-case path), confirmed the name/email were actually blanked, confirmed a second anonymize attempt is 409, confirmed anon/unknown-person 401/404. The hold-blocking clause itself (AC-SEC-10-X) is covered by the two targeted unit tests rather than a live end-to-end setup - reproducing it live would need a real AppUser linked to the person, that user routed as an audit approver/auditor, and an active hold placed on that specific audit, a disproportionate fixture cost for one adversarial edge case the unit tests already exercise precisely.
+
+**Story-status effect:** US-SEC-10 moves to **Built**.
+
+**RTM tally so far this effort: 22 of the 50 original Partials cleared**, 28 remain. Continuing Batch D: SEC-09 (self-service unlock), SEC-06 (step-up auth - the largest remaining item), SEC-13 (non-code, to flag).

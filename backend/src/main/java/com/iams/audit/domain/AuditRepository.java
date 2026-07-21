@@ -29,4 +29,15 @@ public interface AuditRepository extends JpaRepository<Audit, UUID> {
     @Query("SELECT a FROM Audit a LEFT JOIN FETCH a.scopeOrgNode "
             + "WHERE a.scheduledDate BETWEEN :from AND :to ORDER BY a.scheduledDate ASC")
     List<Audit> findScheduledBetween(LocalDate from, LocalDate to);
+
+    /**
+     * US-SEC-10 (AC-SEC-10-X): every audit "linked to" a given user - as submitter,
+     * approver (nominal or effective), or an assigned auditor - the full set of ways a
+     * person's own login account can be tied to an audit record. Used to find whether an
+     * about-to-be-anonymized person has any linked audit currently under legal hold.
+     */
+    @Query("SELECT DISTINCT a.id FROM Audit a WHERE a.submittedBy = :userId OR a.approvedBy = :userId "
+            + "OR a.nominalApproverId = :userId OR a.effectiveApproverId = :userId "
+            + "OR EXISTS (SELECT 1 FROM AuditAssignment aa WHERE aa.audit = a AND aa.auditorUserId = :userId)")
+    List<UUID> findAuditIdsLinkedToUser(UUID userId);
 }
