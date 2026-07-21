@@ -132,7 +132,7 @@ This session gave EPIC-SEC its first dedicated code (`com.iams.sec`) - everythin
 | US-SEC-12 | Surface dependency-scan status | Not started | — |
 | US-SEC-13 | Patching, disclosure, and pen-test gate | Not started | Process/governance item, not code |
 | US-SEC-14 | Issue scoped service accounts for integrations | Built | API-key issuance/auth/revoke flow; `X-Api-Key` filter + `ServiceAccountPrincipal`; web-layer default-deny for integrations with a scoped-endpoint whitelist (AC-SEC-14-H); `INTEGRATION_SERVICE` non-assignable-to-humans (AC-SEC-14-X); key stored SHA-256-hashed |
-| US-SEC-15 | Never store integration credentials in plaintext | Not started | SA-key hashing (SHA-256) delivered under SEC-14; the integration-config secrets-manager-reference flow + AC-SEC-15-X plaintext-rejection remain to build |
+| US-SEC-15 | Never store integration credentials in plaintext | Built | Integration registry (V51) stores credentials only as secrets-manager references (`env:`/`vault:`/`file:`/`awssm:`/`arn:aws:secretsmanager:`/`secretref:`) via `SecretReferences`; inline plaintext in the credential field or config map -> 400 VALIDATION_FAILED, never echoed (AC-SEC-15-X); DB row + logs hold only the reference (AC-SEC-15-H). Built on a minimal FR-INT-05 registry core (disabled-by-default, enable/disable logged); full FR-INT-05 Compliance-review gating + actual integration execution remain |
 | US-SEC-16 | Time-boxed, notified "break-glass" access | Not started | — |
 | US-SEC-17 | Optional MFA for non-mandated roles | Not started | — |
 

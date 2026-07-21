@@ -28,5 +28,13 @@ public enum SecurityEventType {
     /** US-SEC-14: a scoped integration service account was issued (its raw API key returned once). */
     SERVICE_ACCOUNT_CREATED,
     /** US-SEC-14: a service account was revoked - its API key no longer authenticates. */
-    SERVICE_ACCOUNT_REVOKED
+    SERVICE_ACCOUNT_REVOKED,
+    /** US-SEC-15 / FR-INT-05: an integration was registered (credentials held only as a secrets-manager reference). */
+    INTEGRATION_CREATED,
+    /** FR-INT-05: an integration was enabled (an outbound/data flow turned on). */
+    INTEGRATION_ENABLED,
+    /** FR-INT-05: an integration was disabled. */
+    INTEGRATION_DISABLED,
+    /** US-SEC-15 / FR-INT-05: an integration registration was deleted. */
+    INTEGRATION_DELETED
 }
