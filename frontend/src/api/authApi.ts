@@ -34,3 +34,14 @@ export interface MeResponse {
 export function fetchMe() {
   return httpClient.get<MeResponse>('/auth/me').then((r) => r.data)
 }
+
+// US-SEC-09: self-service unlock. Both calls return the same shape (or a
+// generic 400 on a bad/expired code) regardless of whether the username
+// exists or is actually locked - the backend never leaks that either way.
+export function requestUnlock(username: string) {
+  return httpClient.post('/auth/unlock/request', { username }).then(() => undefined)
+}
+
+export function confirmUnlock(token: string) {
+  return httpClient.post('/auth/unlock/confirm', { token }).then(() => undefined)
+}

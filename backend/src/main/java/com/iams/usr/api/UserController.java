@@ -93,7 +93,7 @@ public class UserController {
         return mapper.toResponse(queryService.get(id));
     }
 
-    /** US-SEC-09 AC: admin unlock. Self-service unlock isn't built - see UserLockoutService. */
+    /** US-SEC-09 AC: admin unlock (the self-service half lives on AuthController's /unlock endpoints). */
     @PostMapping("/{id}/unlock")
     @PreAuthorize("@perm.has('users:write')")
     public UserResponse unlock(@PathVariable UUID id) {

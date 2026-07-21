@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Paper from '@mui/material/Paper'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import Alert from '@mui/material/Alert'
+import Link from '@mui/material/Link'
 import { login } from '../api/authApi'
 import { isApiProblem } from '../api/errors'
 import { useAuthStore } from './authStore'
@@ -15,6 +16,7 @@ export function LoginPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [locked, setLocked] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const setSession = useAuthStore((s) => s.setSession)
   const navigate = useNavigate()
@@ -23,6 +25,7 @@ export function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setLocked(false)
     setSubmitting(true)
     try {
       const { accessToken, refreshToken } = await login(username, password)
@@ -48,6 +51,7 @@ export function LoginPage() {
     } catch (err) {
       if (isApiProblem(err)) {
         setError(err.detail || 'Invalid username or password')
+        setLocked(err.errorCode === 'ACCOUNT_LOCKED')
       } else {
         setError('Unable to reach the server. Please try again.')
       }
@@ -65,6 +69,14 @@ export function LoginPage() {
         {error && (
           <Alert severity="error" sx={{ my: 2 }}>
             {error}
+            {locked && (
+              <>
+                {' '}
+                <Link component={RouterLink} to="/unlock-account">
+                  Unlock your account
+                </Link>
+              </>
+            )}
           </Alert>
         )}
         <TextField

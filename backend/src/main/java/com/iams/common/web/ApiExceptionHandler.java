@@ -8,6 +8,7 @@ import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.AccountLockedException;
 import com.iams.common.security.InvalidCredentialsException;
 import com.iams.common.security.InvalidRefreshTokenException;
+import com.iams.common.security.InvalidUnlockTokenException;
 import com.iams.compliance.application.LegalHoldActiveException;
 import com.iams.storage.infrastructure.StorageUnavailableException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -151,6 +152,13 @@ public class ApiExceptionHandler {
         ProblemDetail pd = build(HttpStatus.UNAUTHORIZED, "invalid-refresh-token", "Invalid Refresh Token",
                 ex.getMessage(), "AUTH_INVALID_REFRESH_TOKEN", req);
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(pd);
+    }
+
+    @ExceptionHandler(InvalidUnlockTokenException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidUnlockToken(InvalidUnlockTokenException ex, HttpServletRequest req) {
+        ProblemDetail pd = build(HttpStatus.BAD_REQUEST, "invalid-unlock-token", "Invalid Unlock Code",
+                ex.getMessage(), "INVALID_UNLOCK_TOKEN", req);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 
     @ExceptionHandler(AccountLockedException.class)

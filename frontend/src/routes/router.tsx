@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { RequireAuth } from '../auth/RequireAuth'
 import { LoginPage } from '../auth/LoginPage'
+import { UnlockAccountPage } from '../auth/UnlockAccountPage'
 import { AdminShell } from '../shells/AdminShell'
 import { AssetListPage } from '../features/assets/AssetListPage'
 import { AssetRegisterWizardPage } from '../features/assets/AssetRegisterWizardPage'
@@ -34,6 +35,7 @@ import { NotFoundPage } from '../components/common/NotFoundPage'
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  { path: '/unlock-account', element: <UnlockAccountPage /> },
   {
     element: <RequireAuth />,
     children: [

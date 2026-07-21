@@ -1305,3 +1305,19 @@ Two gaps, per its own two ACs. **AC-SEC-10-H** ("an export was available beforeh
 **Story-status effect:** US-SEC-10 moves to **Built**.
 
 **RTM tally so far this effort: 22 of the 50 original Partials cleared**, 28 remain. Continuing Batch D: SEC-09 (self-service unlock), SEC-06 (step-up auth - the largest remaining item), SEC-13 (non-code, to flag).
+
+---
+
+## 2026-07-22, continued - Batch D (part 4): US-SEC-09 (self-service account unlock)
+
+The AC (AC-SEC-09-H) names both halves of unlock - "admin/self-service unlock works." Admin unlock (`UserController.unlock()`) already existed; self-service didn't, blocked (per the code's own comment) on there being no email system to deliver a code through. `NotificationDispatchService` now exists (built for EPIC-NTF), so this closed the gap.
+
+**Design.** A locked-out user can't authenticate to prove who they are, so a one-time emailed code stands in for a session - the same hashed-at-rest idiom `RefreshToken` already uses (32 random bytes, base64url; only the SHA-256 hash persists in a new `account_unlock_token` table, 30-minute expiry, single-use). `UserLockoutService` gained `requestSelfServiceUnlock(username)` and `confirmSelfServiceUnlock(rawToken)`. The request half is deliberately silent on both "unknown username" and "not currently locked" - identical response either way, the same no-enumeration-leak reasoning `AuthController.login()` already applies per AC-SEC-04-X - only an actually-locked account gets a token and an email. The email itself reuses the existing `SECURITY_ALERT` notification type rather than adding a new catalog member: it's already `locked()` (always emailed regardless of the user's own preference, exactly what a "you're locked out" message needs), already has a generic `{{summary}}/{{detail}}` template seeded for both channels, and is semantically exactly what this is. Two new public endpoints, `POST /auth/unlock/request` and `POST /auth/unlock/confirm`, added to the security filter chain's permit-all list alongside `/auth/login` (a locked-out user has no token to authenticate the request with). A bad/expired/reused code is a new `InvalidUnlockTokenException` -> 400 `INVALID_UNLOCK_TOKEN`.
+
+Frontend: a new `/unlock-account` page with the two-step flow (request code -> enter code), and the login page now links to it specifically when a login attempt fails with `ACCOUNT_LOCKED` (rather than always showing it - it's only relevant once the caller has actually hit that state).
+
+**Verification.** Backend: 8 new `UserLockoutService` tests (no-op on unknown username, no-op when not locked, issues token + dispatches email when locked, rejects unknown/expired/already-used tokens, and the full unlock-resets-user-and-marks-token-used path). Full suite green. Frontend: `tsc -b`/`oxlint` clean. **Live-verified** end to end on 8081: unlock/request for an unknown username still returns 202 (no leak); created a real user, drove it to lockout with 5 wrong passwords, confirmed the 6th attempt and even the *correct* password both return 423 during cool-down (AC-SEC-09-X); requested an unlock code; confirmed a bogus code is rejected (400) and the account is still locked afterward; then - rather than stopping at the unit-test coverage for the happy path - pulled the actual emailed code straight out of the `notification_delivery.rendered_body` row via `psql`, redeemed it (204), confirmed the correct password now logs in (200), and confirmed reusing that same code a second time is rejected (400, one-time use). Every step of both the adversarial and happy paths ran against the real running app and real Postgres data, not just the mocked unit tests.
+
+**Story-status effect:** US-SEC-09 moves to **Built**.
+
+**RTM tally so far this effort: 23 of the 50 original Partials cleared**, 27 remain. Continuing Batch D: SEC-06 (step-up auth - the largest remaining item in this batch), SEC-13 (non-code, to flag).

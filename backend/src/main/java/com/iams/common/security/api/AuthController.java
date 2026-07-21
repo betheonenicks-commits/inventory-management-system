@@ -163,6 +163,24 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * US-SEC-09's self-service unlock, step 1. Always 202 - whether the
+     * username exists or is even currently locked never leaks in the
+     * response (see UserLockoutService.requestSelfServiceUnlock).
+     */
+    @PostMapping("/unlock/request")
+    public ResponseEntity<Void> requestUnlock(@Valid @RequestBody UnlockRequestRequest request) {
+        lockoutService.requestSelfServiceUnlock(request.username());
+        return ResponseEntity.accepted().build();
+    }
+
+    /** US-SEC-09's self-service unlock, step 2: redeem the emailed code. */
+    @PostMapping("/unlock/confirm")
+    public ResponseEntity<Void> confirmUnlock(@Valid @RequestBody UnlockConfirmRequest request) {
+        lockoutService.confirmSelfServiceUnlock(request.token());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/me")
     public MeResponse me() {
         CurrentUser authenticated = currentUserProvider.current();
