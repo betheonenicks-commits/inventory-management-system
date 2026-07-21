@@ -1237,3 +1237,27 @@ Continued straight from Batch A (the org-scope fix). This batch closes the rest 
 **Story-status effect:** US-AUD-01, 07, 23, 24 move to **Built**. US-AUD-06 stays **Partial**, now for a narrower, precisely-documented reason (a UX clause that doesn't fit this system's design, not a missing capability). EPIC-AUD Partial count: was 13 (pre-Batch-A), Batch A cleared 6 (05/13/14/15/16/21) and narrowed 2 (11/24 - now themselves reduced), Batch B clears 4 more of those narrowed/remaining ones (01/07/23/24) - **10 of the original 13 AUD Partials now Built**, leaving AUD-06 (documented gap), AUD-08 and AUD-11's offline-sync clause (both genuinely blocked on US-AUD-19, Not-started).
 
 **RTM tally so far this effort: 10 of the 50 original Partials cleared** (6 from Batch A + 4 from Batch B), 40 remain across 8 more planned batches (C: frontend-only gaps elsewhere; D: SEC; E: USR/AST; F: CMP; G: NTF; H: RPT/INT; I: SCN; J: PLAT).
+
+---
+
+## 2026-07-22 - Batch C of RTM Partial-clearing: 8 admin/self-service UIs over already-complete backends (ORG-01/02/03/06, SRC-03, LIF-15, CMP-03, INV-09)
+
+Continued the RTM Partial-clearing effort (Batches A/B cleared EPIC-AUD). This batch is the recurring pattern the RTM flagged repeatedly: a fully built, tested backend with no admin screen ever built to drive it. All eight gaps in this batch were pure frontend - no backend code changed at all (confirmed by re-running the existing backend suite unchanged; only live-verified against the running app, since nothing there needed a new unit test).
+
+**US-ORG-01/02/06 (org hierarchy).** New `features/org/OrgHierarchyPage.tsx` - the org module had zero admin UI before this (`orgNodeApi.ts` was a read-only picker helper only). Levels panel: inline-rename with optimistic-lock version. Tree panel: a recursive indented list (no tree-view package is installed, so a plain nested `List` renders it - real, not decorative) with per-node "add child"/delete, 409-blocked-delete messaging (mirrors `CategoryConfigPage`'s pattern). Create dialog auto-resolves the required child level (backend enforces exactly `parent.rank + 1`) rather than offering a picker that would mostly 400. US-ORG-06's "configure a Room variant" reads as picking one of the two seeded options (Classroom/Laboratory, `V19__create_org_hierarchy.sql`) at node-creation time - documented in the component why this isn't a from-scratch taxonomy editor the AC never actually asked for.
+
+**US-ORG-03 (department CRUD).** New `DepartmentListPage.tsx` + extended `departmentApi.ts` (create/update/delete, version-based optimistic lock) - the read-only picker already existed for asset-assignment; full CRUD had no screen.
+
+**US-SRC-03 (combined advanced filters).** `AssetListPage.tsx` already combined text+category; added Status, Location, and Purchased-from/to controls (the backend `AssetQueryService.list` already accepted all of them together). Extended `AssetListFilters` and the saved-search create/apply/clear paths to carry the three new fields too, since `SavedSearch` itself already had columns for them (US-SRC-04 anticipated this correctly, the UI just hadn't caught up).
+
+**US-LIF-15 (approval delegation).** New `features/lifecycle/ApprovalDelegationsPage.tsx`, reached from the account menu (gated on `approvals:write`, the same permission the create endpoint requires) - a Department Head can now actually create/list/revoke a delegation instead of the feature being backend-only. Needed "my own user id," which the stored session never carried (`AuthUser` has no `id`) - added a narrow `fetchMe()`/`useMeQuery` (`GET /auth/me`) rather than widen the global auth store for one screen.
+
+**US-CMP-03 (privacy notice on the actual form).** New shared `<PrivacyNoticeText fieldName="…">` (renders nothing if unconfigured - the AC's own second clause), wired under "Full name" and "Email" on `AssetAssignmentPanel.tsx`'s inline person-creation form - the only Person data-capture surface in the product. Previously notice text was only ever visible inside the Compliance admin panel that configures it.
+
+**US-INV-09 (expiring-stock view).** New `ExpiringStockPage.tsx` + nav entry - `useExpiringLotsQuery` existed and worked, nothing ever rendered it. A within-days selector (7/14/30/60/90) and per-lot days-remaining chip (red ≤7d, amber ≤14d).
+
+**Verification.** `tsc -b` and `oxlint` clean across every changed/new file, project-wide (not just the touched files). **Live-verified** on 8081 for every item: created+deleted an org node under the real root, renamed the Room level and reverted it back (shared seed data left exactly as found), created+updated+deleted a department, created+listed+revoked an approval delegation, confirmed `GET /inventory-stock/expiring-lots` 200, confirmed privacy notices are readable by any authenticated user, confirmed `GET /assets` accepts the combined status/location/date-range filters together. **No browser-automation tool is available this session** (unchanged from Batch B) - verified via type-check/lint/live API calls, not a visual check.
+
+**Story-status effect:** US-ORG-01, 02, 03, 06, US-SRC-03, US-LIF-15, US-CMP-03, US-INV-09 all move to **Built**.
+
+**RTM tally so far this effort: 18 of the 50 original Partials cleared** (6 Batch A + 4 Batch B + 8 Batch C), 32 remain across 7 more planned batches (D: SEC; E: USR/AST; F: CMP; G: NTF; H: RPT/INT; I: SCN; J: PLAT).

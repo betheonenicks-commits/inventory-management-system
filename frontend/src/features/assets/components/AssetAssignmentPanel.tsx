@@ -9,6 +9,7 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
+import { PrivacyNoticeText } from '../../../components/common/PrivacyNoticeText'
 import { usePersonQuery, usePersonsQuery, useCreatePersonMutation } from '../../persons/hooks/usePersonsQuery'
 import {
   useAssignAssetMutation,
@@ -145,7 +146,9 @@ function AssignPersonPicker({ asset }: { asset: Asset }) {
       ) : (
         <Stack spacing={1} sx={{ p: 1.25, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
           <TextField size="small" label="Full name" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus />
+          <PrivacyNoticeText fieldName="fullName" />
           <TextField size="small" label="Email (optional)" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+          <PrivacyNoticeText fieldName="email" />
           <TextField size="small" select label="Type" value={newType} onChange={(e) => setNewType(e.target.value as PersonType)}>
             <MenuItem value="EMPLOYEE">Employee</MenuItem>
             <MenuItem value="VOLUNTEER">Volunteer</MenuItem>

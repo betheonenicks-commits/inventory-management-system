@@ -61,7 +61,15 @@ export function fetchSavedSearches() {
   return httpClient.get<SavedSearch[]>('/saved-searches').then((r) => r.data)
 }
 
-export function createSavedSearch(payload: { name: string; query?: string; categoryId?: string }) {
+export function createSavedSearch(payload: {
+  name: string
+  query?: string
+  categoryId?: string
+  statusId?: string
+  orgNodeId?: string
+  purchasedFrom?: string
+  purchasedTo?: string
+}) {
   return httpClient.post<SavedSearch>('/saved-searches', payload).then((r) => r.data)
 }
 

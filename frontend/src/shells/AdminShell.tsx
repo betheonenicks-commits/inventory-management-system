@@ -33,6 +33,9 @@ import WarehouseIcon from '@mui/icons-material/Warehouse'
 import StoreIcon from '@mui/icons-material/Store'
 import RuleIcon from '@mui/icons-material/Rule'
 import InventoryIcon from '@mui/icons-material/Inventory'
+import EventBusyIcon from '@mui/icons-material/EventBusy'
+import AccountTreeIcon from '@mui/icons-material/AccountTree'
+import BusinessIcon from '@mui/icons-material/Business'
 import { useAuthStore, hasPermission } from '../auth/authStore'
 import { logout as logoutApi } from '../api/authApi'
 
@@ -71,6 +74,12 @@ const NAV_ITEMS: NavItem[] = [
   },
   { label: 'Purchase Orders', to: '/procurement/purchase-orders', icon: <LocalShippingIcon />, requiresPermission: 'assets:read' },
   { label: 'Inventory Items', to: '/inventory/items', icon: <InventoryIcon />, requiresPermission: 'inventory:read' },
+  {
+    label: 'Expiring Stock',
+    to: '/inventory/expiring-stock',
+    icon: <EventBusyIcon />,
+    requiresPermission: 'inventory:read',
+  },
   { label: 'Warehouses', to: '/inventory/warehouses', icon: <WarehouseIcon />, requiresPermission: 'inventory:read' },
   { label: 'Vendors', to: '/inventory/vendors', icon: <StoreIcon />, requiresPermission: 'inventory:read' },
   {
@@ -82,6 +91,8 @@ const NAV_ITEMS: NavItem[] = [
     // decide on requests routed to them, not just an Inventory Manager.
     requiresAnyPermission: ['inventory:read', 'approvals:read'],
   },
+  { label: 'Organization', to: '/organization', icon: <AccountTreeIcon />, requiresPermission: 'org:write' },
+  { label: 'Departments', to: '/organization/departments', icon: <BusinessIcon />, requiresPermission: 'org:write' },
   { label: 'Users', to: '/users', icon: <PeopleIcon />, requiresPermission: 'users:read' },
   { label: 'Roles', to: '/roles', icon: <AdminPanelSettingsIcon />, requiresPermission: 'roles:read' },
   { label: 'Compliance', to: '/compliance', icon: <GavelIcon />, requiresPermission: 'compliance:read' },
@@ -131,6 +142,16 @@ export function AdminShell() {
           </IconButton>
           <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={() => setAnchorEl(null)}>
             <MenuItem disabled>{user?.username}</MenuItem>
+            {hasPermission(user, 'approvals:write') && (
+              <MenuItem
+                onClick={() => {
+                  setAnchorEl(null)
+                  navigate('/settings/approval-delegations')
+                }}
+              >
+                Approval delegations
+              </MenuItem>
+            )}
             <MenuItem onClick={handleLogout}>Sign out</MenuItem>
           </Menu>
         </Toolbar>

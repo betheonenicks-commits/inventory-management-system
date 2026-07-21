@@ -9,6 +9,8 @@ import { AssetEditPage } from '../features/assets/AssetEditPage'
 import { CategoryConfigPage } from '../features/assets/CategoryConfigPage'
 import { UserListPage } from '../features/users/UserListPage'
 import { RoleListPage } from '../features/roles/RoleListPage'
+import { OrgHierarchyPage } from '../features/org/OrgHierarchyPage'
+import { DepartmentListPage } from '../features/org/DepartmentListPage'
 import { AuditListPage } from '../features/audits/AuditListPage'
 import { AuditDetailPage } from '../features/audits/AuditDetailPage'
 import { CompliancePage } from '../features/compliance/CompliancePage'
@@ -23,7 +25,9 @@ import { InventoryItemDetailPage } from '../features/inventory/InventoryItemDeta
 import { WarehouseListPage } from '../features/inventory/WarehouseListPage'
 import { VendorListPage } from '../features/inventory/VendorListPage'
 import { ManualAdjustmentListPage } from '../features/inventory/ManualAdjustmentListPage'
+import { ExpiringStockPage } from '../features/inventory/ExpiringStockPage'
 import { NotificationPreferencesPage } from '../features/notifications/NotificationPreferencesPage'
+import { ApprovalDelegationsPage } from '../features/lifecycle/ApprovalDelegationsPage'
 import { NotFoundPage } from '../components/common/NotFoundPage'
 
 export const router = createBrowserRouter([
@@ -43,6 +47,8 @@ export const router = createBrowserRouter([
           { path: 'assets/categories', element: <CategoryConfigPage /> },
           { path: 'assets/:assetId', element: <AssetDetailPage /> },
           { path: 'assets/:assetId/edit', element: <AssetEditPage /> },
+          { path: 'organization', element: <OrgHierarchyPage /> },
+          { path: 'organization/departments', element: <DepartmentListPage /> },
           { path: 'users', element: <UserListPage /> },
           { path: 'roles', element: <RoleListPage /> },
           { path: 'audits', element: <AuditListPage /> },
@@ -56,7 +62,9 @@ export const router = createBrowserRouter([
           { path: 'inventory/warehouses', element: <WarehouseListPage /> },
           { path: 'inventory/vendors', element: <VendorListPage /> },
           { path: 'inventory/adjustments', element: <ManualAdjustmentListPage /> },
+          { path: 'inventory/expiring-stock', element: <ExpiringStockPage /> },
           { path: 'settings/notifications', element: <NotificationPreferencesPage /> },
+          { path: 'settings/approval-delegations', element: <ApprovalDelegationsPage /> },
         ],
       },
     ],

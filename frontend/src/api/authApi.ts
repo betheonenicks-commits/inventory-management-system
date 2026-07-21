@@ -18,3 +18,19 @@ export function login(username: string, password: string) {
 export function logout(refreshToken: string) {
   return httpClient.post('/auth/logout', { refreshToken }).then(() => undefined)
 }
+
+export interface MeResponse {
+  id: string
+  username: string
+  displayName: string
+  roleCodes: string[]
+  orgScopeNodeId: string | null
+  permissions: string[]
+}
+
+// The stored AuthUser (Zustand) never carries the user's own id - this is
+// for the rare case something needs "my own id" (US-LIF-15's delegation
+// picker needs its own delegatorUserId), not routine UI permission checks.
+export function fetchMe() {
+  return httpClient.get<MeResponse>('/auth/me').then((r) => r.data)
+}

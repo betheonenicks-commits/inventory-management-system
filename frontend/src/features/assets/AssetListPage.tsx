@@ -24,6 +24,8 @@ import { LoadingSkeleton } from '../../components/common/LoadingSkeleton'
 import { AssetTable } from './components/AssetTable'
 import { useAssetsQuery } from './hooks/useAssetsQuery'
 import { useAssetCategoriesQuery } from './hooks/useAssetCategoriesQuery'
+import { useAssetStatusesQuery } from './hooks/useAssetStatusesQuery'
+import { useOrgNodesQuery } from '../org/hooks/useOrgHierarchyQuery'
 import { useAuthStore, hasPermission } from '../../auth/authStore'
 import { isApiProblem } from '../../api/errors'
 import {
@@ -43,14 +45,23 @@ export function AssetListPage() {
   const page = Number(searchParams.get('page') ?? '0')
   const size = Number(searchParams.get('size') ?? '25')
   const categoryId = searchParams.get('categoryId') ?? undefined
+  // US-SRC-03: combine status/location/purchase-date-range with the existing
+  // text search + category filter, in one query - the backend already
+  // accepted all of these together, only the controls were missing.
+  const statusId = searchParams.get('statusId') ?? undefined
+  const orgNodeId = searchParams.get('orgNodeId') ?? undefined
+  const purchasedFrom = searchParams.get('purchasedFrom') ?? undefined
+  const purchasedTo = searchParams.get('purchasedTo') ?? undefined
 
   const filters = useMemo(
-    () => ({ q: debouncedQuery || undefined, categoryId }),
-    [debouncedQuery, categoryId],
+    () => ({ q: debouncedQuery || undefined, categoryId, statusId, orgNodeId, purchasedFrom, purchasedTo }),
+    [debouncedQuery, categoryId, statusId, orgNodeId, purchasedFrom, purchasedTo],
   )
 
   const assetsQuery = useAssetsQuery(filters, page, size)
   const categoriesQuery = useAssetCategoriesQuery()
+  const statusesQuery = useAssetStatusesQuery()
+  const orgNodesQuery = useOrgNodesQuery()
 
   // --- Saved searches (US-SRC-04) ---
   const queryClient = useQueryClient()
@@ -116,6 +127,10 @@ export function AssetListPage() {
         name: saveName,
         query: debouncedQuery || undefined,
         categoryId: categoryId || undefined,
+        statusId: statusId || undefined,
+        orgNodeId: orgNodeId || undefined,
+        purchasedFrom: purchasedFrom || undefined,
+        purchasedTo: purchasedTo || undefined,
       })
       setSaveOpen(false)
       setSaveName('')
@@ -131,7 +146,14 @@ export function AssetListPage() {
       // dropped with a note instead of silently 404ing the filter (AC-SRC-04).
       const resolved = await resolveSavedSearch(id)
       setSearchInput(resolved.query ?? '')
-      updateParams({ categoryId: resolved.categoryId ?? undefined, page: '0' })
+      updateParams({
+        categoryId: resolved.categoryId ?? undefined,
+        statusId: resolved.statusId ?? undefined,
+        orgNodeId: resolved.orgNodeId ?? undefined,
+        purchasedFrom: resolved.purchasedFrom ?? undefined,
+        purchasedTo: resolved.purchasedTo ?? undefined,
+        page: '0',
+      })
       setAppliedNotes(resolved.droppedFilterNotes)
     } catch (err) {
       setAppliedNotes([isApiProblem(err) ? err.detail : 'Failed to apply the saved search'])
@@ -150,7 +172,7 @@ export function AssetListPage() {
     setSearchParams(params)
   }
 
-  const hasFilters = !!debouncedQuery || !!categoryId
+  const hasFilters = !!debouncedQuery || !!categoryId || !!statusId || !!orgNodeId || !!purchasedFrom || !!purchasedTo
 
   return (
     <Box>
@@ -165,7 +187,7 @@ export function AssetListPage() {
         }
       />
 
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+      <Stack direction="row" spacing={2} useFlexGap sx={{ mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField
           label="Search"
           size="small"
@@ -182,7 +204,7 @@ export function AssetListPage() {
           select
           value={categoryId ?? ''}
           onChange={(e) => updateParams({ categoryId: e.target.value, page: '0' })}
-          sx={{ minWidth: 200 }}
+          sx={{ minWidth: 180 }}
         >
           <MenuItem value="">All categories</MenuItem>
           {(categoriesQuery.data ?? []).map((c) => (
@@ -191,6 +213,55 @@ export function AssetListPage() {
             </MenuItem>
           ))}
         </TextField>
+        {/* US-SRC-03: status/location/purchase-date-range, combinable with the above in one query. */}
+        <TextField
+          label="Status"
+          size="small"
+          select
+          value={statusId ?? ''}
+          onChange={(e) => updateParams({ statusId: e.target.value, page: '0' })}
+          sx={{ minWidth: 160 }}
+        >
+          <MenuItem value="">All statuses</MenuItem>
+          {(statusesQuery.data ?? []).map((s) => (
+            <MenuItem key={s.id} value={s.id}>
+              {s.label}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          label="Location"
+          size="small"
+          select
+          value={orgNodeId ?? ''}
+          onChange={(e) => updateParams({ orgNodeId: e.target.value, page: '0' })}
+          sx={{ minWidth: 180 }}
+        >
+          <MenuItem value="">All locations</MenuItem>
+          {(orgNodesQuery.data ?? []).map((n) => (
+            <MenuItem key={n.id} value={n.id}>
+              {n.name} ({n.levelName})
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          label="Purchased from"
+          size="small"
+          type="date"
+          value={purchasedFrom ?? ''}
+          onChange={(e) => updateParams({ purchasedFrom: e.target.value, page: '0' })}
+          slotProps={{ inputLabel: { shrink: true } }}
+          sx={{ minWidth: 160 }}
+        />
+        <TextField
+          label="Purchased to"
+          size="small"
+          type="date"
+          value={purchasedTo ?? ''}
+          onChange={(e) => updateParams({ purchasedTo: e.target.value, page: '0' })}
+          slotProps={{ inputLabel: { shrink: true } }}
+          sx={{ minWidth: 160 }}
+        />
         <Button
           size="small"
           startIcon={<BookmarkAddIcon />}
@@ -274,7 +345,15 @@ export function AssetListPage() {
             <Button
               onClick={() => {
                 setSearchInput('')
-                updateParams({ q: undefined, categoryId: undefined, page: '0' })
+                updateParams({
+                  q: undefined,
+                  categoryId: undefined,
+                  statusId: undefined,
+                  orgNodeId: undefined,
+                  purchasedFrom: undefined,
+                  purchasedTo: undefined,
+                  page: '0',
+                })
               }}
             >
               Clear filters

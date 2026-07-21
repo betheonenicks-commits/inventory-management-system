@@ -48,3 +48,32 @@ export function restoreDisposal(id: string) {
 export function escalateDisposal(id: string) {
   return httpClient.post<Disposal>(`/disposals/${id}/escalate`).then((r) => r.data)
 }
+
+// --- Approval delegation (US-LIF-15) ---
+
+export interface ApprovalDelegation {
+  id: string
+  version: number
+  delegatorUserId: string
+  delegateUserId: string
+  validFrom: string
+  validTo: string
+  active: boolean
+  reason: string | null
+}
+
+export function fetchApprovalDelegations(delegatorUserId: string) {
+  return httpClient
+    .get<ApprovalDelegation[]>('/approval-delegations', { params: { delegatorUserId } })
+    .then((r) => r.data)
+}
+
+export function createApprovalDelegation(delegateUserId: string, validFrom: string, validTo: string, reason?: string) {
+  return httpClient
+    .post<ApprovalDelegation>('/approval-delegations', { delegateUserId, validFrom, validTo, reason })
+    .then((r) => r.data)
+}
+
+export function revokeApprovalDelegation(id: string) {
+  return httpClient.post<ApprovalDelegation>(`/approval-delegations/${id}/revoke`).then((r) => r.data)
+}

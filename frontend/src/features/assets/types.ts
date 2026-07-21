@@ -94,6 +94,11 @@ export interface AssetListFilters {
   categoryId?: string
   statusId?: string
   q?: string
+  // US-SRC-03: combine location + purchase-date-range with the filters above -
+  // the backend always accepted these; only the UI was missing them.
+  orgNodeId?: string
+  purchasedFrom?: string
+  purchasedTo?: string
 }
 
 export interface AssetInsurance {
