@@ -15,6 +15,7 @@ import { AuditListPage } from '../features/audits/AuditListPage'
 import { AuditDetailPage } from '../features/audits/AuditDetailPage'
 import { CompliancePage } from '../features/compliance/CompliancePage'
 import { SecurityEventLogPage } from '../features/security/SecurityEventLogPage'
+import { PasswordPolicySettingsPage } from '../features/security/PasswordPolicySettingsPage'
 import { PurchaseRequestListPage } from '../features/procurement/PurchaseRequestListPage'
 import { PurchaseOrderListPage } from '../features/procurement/PurchaseOrderListPage'
 import { PurchaseOrderDetailPage } from '../features/procurement/PurchaseOrderDetailPage'
@@ -56,6 +57,7 @@ export const router = createBrowserRouter([
           { path: 'audits/:auditId', element: <AuditDetailPage /> },
           { path: 'compliance', element: <CompliancePage /> },
           { path: 'security-events', element: <SecurityEventLogPage /> },
+          { path: 'settings/password-policy', element: <PasswordPolicySettingsPage /> },
           { path: 'procurement/purchase-requests', element: <PurchaseRequestListPage /> },
           { path: 'procurement/purchase-orders', element: <PurchaseOrderListPage /> },
           { path: 'procurement/purchase-orders/:orderId', element: <PurchaseOrderDetailPage /> },

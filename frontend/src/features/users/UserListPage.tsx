@@ -32,6 +32,8 @@ import { isApiProblem } from '../../api/errors'
 import type { ApiProblem } from '../../api/errors'
 import { useRolesQuery } from '../roles/hooks/useRolesQuery'
 import { useCreateUserMutation, useDeactivateUserMutation, useUsersQuery } from './hooks/useUsersQuery'
+import { usePasswordPolicyQuery } from '../security/hooks/usePasswordPolicyQuery'
+import { passwordViolations } from '../../api/security/passwordPolicyApi'
 import type { User } from './types'
 
 interface UserFormState {
@@ -55,6 +57,8 @@ export function UserListPage() {
   const createUser = useCreateUserMutation()
   const deactivateUser = useDeactivateUserMutation()
   const canWrite = hasPermission(useAuthStore((s) => s.user), 'users:write')
+  // US-SEC-05: the actual configured policy, not a hardcoded length<8 guess.
+  const passwordPolicyQuery = usePasswordPolicyQuery()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<UserFormState>(EMPTY_FORM)
@@ -103,6 +107,20 @@ export function UserListPage() {
       }
     }
   }
+
+  const passwordIssues = passwordViolations(form.password, passwordPolicyQuery.data)
+  const policy = passwordPolicyQuery.data
+  const passwordHelperText = policy
+    ? `Needs ${[
+        `at least ${policy.minLength} characters`,
+        policy.requireUppercase && 'an uppercase letter',
+        policy.requireLowercase && 'a lowercase letter',
+        policy.requireDigit && 'a digit',
+        policy.requireSpecial && 'a special character',
+      ]
+        .filter(Boolean)
+        .join(', ')}`
+    : 'Loading the current password policy…'
 
   return (
     <Box>
@@ -197,7 +215,7 @@ export function UserListPage() {
               type="password"
               fullWidth
               required
-              helperText="At least 8 characters"
+              helperText={passwordHelperText}
               value={form.password}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
             />
@@ -247,7 +265,7 @@ export function UserListPage() {
             onClick={handleCreate}
             disabled={
               !form.username ||
-              form.password.length < 8 ||
+              passwordIssues.length > 0 ||
               !form.displayName ||
               form.roleCodes.length === 0 ||
               createUser.isPending

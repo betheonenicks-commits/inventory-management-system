@@ -1275,3 +1275,17 @@ Continued the RTM Partial-clearing effort (Batches A/B cleared EPIC-AUD). This b
 **Story-status effect:** US-SEC-04 and US-SEC-11 move to **Built**.
 
 **RTM tally so far this effort: 20 of the 50 original Partials cleared**, 30 remain. Continuing Batch D: SEC-05 (password policy config UI), SEC-10 (export + legal-hold), SEC-09 (self-service unlock), SEC-06 (step-up auth - the largest remaining item), SEC-13 (non-code, to be flagged not built).
+
+---
+
+## 2026-07-22, continued - Batch D (part 2): US-SEC-05 (password policy config UI + fixing a hardcoded check that ignored it)
+
+The backend (`PasswordValidator`/`PasswordPolicyService`/`PasswordPolicyController`) was fully built with no admin screen to reach it - Super Admins had no way to actually change the enforced password rules. Worse, `UserListPage.tsx`'s create-user dialog hardcoded its own `password.length < 8` check, completely ignoring whatever policy was actually configured - a policy change would silently have no effect on this form's own validation (the backend would still correctly reject on save, but the client-side gate and helper text would keep lying).
+
+**Built:** `api/security/passwordPolicyApi.ts` (get/update + a shared `passwordViolations()` mirroring `PasswordValidator.java`'s rules - length/uppercase/lowercase/digit/special - for a client-side pre-check; the backend remains the real enforcement). New `PasswordPolicySettingsPage.tsx` (Super-Admin-only, `security:write`-gated, optimistic-lock version). Fixed `UserListPage.tsx` to fetch the real policy, replaced the hardcoded length check and static helper text with `passwordViolations()` and a dynamic description built from the actual configured rules.
+
+**Verification:** `tsc -b`/`oxlint` clean - no backend code changed (existing suite unaffected). **Live-verified** on 8081: read the current policy, updated it, confirmed the change round-tripped, reverted it back to its exact original values (12/uppercase/no-lowercase/digit/special - caught and fixed a revert mistake mid-verification where I'd reverted to the wrong minLength), confirmed anon read is 401 and authenticated read is 200.
+
+**Story-status effect:** US-SEC-05 moves to **Built**.
+
+**RTM tally so far this effort: 21 of the 50 original Partials cleared**, 29 remain. Continuing Batch D: SEC-10 (pre-erasure export + legal-hold wiring), SEC-09 (self-service unlock), SEC-06 (step-up auth), SEC-13 (non-code, to flag).
