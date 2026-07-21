@@ -2,6 +2,8 @@ package com.iams.report.api;
 
 import com.iams.analytics.application.TrackUsage;
 import com.iams.common.exception.ValidationFailedException;
+import com.iams.common.security.CurrentUserProvider;
+import com.iams.sec.application.SecurityEventLogger;
 import com.iams.report.application.AdHocReportService;
 import com.iams.report.application.AdoptionReportService;
 import com.iams.report.application.CsvExporter;
@@ -65,13 +67,16 @@ public class ReportController {
     private final ReportDispatchService dispatchService;
     private final ReportScheduleService scheduleService;
     private final ReportScheduleJob scheduleJob;
+    private final CurrentUserProvider currentUserProvider;
+    private final SecurityEventLogger securityEventLogger;
 
     public ReportController(ReportService reportService, AdoptionReportService adoptionReportService,
                             AdHocReportService adHocReportService,
                             CsvExporter csvExporter, XlsxExporter xlsxExporter,
                             PdfExporter pdfExporter, ExportJobService exportJobService,
                             ReportDispatchService dispatchService, ReportScheduleService scheduleService,
-                            ReportScheduleJob scheduleJob) {
+                            ReportScheduleJob scheduleJob, CurrentUserProvider currentUserProvider,
+                            SecurityEventLogger securityEventLogger) {
         this.reportService = reportService;
         this.adoptionReportService = adoptionReportService;
         this.adHocReportService = adHocReportService;
@@ -82,6 +87,8 @@ public class ReportController {
         this.dispatchService = dispatchService;
         this.scheduleService = scheduleService;
         this.scheduleJob = scheduleJob;
+        this.currentUserProvider = currentUserProvider;
+        this.securityEventLogger = securityEventLogger;
     }
 
     @GetMapping("/asset-register")
@@ -224,6 +231,8 @@ public class ReportController {
     @GetMapping("/export-jobs/{id}/download")
     public ResponseEntity<byte[]> downloadExportJob(@PathVariable UUID id) {
         ExportJobService.DownloadableExport export = exportJobService.download(id);
+        securityEventLogger.record(SecurityEventType.REPORT_EXPORTED, currentUserProvider.current().id(), null, null,
+                "Background export '" + export.fileName() + "' downloaded");
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + export.fileName() + "\"")
                 .contentType(mediaTypeFor(export.format()))
@@ -371,6 +380,9 @@ public class ReportController {
 
     private ResponseEntity<byte[]> download(TabularReport report, String extension, MediaType mediaType, byte[] body) {
         String filename = report.key() + "-" + LocalDate.now() + "." + extension;
+        // US-SEC-04: "every ... export" - a file actually leaving as bytes, not just a JSON view.
+        securityEventLogger.record(SecurityEventType.REPORT_EXPORTED, currentUserProvider.current().id(), null, null,
+                "Report '" + report.key() + "' exported as " + extension.toUpperCase());
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                 .contentType(mediaType)

@@ -54,6 +54,7 @@ class AuditWorkflowServiceTest {
     @Mock private AssetHistoryRecorder historyRecorder;
     @Mock private ApprovalRoutingService routingService;
     @Mock private AuditService auditService;
+    @Mock private com.iams.sec.application.SecurityEventLogger securityEventLogger;
 
     private AuditWorkflowService service;
     private UUID actorId;
@@ -65,7 +66,8 @@ class AuditWorkflowServiceTest {
     void setUp() {
         service = new AuditWorkflowService(auditRepository, expectedAssetRepository, findingRepository,
                 sodWaiverRepository, appUserRepository, passwordEncoder, currentUserProvider, assetRepository,
-                statusDefRepository, historyRecorder, routingService, new LifecycleProperties(), auditService);
+                statusDefRepository, historyRecorder, routingService, new LifecycleProperties(), auditService,
+                securityEventLogger);
         actorId = UUID.randomUUID();
         auditId = UUID.randomUUID();
         audit = new Audit();
@@ -95,6 +97,11 @@ class AuditWorkflowServiceTest {
         assertThat(result.getSubmittedBy()).isEqualTo(actorId);
         assertThat(result.getSignatureName()).isEqualTo("Auditor One");
         assertThat(result.getEffectiveApproverId()).isEqualTo(audit.getNominalApproverId());
+        // US-SEC-04: "every ... audit submission" is now logged.
+        org.mockito.Mockito.verify(securityEventLogger).record(
+                org.mockito.ArgumentMatchers.eq(com.iams.sec.domain.SecurityEventType.AUDIT_SUBMITTED),
+                org.mockito.ArgumentMatchers.eq(actorId), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test

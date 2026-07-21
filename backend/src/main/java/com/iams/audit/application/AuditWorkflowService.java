@@ -20,6 +20,8 @@ import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUserProvider;
 import com.iams.lifecycle.application.ApprovalRoutingService;
 import com.iams.lifecycle.application.LifecycleProperties;
+import com.iams.sec.application.SecurityEventLogger;
+import com.iams.sec.domain.SecurityEventType;
 import com.iams.usr.domain.AppUser;
 import com.iams.usr.domain.AppUserRepository;
 import com.iams.usr.domain.SodWaiver;
@@ -63,6 +65,7 @@ public class AuditWorkflowService {
     private final ApprovalRoutingService routingService;
     private final LifecycleProperties lifecycleProperties;
     private final AuditService auditService;
+    private final SecurityEventLogger securityEventLogger;
 
     public AuditWorkflowService(AuditRepository auditRepository, AuditExpectedAssetRepository expectedAssetRepository,
                                  AuditFindingRepository findingRepository, SodWaiverRepository sodWaiverRepository,
@@ -70,7 +73,7 @@ public class AuditWorkflowService {
                                  CurrentUserProvider currentUserProvider, AssetRepository assetRepository,
                                  AssetStatusDefRepository statusDefRepository, AssetHistoryRecorder historyRecorder,
                                  ApprovalRoutingService routingService, LifecycleProperties lifecycleProperties,
-                                 AuditService auditService) {
+                                 AuditService auditService, SecurityEventLogger securityEventLogger) {
         this.auditRepository = auditRepository;
         this.expectedAssetRepository = expectedAssetRepository;
         this.findingRepository = findingRepository;
@@ -84,6 +87,7 @@ public class AuditWorkflowService {
         this.auditService = auditService;
         this.routingService = routingService;
         this.lifecycleProperties = lifecycleProperties;
+        this.securityEventLogger = securityEventLogger;
     }
 
     @Transactional
@@ -114,7 +118,11 @@ public class AuditWorkflowService {
         audit.setSignatureName(signatureName != null && !signatureName.isBlank() ? signatureName : user.getDisplayName());
         audit.setStatus(AuditStatus.PENDING_APPROVAL);
         audit.setUpdatedBy(actor);
-        return auditRepository.saveAndFlush(audit);
+        Audit saved = auditRepository.saveAndFlush(audit);
+        // US-SEC-04: "every ... audit submission."
+        securityEventLogger.record(SecurityEventType.AUDIT_SUBMITTED, actor, null, null,
+                "Audit '" + saved.getName() + "' signed and submitted for approval");
+        return saved;
     }
 
     /** US-AUD-22: submitter can never be their own approver - blocked, unless an active waiver reroutes to its signer instead. */

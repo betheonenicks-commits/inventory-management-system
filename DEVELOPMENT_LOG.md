@@ -1261,3 +1261,17 @@ Continued the RTM Partial-clearing effort (Batches A/B cleared EPIC-AUD). This b
 **Story-status effect:** US-ORG-01, 02, 03, 06, US-SRC-03, US-LIF-15, US-CMP-03, US-INV-09 all move to **Built**.
 
 **RTM tally so far this effort: 18 of the 50 original Partials cleared** (6 Batch A + 4 Batch B + 8 Batch C), 32 remain across 7 more planned batches (D: SEC; E: USR/AST; F: CMP; G: NTF; H: RPT/INT; I: SCN; J: PLAT).
+
+---
+
+## 2026-07-22, continued - Batch D (part 1) of RTM Partial-clearing: SEC-04 (export/audit-submission logging) and SEC-11 (Security Log search page)
+
+**US-SEC-04.** Its own AC names "every login, permission change, export, and audit submission" - the first two were already logged; export and audit-submission never were (the enum's own comment admitted this, dating to before EPIC-RPT/EPIC-AUD existed to produce those events). Added `SecurityEventType.REPORT_EXPORTED` and `AUDIT_SUBMITTED`. `REPORT_EXPORTED` is logged from `ReportController.download()` - the single funnel every CSV/XLSX/PDF export already passes through, covering all 15 report types uniformly - and from `downloadExportJob()` (the background-export path), so a report *generated* as JSON isn't logged, only one actually exported as a file. `AUDIT_SUBMITTED` is logged at the end of `AuditWorkflowService.submit()`. Both needed `CurrentUserProvider`/`SecurityEventLogger` wired into `ReportController`'s constructor (previously absent there entirely).
+
+**US-SEC-11.** The RTM's gap analysis was half-right: an exportable formal report over the security log already existed (`GET /reports/security-events`, US-RPT-14) - but `ReportsPage.tsx`'s 'security-events' case sent `{}` for every request, so that export was always completely unfiltered; and there was no interactive search/filter page at all reaching `SecurityEventController.search()`. Fixed both: added actorUserId/eventType/from/to filter controls to the Reports page's security-events case (now genuinely combinable with export, live-verified: 315 filtered rows vs 407 unfiltered, all filtered rows the requested type); and built a new `SecurityEventLogPage.tsx` (paginated table, the same four filters) as the live interactive view, distinct from the generate-and-download report. A shared `SECURITY_EVENT_TYPES` constant (`api/security/securityEventApi.ts`) avoids duplicating the type list across both surfaces.
+
+**Verification.** Backend: existing `AuditWorkflowServiceTest.submit_succeeds...` extended to assert the new `AUDIT_SUBMITTED` log call; full suite 490/490 (no new test methods, one enhanced). Frontend: `tsc -b`/`oxlint` clean. **Live-verified** on 8081: exported an asset-register CSV, confirmed a `REPORT_EXPORTED` row with the right detail text; submitted a real in-progress audit (reusing "Batch-B asset-list audit" from an earlier verification pass), confirmed an `AUDIT_SUBMITTED` row; confirmed `/security-events` search/filter/401-when-anonymous; confirmed the Reports page's security-events export actually narrows with `eventType` (315 of 407 rows, all matching).
+
+**Story-status effect:** US-SEC-04 and US-SEC-11 move to **Built**.
+
+**RTM tally so far this effort: 20 of the 50 original Partials cleared**, 30 remain. Continuing Batch D: SEC-05 (password policy config UI), SEC-10 (export + legal-hold), SEC-09 (self-service unlock), SEC-06 (step-up auth - the largest remaining item), SEC-13 (non-code, to be flagged not built).

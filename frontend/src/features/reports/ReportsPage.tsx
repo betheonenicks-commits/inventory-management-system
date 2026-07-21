@@ -49,6 +49,9 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import ScheduleIcon from '@mui/icons-material/Schedule'
 import { fetchOrgNodes } from '../../api/org/orgNodeApi'
 import { fetchPersons } from '../../api/persons/personApi'
+import { usePickableUsersQuery } from '../users/hooks/useUsersQuery'
+import { SECURITY_EVENT_TYPES } from '../../api/security/securityEventApi'
+import type { SecurityEventType } from '../../api/security/securityEventApi'
 import { AdHocReportsPanel } from './AdHocReportsPanel'
 import { AuditTrendsPanel } from '../audits/components/AuditTrendsPanel'
 import type { TabularReport } from './types'
@@ -110,6 +113,12 @@ export function ReportsPage() {
   const [from, setFrom] = useState(defaultFrom())
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10))
   const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10))
+  // US-SEC-11: the security-events report's own filters - previously this report was
+  // always run/exported completely unfiltered, since currentParams() sent {} for it.
+  const [securityActorUserId, setSecurityActorUserId] = useState('')
+  const [securityEventType, setSecurityEventType] = useState<SecurityEventType | ''>('')
+  const [securityFrom, setSecurityFrom] = useState('')
+  const [securityTo, setSecurityTo] = useState('')
   const [report, setReport] = useState<TabularReport | null>(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -159,6 +168,7 @@ export function ReportsPage() {
     queryFn: () => fetchPersons(),
     enabled: reportKey === 'employee-assets',
   })
+  const securityUsersQuery = usePickableUsersQuery(reportKey === 'security-events')
 
   function currentParams(): ReportParams | { error: string } {
     switch (reportKey) {
@@ -181,7 +191,13 @@ export function ReportsPage() {
       case 'maintenance-history':
         return {}
       case 'security-events':
-        return {}
+        // AC-SEC-11-H: combinable with the same filters the live search page offers.
+        return {
+          actorUserId: securityActorUserId || undefined,
+          eventType: securityEventType || undefined,
+          from: securityFrom ? new Date(securityFrom).toISOString() : undefined,
+          to: securityTo ? new Date(securityTo).toISOString() : undefined,
+        }
     }
   }
 
@@ -312,6 +328,59 @@ export function ReportsPage() {
                   ))}
                 </Select>
               </FormControl>
+            )}
+
+            {reportKey === 'security-events' && (
+              <>
+                <FormControl sx={{ minWidth: 200 }}>
+                  <InputLabel id="security-user-label">User (optional)</InputLabel>
+                  <Select
+                    labelId="security-user-label"
+                    label="User (optional)"
+                    value={securityActorUserId}
+                    onChange={(e) => setSecurityActorUserId(e.target.value)}
+                  >
+                    <MenuItem value="">All users</MenuItem>
+                    {(securityUsersQuery.data ?? []).map((u) => (
+                      <MenuItem key={u.id} value={u.id}>
+                        {u.displayName}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl sx={{ minWidth: 200 }}>
+                  <InputLabel id="security-event-type-label">Event type (optional)</InputLabel>
+                  <Select
+                    labelId="security-event-type-label"
+                    label="Event type (optional)"
+                    value={securityEventType}
+                    onChange={(e) => setSecurityEventType(e.target.value as SecurityEventType | '')}
+                  >
+                    <MenuItem value="">All event types</MenuItem>
+                    {SECURITY_EVENT_TYPES.map((t) => (
+                      <MenuItem key={t} value={t}>
+                        {t.replace(/_/g, ' ')}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  label="From"
+                  type="datetime-local"
+                  value={securityFrom}
+                  onChange={(e) => setSecurityFrom(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  sx={{ minWidth: 200 }}
+                />
+                <TextField
+                  label="To"
+                  type="datetime-local"
+                  value={securityTo}
+                  onChange={(e) => setSecurityTo(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  sx={{ minWidth: 200 }}
+                />
+              </>
             )}
 
             {(reportKey === 'expiry' || reportKey === 'usage-adoption') && (

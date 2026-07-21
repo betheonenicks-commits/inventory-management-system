@@ -2,10 +2,10 @@ package com.iams.sec.domain;
 
 /**
  * US-SEC-04's AC names "every login, permission change, export, and audit
- * submission" - EXPORT/AUDIT_SUBMISSION have no epic behind them yet
- * (EPIC-CMP/EPIC-AUD are both unstarted), so only the event types that
- * actually occur in the codebase today are listed. Add to this enum, don't
- * invent a generic "OTHER", as each new event-producing feature lands.
+ * submission" - all four are now covered (REPORT_EXPORTED / AUDIT_SUBMITTED
+ * closed the last two, added once EPIC-RPT/EPIC-AUD existed to produce
+ * them). Add to this enum, don't invent a generic "OTHER", as each new
+ * event-producing feature lands.
  */
 public enum SecurityEventType {
     LOGIN_SUCCESS,
@@ -36,5 +36,9 @@ public enum SecurityEventType {
     /** FR-INT-05: an integration was disabled. */
     INTEGRATION_DISABLED,
     /** US-SEC-15 / FR-INT-05: an integration registration was deleted. */
-    INTEGRATION_DELETED
+    INTEGRATION_DELETED,
+    /** US-SEC-04: a report was actually exported to a file (CSV/XLSX/PDF, sync or background) - not just viewed as JSON. */
+    REPORT_EXPORTED,
+    /** US-SEC-04: an audit was signed and submitted for approval. */
+    AUDIT_SUBMITTED
 }
