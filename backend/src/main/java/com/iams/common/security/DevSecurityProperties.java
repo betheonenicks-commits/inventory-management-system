@@ -18,6 +18,7 @@ public class DevSecurityProperties {
     private DevUser devUser = new DevUser();
     private Jwt jwt = new Jwt();
     private Session session = new Session();
+    private StepUp stepUp = new StepUp();
 
     public DevUser getDevUser() {
         return devUser;
@@ -43,6 +44,14 @@ public class DevSecurityProperties {
         this.session = session;
     }
 
+    public StepUp getStepUp() {
+        return stepUp;
+    }
+
+    public void setStepUp(StepUp stepUp) {
+        this.stepUp = stepUp;
+    }
+
     /** US-SEC-06: idle-session enforcement for the stateless access token. */
     public static class Session {
         // A session with no request for longer than this is treated as idle; the
@@ -56,6 +65,19 @@ public class DevSecurityProperties {
 
         public void setIdleTimeout(Duration idleTimeout) {
             this.idleTimeout = idleTimeout;
+        }
+    }
+
+    /** US-SEC-06 (AC-SEC-06-X): how long a step-up re-authentication stays valid before a step-up-required action demands it again. */
+    public static class StepUp {
+        private Duration validity = Duration.ofMinutes(5);
+
+        public Duration getValidity() {
+            return validity;
+        }
+
+        public void setValidity(Duration validity) {
+            this.validity = validity;
         }
     }
 

@@ -42,5 +42,7 @@ public enum SecurityEventType {
     /** US-SEC-04: an audit was signed and submitted for approval. */
     AUDIT_SUBMITTED,
     /** US-SEC-09: a locked-out user requested a self-service unlock email. */
-    ACCOUNT_UNLOCK_REQUESTED
+    ACCOUNT_UNLOCK_REQUESTED,
+    /** US-SEC-06: a step-up-required action's password re-confirmation succeeded. */
+    STEP_UP_VERIFIED
 }

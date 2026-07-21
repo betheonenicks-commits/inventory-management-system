@@ -9,6 +9,7 @@ import com.iams.common.security.AccountLockedException;
 import com.iams.common.security.InvalidCredentialsException;
 import com.iams.common.security.InvalidRefreshTokenException;
 import com.iams.common.security.InvalidUnlockTokenException;
+import com.iams.common.security.StepUpRequiredException;
 import com.iams.compliance.application.LegalHoldActiveException;
 import com.iams.storage.infrastructure.StorageUnavailableException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -173,6 +174,21 @@ public class ApiExceptionHandler {
         ProblemDetail pd = build(HttpStatus.LOCKED, "legal-hold-active", "Legal Hold Active", ex.getMessage(), "LEGAL_HOLD_ACTIVE", req);
         pd.setProperty("scopeType", ex.getScopeType());
         return ResponseEntity.status(HttpStatus.LOCKED).body(pd);
+    }
+
+    /**
+     * US-SEC-06 (AC-SEC-06-X): distinguishable from a plain 403 - the caller
+     * already has the right permission, they're just missing a recent
+     * password re-confirmation. A generic "Access Denied" here would give the
+     * frontend no way to tell "you'll never be allowed" apart from "re-enter
+     * your password and retry," so this gets its own errorCode instead of
+     * falling into handleAccessDenied below.
+     */
+    @ExceptionHandler(StepUpRequiredException.class)
+    public ResponseEntity<ProblemDetail> handleStepUpRequired(StepUpRequiredException ex, HttpServletRequest req) {
+        ProblemDetail pd = build(HttpStatus.FORBIDDEN, "step-up-required", "Step-Up Required", ex.getMessage(),
+                "STEP_UP_REQUIRED", req);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(pd);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

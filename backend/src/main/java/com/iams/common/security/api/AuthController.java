@@ -8,6 +8,7 @@ import com.iams.common.security.InvalidCredentialsException;
 import com.iams.common.security.InvalidRefreshTokenException;
 import com.iams.common.security.JwtService;
 import com.iams.common.security.SessionActivityGuard;
+import com.iams.common.security.StepUpGuard;
 import com.iams.sec.application.SecurityEventLogger;
 import com.iams.sec.domain.SecurityEventType;
 import com.iams.usr.application.RefreshTokenService;
@@ -51,6 +52,7 @@ public class AuthController {
     private final SecurityEventLogger securityEventLogger;
     private final RefreshTokenService refreshTokenService;
     private final SessionActivityGuard sessionActivityGuard;
+    private final StepUpGuard stepUpGuard;
     // A real BCrypt hash of a value nobody's actual password will ever be, encoded once at
     // startup and compared against on every login for a username that doesn't exist. This
     // keeps response timing (dominated by BCrypt's cost) the same whether the username is
@@ -63,7 +65,8 @@ public class AuthController {
     public AuthController(UserQueryService userQueryService, PasswordEncoder passwordEncoder,
                            JwtService jwtService, CurrentUserProvider currentUserProvider,
                            UserLockoutService lockoutService, SecurityEventLogger securityEventLogger,
-                           RefreshTokenService refreshTokenService, SessionActivityGuard sessionActivityGuard) {
+                           RefreshTokenService refreshTokenService, SessionActivityGuard sessionActivityGuard,
+                           StepUpGuard stepUpGuard) {
         this.userQueryService = userQueryService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -72,6 +75,7 @@ public class AuthController {
         this.securityEventLogger = securityEventLogger;
         this.refreshTokenService = refreshTokenService;
         this.sessionActivityGuard = sessionActivityGuard;
+        this.stepUpGuard = stepUpGuard;
         this.dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
@@ -178,6 +182,25 @@ public class AuthController {
     @PostMapping("/unlock/confirm")
     public ResponseEntity<Void> confirmUnlock(@Valid @RequestBody UnlockConfirmRequest request) {
         lockoutService.confirmSelfServiceUnlock(request.token());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * US-SEC-06 (AC-SEC-06-X): re-confirm the caller's own password to satisfy
+     * a step-up-required action's freshness window. Deliberately separate
+     * from login's lockout counter - this is an already-authenticated caller
+     * proving they're still at the keyboard, not a credential-guessing
+     * surface, so a wrong entry here doesn't count toward account lockout.
+     */
+    @PostMapping("/step-up")
+    public ResponseEntity<Void> stepUp(@Valid @RequestBody StepUpRequest request) {
+        UUID userId = currentUserProvider.current().id();
+        AppUser user = userQueryService.get(userId).user();
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            throw new InvalidCredentialsException();
+        }
+        stepUpGuard.confirm(userId);
+        securityEventLogger.record(SecurityEventType.STEP_UP_VERIFIED, userId, user.getUsername(), null, null);
         return ResponseEntity.noContent().build();
     }
 

@@ -5,6 +5,7 @@ import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.OptimisticLockConflictException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.common.security.StepUpGuard;
 import com.iams.usr.domain.AppUser;
 import com.iams.usr.domain.Role;
 import com.iams.usr.domain.RoleRepository;
@@ -25,6 +26,12 @@ import org.springframework.transaction.annotation.Transactional;
  * @PreAuthorize restricts creation/editing to Super Administrators; this
  * service additionally guards the is_system invariant so it holds even if a
  * future caller forgets the annotation.
+ * <p>
+ * US-SEC-06 (AC-SEC-06-X): every mutation here is what the AC calls a
+ * "step-up-required action" (a permission change) - each one opens with
+ * stepUpGuard.requireVerified(), same idea as the is_system guard above:
+ * enforced in the service so it holds regardless of what the controller
+ * layer remembers to check.
  */
 @Service
 public class RoleService {
@@ -32,12 +39,14 @@ public class RoleService {
     private final RoleRepository roleRepository;
     private final UserRoleAssignmentRepository roleAssignmentRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final StepUpGuard stepUpGuard;
 
     public RoleService(RoleRepository roleRepository, UserRoleAssignmentRepository roleAssignmentRepository,
-                        CurrentUserProvider currentUserProvider) {
+                        CurrentUserProvider currentUserProvider, StepUpGuard stepUpGuard) {
         this.roleRepository = roleRepository;
         this.roleAssignmentRepository = roleAssignmentRepository;
         this.currentUserProvider = currentUserProvider;
+        this.stepUpGuard = stepUpGuard;
     }
 
     @Transactional(readOnly = true)
@@ -52,6 +61,7 @@ public class RoleService {
 
     @Transactional
     public Role createCustom(String code, String name, String description, List<String> permissions) {
+        stepUpGuard.requireVerified(currentUserProvider.current().id());
         if (code == null || code.isBlank()) {
             throw ValidationFailedException.singleField("code", "This field is required");
         }
@@ -77,6 +87,7 @@ public class RoleService {
 
     @Transactional
     public Role updatePermissions(UUID id, String name, String description, List<String> permissions, long expectedVersion) {
+        stepUpGuard.requireVerified(currentUserProvider.current().id());
         Role role = get(id);
         rejectIfSystem(role, "modified");
         if (role.getVersion() != expectedVersion) {
@@ -107,6 +118,7 @@ public class RoleService {
 
     @Transactional
     public void delete(UUID id) {
+        stepUpGuard.requireVerified(currentUserProvider.current().id());
         Role role = get(id);
         rejectIfSystem(role, "deleted");
 

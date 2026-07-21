@@ -45,3 +45,10 @@ export function requestUnlock(username: string) {
 export function confirmUnlock(token: string) {
   return httpClient.post('/auth/unlock/confirm', { token }).then(() => undefined)
 }
+
+// US-SEC-06: step-up re-authentication. A wrong password here is a distinct,
+// already-authenticated re-confirmation - not a login attempt - so it doesn't
+// count toward account lockout.
+export function stepUp(password: string) {
+  return httpClient.post('/auth/step-up', { password }).then(() => undefined)
+}

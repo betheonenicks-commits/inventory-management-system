@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -24,6 +24,7 @@ import { PageHeader } from '../../components/common/PageHeader'
 import { ErrorPanel } from '../../components/common/ErrorPanel'
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton'
 import { isApiProblem } from '../../api/errors'
+import { stepUp } from '../../api/authApi'
 import { useAuthStore, hasPermission } from '../../auth/authStore'
 import {
   useCreateRoleMutation,
@@ -70,7 +71,44 @@ export function RoleListPage() {
   const [error, setError] = useState<string | null>(null)
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null)
 
+  // US-SEC-06 (AC-SEC-06-X): editing/creating/deleting a role is step-up-gated.
+  // A STEP_UP_REQUIRED response pauses the action here rather than surfacing it
+  // as a plain error - once re-authentication succeeds, the exact same action
+  // (create/update/delete) is retried automatically.
+  const [stepUpOpen, setStepUpOpen] = useState(false)
+  const [stepUpPassword, setStepUpPassword] = useState('')
+  const [stepUpError, setStepUpError] = useState<string | null>(null)
+  const [stepUpSubmitting, setStepUpSubmitting] = useState(false)
+  const pendingActionRef = useRef<(() => void) | null>(null)
+
   const updateRole = useUpdateRoleMutation(editing?.id ?? '')
+
+  function requireStepUpThenRetry(err: unknown, retry: () => void): boolean {
+    if (isApiProblem(err) && err.errorCode === 'STEP_UP_REQUIRED') {
+      pendingActionRef.current = retry
+      setStepUpError(null)
+      setStepUpOpen(true)
+      return true
+    }
+    return false
+  }
+
+  async function handleStepUpConfirm() {
+    setStepUpError(null)
+    setStepUpSubmitting(true)
+    try {
+      await stepUp(stepUpPassword)
+      setStepUpOpen(false)
+      setStepUpPassword('')
+      const retry = pendingActionRef.current
+      pendingActionRef.current = null
+      retry?.()
+    } catch (err) {
+      setStepUpError(isApiProblem(err) ? err.detail : 'Unable to reach the server. Please try again.')
+    } finally {
+      setStepUpSubmitting(false)
+    }
+  }
 
   function openCreateDialog() {
     setEditing(null)
@@ -106,6 +144,7 @@ export function RoleListPage() {
       }
       setDialogOpen(false)
     } catch (err) {
+      if (requireStepUpThenRetry(err, handleSave)) return
       setError(isApiProblem(err) ? err.detail : 'Failed to save role')
     }
   }
@@ -115,6 +154,7 @@ export function RoleListPage() {
     try {
       await deleteRole.mutateAsync(id)
     } catch (err) {
+      if (requireStepUpThenRetry(err, () => handleDelete(id))) return
       if (isApiProblem(err) && err.status === 409) {
         setBlockedMessage(err.detail)
       }
@@ -252,6 +292,34 @@ export function RoleListPage() {
             disabled={!form.name || (!editing && !form.code) || createRole.isPending || updateRole.isPending}
           >
             Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={stepUpOpen} onClose={() => setStepUpOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Re-enter Your Password</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Changing what a role grants requires a fresh password confirmation.
+          </Typography>
+          {stepUpError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {stepUpError}
+            </Alert>
+          )}
+          <TextField
+            label="Password"
+            type="password"
+            fullWidth
+            autoFocus
+            value={stepUpPassword}
+            onChange={(e) => setStepUpPassword(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setStepUpOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleStepUpConfirm} disabled={!stepUpPassword || stepUpSubmitting}>
+            {stepUpSubmitting ? 'Verifying...' : 'Confirm'}
           </Button>
         </DialogActions>
       </Dialog>
