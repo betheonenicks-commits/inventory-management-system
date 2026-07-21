@@ -77,7 +77,15 @@ class PersonServiceTest {
     // unstubbed deliberately: Mockito's default answer for an Optional-returning
     // method is Optional.empty(), which is exactly "unrestricted" here.
     private void stubCurrentUser() {
-        when(currentUserProvider.current()).thenReturn(new CurrentUser(UUID.randomUUID(), "tester", Set.of("SUPER_ADMIN")));
+        stubUser(new CurrentUser(UUID.randomUUID(), "tester", Set.of("SUPER_ADMIN")));
+    }
+
+    // OrgScopeGuard resolves scope via currentOrEmpty() and logs a denial via current(); the
+    // service stamps createdBy/updatedBy via current(). Stub both (leniently, since any one test
+    // exercises only some of these paths) to the same actor.
+    private void stubUser(CurrentUser user) {
+        lenient().when(currentUserProvider.current()).thenReturn(user);
+        lenient().when(currentUserProvider.currentOrEmpty()).thenReturn(Optional.of(user));
     }
 
     /** Registers an OrgNode with a path, findable by OrgScopeGuard (path-prefix scope, since EPIC-ORG's hierarchy). */
@@ -216,7 +224,7 @@ class PersonServiceTest {
     void get_blocked_whenPersonOutsideRequesterScope() {
         UUID actorId = UUID.randomUUID();
         UUID scopeNodeId = UUID.randomUUID();
-        when(currentUserProvider.current()).thenReturn(new CurrentUser(actorId, "deptHead", Set.of("DEPARTMENT_HEAD")));
+        stubUser(new CurrentUser(actorId, "deptHead", Set.of("DEPARTMENT_HEAD")));
         when(scopeResolver.resolveScopeOrgNodeId(actorId)).thenReturn(Optional.of(scopeNodeId));
         nodeAt(scopeNodeId, "/" + scopeNodeId + "/");
 
@@ -233,7 +241,7 @@ class PersonServiceTest {
     void get_succeeds_whenPersonWithinRequesterScope() {
         UUID actorId = UUID.randomUUID();
         UUID scopeNodeId = UUID.randomUUID();
-        when(currentUserProvider.current()).thenReturn(new CurrentUser(actorId, "deptHead", Set.of("DEPARTMENT_HEAD")));
+        stubUser(new CurrentUser(actorId, "deptHead", Set.of("DEPARTMENT_HEAD")));
         when(scopeResolver.resolveScopeOrgNodeId(actorId)).thenReturn(Optional.of(scopeNodeId));
 
         OrgNode node = nodeAt(scopeNodeId, "/" + scopeNodeId + "/");
@@ -249,7 +257,7 @@ class PersonServiceTest {
     void list_filtersOutPeopleOutsideRequesterScope() {
         UUID actorId = UUID.randomUUID();
         UUID scopeNodeId = UUID.randomUUID();
-        when(currentUserProvider.current()).thenReturn(new CurrentUser(actorId, "deptHead", Set.of("DEPARTMENT_HEAD")));
+        stubUser(new CurrentUser(actorId, "deptHead", Set.of("DEPARTMENT_HEAD")));
         when(scopeResolver.resolveScopeOrgNodeId(actorId)).thenReturn(Optional.of(scopeNodeId));
         String scopePath = "/" + scopeNodeId + "/";
         nodeAt(scopeNodeId, scopePath);
@@ -285,7 +293,7 @@ class PersonServiceTest {
     void update_blocksRelocatingPersonToOutOfScopeOrgNode() {
         UUID actorId = UUID.randomUUID();
         UUID scopeNodeId = UUID.randomUUID();
-        when(currentUserProvider.current()).thenReturn(new CurrentUser(actorId, "deptHead", Set.of("DEPARTMENT_HEAD")));
+        stubUser(new CurrentUser(actorId, "deptHead", Set.of("DEPARTMENT_HEAD")));
         when(scopeResolver.resolveScopeOrgNodeId(actorId)).thenReturn(Optional.of(scopeNodeId));
 
         OrgNode currentNode = nodeAt(scopeNodeId, "/" + scopeNodeId + "/"); // person currently WITHIN scope, so get()'s check passes

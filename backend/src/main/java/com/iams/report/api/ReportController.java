@@ -151,7 +151,12 @@ public class ReportController {
     }
 
     @GetMapping("/depreciation")
-    @PreAuthorize("@perm.has('reports:read')")
+    // US-SEC-14 (AC-SEC-14-H): a human with reports:read OR a scoped INTEGRATION_SVC
+    // service account holding INT_ACCOUNTING_READ. A service account can reach this and
+    // nothing else: SecurityConfig default-denies integration principals on every path
+    // except this one (its SERVICE_ACCOUNT_ENDPOINTS whitelist), and this OR-clause then
+    // confirms the account actually holds the scope.
+    @PreAuthorize("@perm.has('reports:read') or @svc.hasScope('INT_ACCOUNTING_READ')")
     @TrackUsage(module = "reports", action = "run-depreciation")
     public ResponseEntity<?> depreciation(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf,

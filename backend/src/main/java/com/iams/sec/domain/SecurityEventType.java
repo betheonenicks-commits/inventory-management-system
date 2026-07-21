@@ -24,5 +24,9 @@ public enum SecurityEventType {
     /** US-CMP-01: "the purge itself is logged" - one row per retention-purge run, naming what was purged and how many rows. */
     RETENTION_PURGE_EXECUTED,
     /** US-CMP-02: a departed person's personal data was anonymized following Compliance Officer approval. */
-    PERSON_ANONYMIZED
+    PERSON_ANONYMIZED,
+    /** US-SEC-14: a scoped integration service account was issued (its raw API key returned once). */
+    SERVICE_ACCOUNT_CREATED,
+    /** US-SEC-14: a service account was revoked - its API key no longer authenticates. */
+    SERVICE_ACCOUNT_REVOKED
 }

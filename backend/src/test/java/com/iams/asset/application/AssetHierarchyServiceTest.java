@@ -68,7 +68,15 @@ class AssetHierarchyServiceTest {
     }
 
     private void stubCurrentUser() {
-        when(currentUserProvider.current()).thenReturn(new CurrentUser(UUID.randomUUID(), "tester", Set.of("SUPER_ADMIN")));
+        stubUser(new CurrentUser(UUID.randomUUID(), "tester", Set.of("SUPER_ADMIN")));
+    }
+
+    // OrgScopeGuard resolves scope via currentOrEmpty() and logs a denial via current(); the
+    // service stamps updatedBy via current() on reparent. Stub both (leniently, since any one
+    // test exercises only some of these paths) to the same actor.
+    private void stubUser(CurrentUser user) {
+        lenient().when(currentUserProvider.current()).thenReturn(user);
+        lenient().when(currentUserProvider.currentOrEmpty()).thenReturn(Optional.of(user));
     }
 
     private OrgNode nodeAt(UUID id, String path) {
@@ -206,7 +214,7 @@ class AssetHierarchyServiceTest {
     void listChildren_blocked_whenParentOutsideRequesterScope() {
         UUID actorId = UUID.randomUUID();
         UUID scopeNodeId = UUID.randomUUID();
-        when(currentUserProvider.current()).thenReturn(new CurrentUser(actorId, "deptHead", Set.of("DEPARTMENT_HEAD")));
+        stubUser(new CurrentUser(actorId, "deptHead", Set.of("DEPARTMENT_HEAD")));
         when(scopeResolver.resolveScopeOrgNodeId(actorId)).thenReturn(Optional.of(scopeNodeId));
         nodeAt(scopeNodeId, "/" + scopeNodeId + "/");
 
@@ -223,7 +231,7 @@ class AssetHierarchyServiceTest {
     void listChildren_filtersOutChildrenOutsideRequesterScope() {
         UUID actorId = UUID.randomUUID();
         UUID scopeNodeId = UUID.randomUUID();
-        when(currentUserProvider.current()).thenReturn(new CurrentUser(actorId, "deptHead", Set.of("DEPARTMENT_HEAD")));
+        stubUser(new CurrentUser(actorId, "deptHead", Set.of("DEPARTMENT_HEAD")));
         when(scopeResolver.resolveScopeOrgNodeId(actorId)).thenReturn(Optional.of(scopeNodeId));
         String scopePath = "/" + scopeNodeId + "/";
         nodeAt(scopeNodeId, scopePath);

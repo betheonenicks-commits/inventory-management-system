@@ -64,8 +64,13 @@ class AssetQueryServiceTest {
         service = new AssetQueryService(assetRepository, historyRepository, scopeGuard, orgNodeRepository);
     }
 
+    // The real OrgScopeGuard reads the actor via currentOrEmpty() for scope resolution and via
+    // current() only on the denial-log path, so both are stubbed (leniently - a given test hits
+    // only one path) to the same user.
     private void stubActor(UUID actorId) {
-        when(currentUserProvider.current()).thenReturn(new CurrentUser(actorId, "actor", Set.of("AUDITOR")));
+        CurrentUser user = new CurrentUser(actorId, "actor", Set.of("AUDITOR"));
+        lenient().when(currentUserProvider.current()).thenReturn(user);
+        lenient().when(currentUserProvider.currentOrEmpty()).thenReturn(Optional.of(user));
     }
 
     private OrgNode nodeAt(UUID id, String path) {

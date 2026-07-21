@@ -46,9 +46,16 @@ public class OrgScopeGuard {
         this.securityEventLogger = securityEventLogger;
     }
 
-    /** The acting user's scope org-node id, or null if they're unrestricted. */
+    /**
+     * The acting user's scope org-node id, or null if unrestricted. A non-human caller
+     * (US-SEC-14 service account) has no org scope at all, so it reads as unrestricted
+     * here (null) rather than throwing on the CurrentUser cast - its restriction is its
+     * integration scope, enforced at the endpoint, not an org subtree.
+     */
     public UUID currentScopeOrgNodeId() {
-        return scopeResolver.resolveScopeOrgNodeId(currentUserProvider.current().id()).orElse(null);
+        return currentUserProvider.currentOrEmpty()
+                .flatMap(user -> scopeResolver.resolveScopeOrgNodeId(user.id()))
+                .orElse(null);
     }
 
     /**
@@ -70,6 +77,8 @@ public class OrgScopeGuard {
     public void requireWithinScope(UUID entityOrgNodeId, String entityType, Object entityId) {
         String scopePath = currentScopePathPrefix();
         if (scopePath == null) {
+            // Unrestricted caller - a scoped human OR a US-SEC-14 service account (null scope).
+            // Everything past this point is therefore a scoped human, so current() below is safe.
             return;
         }
         String entityPath = entityOrgNodeId != null
