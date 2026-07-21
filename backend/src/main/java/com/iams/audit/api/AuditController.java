@@ -20,6 +20,7 @@ import com.iams.audit.api.dto.AuditReconciliationRequest;
 import com.iams.audit.api.dto.AuditRejectRequest;
 import com.iams.audit.api.dto.AuditResponse;
 import com.iams.audit.api.dto.AuditScanRequest;
+import com.iams.audit.api.dto.AuditScopeChangeDispositionRequest;
 import com.iams.audit.api.dto.AuditSubmitRequest;
 import com.iams.audit.api.dto.AuditSummaryResponse;
 import com.iams.audit.api.mapper.AuditMapper;
@@ -217,6 +218,14 @@ public class AuditController {
                                                 @Valid @RequestBody AuditCorrectionRequest request) {
         correctionService.correct(id, findingId, request.fieldName(), request.newValue());
         AuditFinding finding = correctionService.getFinding(id, findingId);
+        return mapper.toResponse(finding, correctionService.corrections(findingId), reconciliationService.forFinding(findingId));
+    }
+
+    @PostMapping("/{id}/findings/{findingId}/scope-change-disposition")
+    @PreAuthorize("@perm.has('audits:write')")
+    public AuditFindingResponse resolveScopeChange(@PathVariable UUID id, @PathVariable UUID findingId,
+                                                    @Valid @RequestBody AuditScopeChangeDispositionRequest request) {
+        AuditFinding finding = correctionService.resolveScopeChange(id, findingId, request.disposition());
         return mapper.toResponse(finding, correctionService.corrections(findingId), reconciliationService.forFinding(findingId));
     }
 

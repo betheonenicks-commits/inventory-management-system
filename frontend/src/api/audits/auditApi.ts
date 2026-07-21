@@ -7,12 +7,14 @@ import type {
   AuditExceptionReport,
   AuditFinding,
   AuditFindingReconciliation,
+  CorrectionField,
   FindingEvidence,
   AuditProgress,
   AuditStatus,
   AuditSummary,
   AuditType,
   AssetCondition,
+  ScopeChangeDisposition,
 } from '../../features/audits/types'
 
 export interface AuditCreatePayload {
@@ -52,6 +54,19 @@ export interface AuditScanPayload {
   condition: AssetCondition
   remarks?: string
   deviceId?: string
+}
+
+// US-AUD-07: scan several assets in one request instead of one at a time.
+export interface AuditBatchScanResult {
+  created: AuditFinding[]
+  duplicateAssetIds: string[]
+  unrecognizedAssetIds: string[]
+  summary: {
+    verifiedCount: number
+    outOfScopeCount: number
+    duplicateCount: number
+    unrecognizedCount: number
+  }
 }
 
 export function fetchAudits(status?: AuditStatus) {
@@ -98,6 +113,10 @@ export function recordScan(id: string, payload: AuditScanPayload) {
   return httpClient.post<AuditFinding>(`/audits/${id}/scans`, payload).then((r) => r.data)
 }
 
+export function recordBatchScan(id: string, scans: AuditScanPayload[]) {
+  return httpClient.post<AuditBatchScanResult>(`/audits/${id}/scans/batch`, { scans }).then((r) => r.data)
+}
+
 export function submitAudit(id: string, password: string, signatureName?: string) {
   return httpClient.post<Audit>(`/audits/${id}/submit`, { password, signatureName }).then((r) => r.data)
 }
@@ -119,6 +138,20 @@ export function escalateAudit(id: string) {
 export function reconcileFinding(auditId: string, findingId: string, foundLocationNote: string) {
   return httpClient
     .post<AuditFindingReconciliation>(`/audits/${auditId}/findings/${findingId}/reconcile`, { foundLocationNote })
+    .then((r) => r.data)
+}
+
+/** US-AUD-24: correct a finding's condition or remarks - a new linked correction record, the original finding is never edited. */
+export function correctFinding(auditId: string, findingId: string, fieldName: CorrectionField, newValue: string) {
+  return httpClient
+    .post<AuditFinding>(`/audits/${auditId}/findings/${findingId}/corrections`, { fieldName, newValue })
+    .then((r) => r.data)
+}
+
+/** US-AUD-23: resolve a SCOPE_CHANGED finding's disposition - the gate that otherwise permanently blocks closure. */
+export function resolveScopeChange(auditId: string, findingId: string, disposition: ScopeChangeDisposition) {
+  return httpClient
+    .post<AuditFinding>(`/audits/${auditId}/findings/${findingId}/scope-change-disposition`, { disposition })
     .then((r) => r.data)
 }
 

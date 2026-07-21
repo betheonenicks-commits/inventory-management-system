@@ -12,6 +12,9 @@ import com.iams.audit.domain.AuditFindingCorrectionRepository;
 import com.iams.audit.domain.AuditFindingRepository;
 import com.iams.audit.domain.AssetCondition;
 import com.iams.audit.domain.CorrectionField;
+import com.iams.audit.domain.FindingStatus;
+import com.iams.audit.domain.ScopeChangeDisposition;
+import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUser;
@@ -127,5 +130,48 @@ class AuditFindingCorrectionServiceTest {
 
         assertThat(result).isSameAs(finding);
         org.mockito.Mockito.verify(auditService).requireInScope(audit);
+    }
+
+    // US-AUD-23 fix: resolveScopeChange - previously no endpoint/mutation existed anywhere
+    // to set this, so a SCOPE_CHANGED finding permanently blocked closure.
+    @Test
+    void resolveScopeChange_setsTheDispositionAndPersistsIt() {
+        finding.setStatus(FindingStatus.SCOPE_CHANGED);
+        when(findingRepository.findByIdWithAsset(findingId)).thenReturn(Optional.of(finding));
+        when(findingRepository.saveAndFlush(finding)).thenReturn(finding);
+
+        AuditFinding result = service.resolveScopeChange(auditId, findingId, ScopeChangeDisposition.EXCLUDE_FROM_SCOPE);
+
+        assertThat(result.getScopeChangeDisposition()).isEqualTo(ScopeChangeDisposition.EXCLUDE_FROM_SCOPE);
+    }
+
+    @Test
+    void resolveScopeChange_rejectsAFindingThatIsNotScopeChanged() {
+        finding.setStatus(FindingStatus.VERIFIED);
+        when(findingRepository.findByIdWithAsset(findingId)).thenReturn(Optional.of(finding));
+
+        assertThatThrownBy(() -> service.resolveScopeChange(auditId, findingId, ScopeChangeDisposition.ACCEPT_AS_EXCEPTION))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void resolveScopeChange_rejectsResolvingTwice() {
+        finding.setStatus(FindingStatus.SCOPE_CHANGED);
+        finding.setScopeChangeDisposition(ScopeChangeDisposition.CONFIRM_VERIFIED_AT_NEW_LOCATION);
+        when(findingRepository.findByIdWithAsset(findingId)).thenReturn(Optional.of(finding));
+
+        assertThatThrownBy(() -> service.resolveScopeChange(auditId, findingId, ScopeChangeDisposition.EXCLUDE_FROM_SCOPE))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void resolveScopeChange_refusesAnOutOfScopeFinding() {
+        finding.setStatus(FindingStatus.SCOPE_CHANGED);
+        when(findingRepository.findByIdWithAsset(findingId)).thenReturn(Optional.of(finding));
+        org.mockito.Mockito.doThrow(new org.springframework.security.access.AccessDeniedException("out of scope"))
+                .when(auditService).requireInScope(audit);
+
+        assertThatThrownBy(() -> service.resolveScopeChange(auditId, findingId, ScopeChangeDisposition.EXCLUDE_FROM_SCOPE))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
     }
 }

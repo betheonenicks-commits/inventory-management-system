@@ -5,6 +5,9 @@ import com.iams.audit.domain.AuditFindingCorrection;
 import com.iams.audit.domain.AuditFindingCorrectionRepository;
 import com.iams.audit.domain.AuditFindingRepository;
 import com.iams.audit.domain.CorrectionField;
+import com.iams.audit.domain.FindingStatus;
+import com.iams.audit.domain.ScopeChangeDisposition;
+import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUser;
@@ -60,6 +63,29 @@ public class AuditFindingCorrectionService {
     @Transactional(readOnly = true)
     public List<AuditFindingCorrection> corrections(UUID findingId) {
         return correctionRepository.findByFindingIdOrderByCreatedAtAsc(findingId);
+    }
+
+    /**
+     * US-AUD-23: the endpoint/mutation that was missing entirely - a SCOPE_CHANGED
+     * finding otherwise permanently blocks closure (AuditWorkflowService.submit's
+     * AC-AUD-23-X gate), with no way in the product to ever set the disposition that
+     * clears it. Settable exactly once per finding - re-litigating an already-resolved
+     * disposition is a 409, not a silent overwrite.
+     */
+    @Transactional
+    public AuditFinding resolveScopeChange(UUID auditId, UUID findingId, ScopeChangeDisposition disposition) {
+        AuditFinding finding = getFinding(auditId, findingId);
+        if (finding.getStatus() != FindingStatus.SCOPE_CHANGED) {
+            throw new ConflictException("FINDING_NOT_SCOPE_CHANGED",
+                    "Only a finding classified Scope Changed During Audit can have a disposition set");
+        }
+        if (finding.getScopeChangeDisposition() != null) {
+            throw new ConflictException("SCOPE_CHANGE_ALREADY_RESOLVED",
+                    "This finding's scope-change disposition has already been resolved: "
+                            + finding.getScopeChangeDisposition());
+        }
+        finding.setScopeChangeDisposition(disposition);
+        return findingRepository.saveAndFlush(finding);
     }
 
     /**

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import Alert from '@mui/material/Alert'
+import Autocomplete from '@mui/material/Autocomplete'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
@@ -32,9 +33,11 @@ import { useAuthStore, hasPermission } from '../../auth/authStore'
 import { isApiProblem } from '../../api/errors'
 import { usePickableUsersQuery } from '../users/hooks/useUsersQuery'
 import { useAssetCategoriesQuery } from '../assets/hooks/useAssetCategoriesQuery'
+import { useAssetSearchQuery } from './hooks/useAssetSearchQuery'
 import { useOrgNodesQuery } from './hooks/useOrgNodesQuery'
 import { useAuditsQuery, useCreateAuditMutation } from './hooks/useAuditsQuery'
 import { fetchSampleSizePreview } from '../../api/audits/auditApi'
+import type { Asset } from '../assets/types'
 import type { AuditStatus, AuditType } from './types'
 
 const STATUS_TABS: Array<{ label: string; value: AuditStatus | undefined }> = [
@@ -50,7 +53,7 @@ const STATUS_COLOR: Record<AuditStatus, 'info' | 'warning' | 'success'> = {
   CLOSED: 'success',
 }
 
-type ScopeMode = 'ORG_NODE' | 'CATEGORY'
+type ScopeMode = 'ORG_NODE' | 'CATEGORY' | 'ASSET_LIST'
 
 interface CreateFormState {
   name: string
@@ -58,6 +61,7 @@ interface CreateFormState {
   scopeMode: ScopeMode
   scopeOrgNodeId: string
   scopeCategoryId: string
+  selectedAssets: Asset[]
   nominalApproverId: string
   scheduledDate: string
   // US-AUD-20: sampling is opt-in; off = full 100% verification (never assumed).
@@ -71,16 +75,15 @@ const EMPTY_FORM: CreateFormState = {
   scopeMode: 'ORG_NODE',
   scopeOrgNodeId: '',
   scopeCategoryId: '',
+  selectedAssets: [],
   nominalApproverId: '',
   scheduledDate: '',
   samplingEnabled: false,
   samplingConfidenceLevel: 95,
 }
 
-// US-AUD-01/02/03: define an audit's type and scope (org node or category -
-// an explicit asset-list scope also exists on the backend but has no picker
-// here yet, same "real gap, not silently hidden" approach as other features
-// that omit a control rather than fake it).
+// US-AUD-01/02/03: define an audit's type and scope - by org node, by
+// category, or (the picker this session added) an explicit asset list.
 export function AuditListPage() {
   const [statusTab, setStatusTab] = useState(0)
   const status = STATUS_TABS[statusTab].value
@@ -102,9 +105,17 @@ export function AuditListPage() {
   const [form, setForm] = useState<CreateFormState>(EMPTY_FORM)
   const [error, setError] = useState<string | null>(null)
 
+  // US-AUD-01 asset-list scope's own search-and-select picker (mirrors AuditScanPanel's).
+  const [assetSearchText, setAssetSearchText] = useState('')
+  const assetSearchQuery = useAssetSearchQuery(assetSearchText)
+
   // US-AUD-20: live sample-size preview once sampling is on and a scope is chosen.
   const samplingScopeChosen =
-    form.scopeMode === 'ORG_NODE' ? form.scopeOrgNodeId.length > 0 : form.scopeCategoryId.length > 0
+    form.scopeMode === 'ORG_NODE'
+      ? form.scopeOrgNodeId.length > 0
+      : form.scopeMode === 'CATEGORY'
+        ? form.scopeCategoryId.length > 0
+        : form.selectedAssets.length > 0
   const samplePreviewQuery = useQuery({
     queryKey: [
       'AUD',
@@ -112,12 +123,14 @@ export function AuditListPage() {
       form.scopeMode,
       form.scopeOrgNodeId,
       form.scopeCategoryId,
+      form.selectedAssets.map((a) => a.id).join(','),
       form.samplingConfidenceLevel,
     ],
     queryFn: () =>
       fetchSampleSizePreview({
         scopeOrgNodeId: form.scopeMode === 'ORG_NODE' ? form.scopeOrgNodeId : undefined,
         scopeCategoryId: form.scopeMode === 'CATEGORY' ? form.scopeCategoryId : undefined,
+        assetIds: form.scopeMode === 'ASSET_LIST' ? form.selectedAssets.map((a) => a.id) : undefined,
         confidenceLevel: form.samplingConfidenceLevel,
       }),
     enabled: dialogOpen && form.samplingEnabled && samplingScopeChosen,
@@ -137,6 +150,7 @@ export function AuditListPage() {
         auditType: form.auditType,
         scopeOrgNodeId: form.scopeMode === 'ORG_NODE' ? form.scopeOrgNodeId : undefined,
         scopeCategoryId: form.scopeMode === 'CATEGORY' ? form.scopeCategoryId : undefined,
+        assetIds: form.scopeMode === 'ASSET_LIST' ? form.selectedAssets.map((a) => a.id) : undefined,
         nominalApproverId: form.nominalApproverId,
         scheduledDate: form.scheduledDate || undefined,
         // US-AUD-20: only send sampling params when the auditor opts in.
@@ -152,7 +166,11 @@ export function AuditListPage() {
   const canSubmitForm =
     form.name.trim().length > 0 &&
     form.nominalApproverId.length > 0 &&
-    (form.scopeMode === 'ORG_NODE' ? form.scopeOrgNodeId.length > 0 : form.scopeCategoryId.length > 0)
+    (form.scopeMode === 'ORG_NODE'
+      ? form.scopeOrgNodeId.length > 0
+      : form.scopeMode === 'CATEGORY'
+        ? form.scopeCategoryId.length > 0
+        : form.selectedAssets.length > 0)
 
   return (
     <Box>
@@ -238,14 +256,42 @@ export function AuditListPage() {
             </FormControl>
 
             <Tabs
-              value={form.scopeMode === 'ORG_NODE' ? 0 : 1}
-              onChange={(_, v) => setForm((f) => ({ ...f, scopeMode: v === 0 ? 'ORG_NODE' : 'CATEGORY' }))}
+              value={form.scopeMode === 'ORG_NODE' ? 0 : form.scopeMode === 'CATEGORY' ? 1 : 2}
+              onChange={(_, v) =>
+                setForm((f) => ({
+                  ...f,
+                  scopeMode: v === 0 ? 'ORG_NODE' : v === 1 ? 'CATEGORY' : 'ASSET_LIST',
+                }))
+              }
             >
               <Tab label="Scope by Location" />
               <Tab label="Scope by Category" />
+              <Tab label="Explicit Asset List" />
             </Tabs>
 
-            {form.scopeMode === 'ORG_NODE' ? (
+            {form.scopeMode === 'ASSET_LIST' && (
+              <Autocomplete
+                multiple
+                filterSelectedOptions
+                options={assetSearchQuery.data?.data ?? []}
+                value={form.selectedAssets}
+                getOptionLabel={(asset) => `${asset.assetNumber} - ${asset.name}`}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
+                loading={assetSearchQuery.isFetching}
+                onInputChange={(_, value) => setAssetSearchText(value)}
+                onChange={(_, value) => setForm((f) => ({ ...f, selectedAssets: value }))}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Assets"
+                    placeholder="Search by asset number or name…"
+                    helperText={`${form.selectedAssets.length} asset${form.selectedAssets.length === 1 ? '' : 's'} selected`}
+                  />
+                )}
+              />
+            )}
+
+            {form.scopeMode === 'ORG_NODE' && (
               <FormControl fullWidth required>
                 <InputLabel id="scope-org-node-label">Location</InputLabel>
                 <Select
@@ -261,7 +307,8 @@ export function AuditListPage() {
                   ))}
                 </Select>
               </FormControl>
-            ) : (
+            )}
+            {form.scopeMode === 'CATEGORY' && (
               <FormControl fullWidth required>
                 <InputLabel id="scope-category-label">Category</InputLabel>
                 <Select

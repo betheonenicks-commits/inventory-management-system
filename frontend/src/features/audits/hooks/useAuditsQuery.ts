@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  correctFinding,
   createAudit,
   fetchAudit,
   fetchAuditCertificate,
@@ -10,10 +11,11 @@ import {
   fetchFindingEvidence,
   fetchPickableAudits,
   reconcileFinding,
+  resolveScopeChange,
   uploadFindingEvidence,
 } from '../../../api/audits/auditApi'
 import type { AuditCreatePayload } from '../../../api/audits/auditApi'
-import type { AuditStatus } from '../types'
+import type { AuditStatus, CorrectionField, ScopeChangeDisposition } from '../types'
 
 export function useAuditsQuery(status?: AuditStatus, enabled = true) {
   return useQuery({
@@ -90,6 +92,34 @@ export function useReconcileFindingMutation(auditId: string) {
   return useMutation({
     mutationFn: ({ findingId, foundLocationNote }: { findingId: string; foundLocationNote: string }) =>
       reconcileFinding(auditId, findingId, foundLocationNote),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['AUD', 'exceptions', auditId] }),
+  })
+}
+
+// US-AUD-24: the corrections endpoint's frontend caller - previously it existed with no UI mutation reaching it.
+export function useCorrectFindingMutation(auditId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      findingId,
+      fieldName,
+      newValue,
+    }: {
+      findingId: string
+      fieldName: CorrectionField
+      newValue: string
+    }) => correctFinding(auditId, findingId, fieldName, newValue),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['AUD', 'exceptions', auditId] }),
+  })
+}
+
+// US-AUD-23: the scope-change-disposition endpoint's frontend caller - previously it
+// existed with no way in the product to ever set it, permanently blocking closure.
+export function useResolveScopeChangeMutation(auditId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ findingId, disposition }: { findingId: string; disposition: ScopeChangeDisposition }) =>
+      resolveScopeChange(auditId, findingId, disposition),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['AUD', 'exceptions', auditId] }),
   })
 }

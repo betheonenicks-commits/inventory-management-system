@@ -5,6 +5,7 @@ export type AuditStatus = 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'CLOSED'
 export type FindingStatus = 'VERIFIED' | 'MISSING' | 'OUT_OF_SCOPE' | 'SCOPE_CHANGED'
 export type AssetCondition = 'GOOD' | 'FAIR' | 'MINOR_DAMAGE' | 'MAJOR_DAMAGE' | 'UNUSABLE'
 export type CorrectionField = 'CONDITION' | 'REMARKS'
+export type ScopeChangeDisposition = 'CONFIRM_VERIFIED_AT_NEW_LOCATION' | 'EXCLUDE_FROM_SCOPE' | 'ACCEPT_AS_EXCEPTION'
 
 // US-CMP-06: the minimal, non-sensitive projection any authenticated user can
 // fetch via GET /audits/pickable, regardless of whether they hold audits:read.
@@ -119,7 +120,7 @@ export interface AuditFinding {
   verifiedByUsername: string | null
   verifiedAt: string
   deviceId: string | null
-  scopeChangeDisposition: string | null
+  scopeChangeDisposition: ScopeChangeDisposition | null
   corrections: AuditFindingCorrection[]
   // US-AUD-21: null unless this Missing finding has actually been reconciled.
   reconciliation: AuditFindingReconciliation | null
