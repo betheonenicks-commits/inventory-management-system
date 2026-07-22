@@ -32,6 +32,7 @@ import { ManualAdjustmentListPage } from '../features/inventory/ManualAdjustment
 import { ExpiringStockPage } from '../features/inventory/ExpiringStockPage'
 import { NotificationPreferencesPage } from '../features/notifications/NotificationPreferencesPage'
 import { ApprovalDelegationsPage } from '../features/lifecycle/ApprovalDelegationsPage'
+import { ImportDataPage } from '../features/migration/ImportDataPage'
 import { NotFoundPage } from '../components/common/NotFoundPage'
 
 export const router = createBrowserRouter([
@@ -71,6 +72,7 @@ export const router = createBrowserRouter([
           { path: 'inventory/vendors', element: <VendorListPage /> },
           { path: 'inventory/adjustments', element: <ManualAdjustmentListPage /> },
           { path: 'inventory/expiring-stock', element: <ExpiringStockPage /> },
+          { path: 'imports', element: <ImportDataPage /> },
           { path: 'settings/notifications', element: <NotificationPreferencesPage /> },
           { path: 'settings/approval-delegations', element: <ApprovalDelegationsPage /> },
         ],

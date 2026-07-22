@@ -39,6 +39,7 @@ import BusinessIcon from '@mui/icons-material/Business'
 import SecurityIcon from '@mui/icons-material/Security'
 import VpnKeyIcon from '@mui/icons-material/VpnKey'
 import MonitorHeartIcon from '@mui/icons-material/MonitorHeart'
+import UploadFileIcon from '@mui/icons-material/UploadFile'
 import { useAuthStore, hasPermission } from '../auth/authStore'
 import { logout as logoutApi } from '../api/authApi'
 
@@ -68,6 +69,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Reports', to: '/reports', icon: <AssessmentIcon />, requiresPermission: 'reports:read' },
   { label: 'Assets', to: '/assets', icon: <Inventory2Icon /> },
   { label: 'Categories', to: '/assets/categories', icon: <CategoryIcon /> },
+  { label: 'Import Data', to: '/imports', icon: <UploadFileIcon />, requiresPermission: 'imports:write' },
   { label: 'Audits', to: '/audits', icon: <FactCheckIcon />, requiresPermission: 'audits:read' },
   {
     label: 'Purchase Requests',
