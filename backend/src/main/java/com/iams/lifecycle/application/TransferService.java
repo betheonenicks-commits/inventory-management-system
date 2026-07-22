@@ -20,6 +20,7 @@ import com.iams.org.domain.OrgNode;
 import com.iams.org.domain.OrgNodeRepository;
 import com.iams.usr.application.OrgScopeGuard;
 import com.iams.usr.domain.AppUserRepository;
+import com.iams.usr.domain.SodWaiverRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -33,12 +34,18 @@ import org.springframework.transaction.annotation.Transactional;
  * nodes and/or custodians. Approval always required - "per policy" (the
  * story's own wording) implies a configurable policy engine that doesn't
  * exist anywhere in this codebase, so every transfer requires approval
- * unconditionally, the simplest safe reading. No SoD self-approval check
- * (unlike EPIC-AUD) - no story here names that conflict, and inventing one
- * would be scope no story asked for.
+ * unconditionally, the simplest safe reading.
+ * <p>
+ * US-USR-06 (AC-USR-06-X): the requester cannot approve their own transfer -
+ * blocked at approve() unless an active TRANSFER_APPROVAL SoD waiver exists,
+ * reusing the same generic sod_waiver mechanism EPIC-AUD already uses for
+ * AUDIT_APPROVAL.
  */
 @Service
 public class TransferService {
+
+    /** The sod_waiver scope string a documented exception to transfer self-approval is recorded under (mirrors AUDIT_APPROVAL). */
+    private static final String SOD_SCOPE = "TRANSFER_APPROVAL";
 
     private final AssetTransferRequestRepository transferRepository;
     private final AssetRepository assetRepository;
@@ -53,6 +60,7 @@ public class TransferService {
     private final LifecycleProperties lifecycleProperties;
     private final LegalHoldService legalHoldService;
     private final ApplicationEventPublisher eventPublisher;
+    private final SodWaiverRepository sodWaiverRepository;
 
     public TransferService(AssetTransferRequestRepository transferRepository, AssetRepository assetRepository,
                             OrgNodeRepository orgNodeRepository, AssetHistoryRecorder historyRecorder,
@@ -60,7 +68,7 @@ public class TransferService {
                             AuditScopeChangeService auditScopeChangeService, AppUserRepository appUserRepository,
                             CurrentUserProvider currentUserProvider, OrgScopeGuard scopeGuard,
                             LifecycleProperties lifecycleProperties, LegalHoldService legalHoldService,
-                            ApplicationEventPublisher eventPublisher) {
+                            ApplicationEventPublisher eventPublisher, SodWaiverRepository sodWaiverRepository) {
         this.transferRepository = transferRepository;
         this.assetRepository = assetRepository;
         this.orgNodeRepository = orgNodeRepository;
@@ -74,6 +82,7 @@ public class TransferService {
         this.lifecycleProperties = lifecycleProperties;
         this.legalHoldService = legalHoldService;
         this.eventPublisher = eventPublisher;
+        this.sodWaiverRepository = sodWaiverRepository;
     }
 
     @Transactional
@@ -128,6 +137,8 @@ public class TransferService {
         AssetTransferRequest request = requireStatus(id, LifecycleRequestStatus.PENDING);
         UUID actor = currentUserProvider.current().id();
         requireIsRoutedApprover(request, actor);
+        // AC-USR-06-X: the requester can't approve their own transfer without a recorded waiver.
+        requireNotSelfApproval(request.getRequestedBy(), actor);
         // AC-CMP-06-H: a legal hold on this asset blocks transfer, same as disposal - found
         // as a real, exploitable gap by an adversarial review (a held asset could otherwise
         // be moved away, defeating the hold's purpose for anything except disposal).
@@ -204,6 +215,20 @@ public class TransferService {
                 : routingService.resolveEffectiveApprover(request.getNominalApproverId());
         if (!approver.equals(actor)) {
             throw new AccessDeniedException("Only this transfer's routed approver may act on it");
+        }
+    }
+
+    /**
+     * US-USR-06 (AC-USR-06-X): separation of duties - a requester approving their own
+     * submission is the exact conflict this guards. An active TRANSFER_APPROVAL SoD waiver
+     * (an IT Security Officer's signed-off, documented exception) is the one way through,
+     * consistent with how EPIC-AUD treats AUDIT_APPROVAL - an exception is always recorded,
+     * never silent.
+     */
+    private void requireNotSelfApproval(UUID requestedBy, UUID actor) {
+        if (actor.equals(requestedBy) && !sodWaiverRepository.existsByScopeAndActiveTrue(SOD_SCOPE)) {
+            throw new AccessDeniedException("Separation of duties: you cannot approve a transfer you requested "
+                    + "yourself. Route it to another approver, or record an active '" + SOD_SCOPE + "' SoD waiver first.");
         }
     }
 

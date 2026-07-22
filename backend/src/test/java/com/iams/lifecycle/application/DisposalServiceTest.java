@@ -23,6 +23,7 @@ import com.iams.lifecycle.domain.DisposalType;
 import com.iams.lifecycle.domain.LifecycleRequestStatus;
 import com.iams.usr.application.OrgScopeGuard;
 import com.iams.usr.domain.AppUserRepository;
+import com.iams.usr.domain.SodWaiverRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -50,6 +51,7 @@ class DisposalServiceTest {
     @Mock private OrgScopeGuard scopeGuard;
     @Mock private LifecycleProperties lifecycleProperties;
     @Mock private LegalHoldService legalHoldService;
+    @Mock private SodWaiverRepository sodWaiverRepository;
 
     private DisposalService service;
     private UUID actorId;
@@ -60,7 +62,7 @@ class DisposalServiceTest {
     void setUp() {
         service = new DisposalService(disposalRepository, assetRepository, statusDefRepository, historyRecorder,
                 historyEventRepository, routingService, auditScopeChangeService, appUserRepository, currentUserProvider,
-                scopeGuard, lifecycleProperties, legalHoldService);
+                scopeGuard, lifecycleProperties, legalHoldService, sodWaiverRepository);
         actorId = UUID.randomUUID();
         approverId = UUID.randomUUID();
         asset = new Asset();
@@ -120,6 +122,42 @@ class DisposalServiceTest {
         when(routingService.resolveEffectiveApprover(approverId)).thenReturn(approverId);
 
         assertThatThrownBy(() -> service.approve(request.getId())).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void approve_blocksSelfApproval_withoutWaiver() {
+        // AC-USR-06-X: the requester routed the disposal to themselves and tries to approve it.
+        AssetDisposalRequest request = pendingRequest(DisposalType.DISPOSE);
+        request.setNominalApproverId(actorId);
+        when(disposalRepository.findByIdWithAsset(request.getId())).thenReturn(Optional.of(request));
+        when(routingService.resolveEffectiveApprover(actorId)).thenReturn(actorId);
+        when(sodWaiverRepository.existsByScopeAndActiveTrue("DISPOSAL_APPROVAL")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.approve(request.getId()))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Separation of duties");
+    }
+
+    @Test
+    void approve_allowsSelfApproval_withActiveWaiver() {
+        AssetDisposalRequest request = pendingRequest(DisposalType.RETIRE);
+        request.setNominalApproverId(actorId);
+        when(disposalRepository.findByIdWithAsset(request.getId())).thenReturn(Optional.of(request));
+        when(routingService.resolveEffectiveApprover(actorId)).thenReturn(actorId);
+        when(sodWaiverRepository.existsByScopeAndActiveTrue("DISPOSAL_APPROVAL")).thenReturn(true);
+        AssetStatusDef retired = new AssetStatusDef();
+        retired.setCode("RETIRED");
+        when(statusDefRepository.findByCode("RETIRED")).thenReturn(Optional.of(retired));
+        when(assetRepository.saveAndFlush(asset)).thenReturn(asset);
+        when(historyRecorder.record(org.mockito.ArgumentMatchers.eq(asset), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new AssetHistoryEvent());
+        when(disposalRepository.saveAndFlush(request)).thenReturn(request);
+
+        AssetDisposalRequest result = service.approve(request.getId());
+
+        assertThat(result.getStatus()).isEqualTo(LifecycleRequestStatus.APPROVED);
+        assertThat(asset.getStatus()).isEqualTo(retired);
     }
 
     @Test

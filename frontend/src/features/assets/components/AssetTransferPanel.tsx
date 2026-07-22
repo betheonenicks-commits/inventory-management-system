@@ -52,6 +52,7 @@ export function AssetTransferPanel({ asset }: { asset: Asset }) {
   const [reason, setReason] = useState('')
   const [nominalApproverId, setNominalApproverId] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [decisionError, setDecisionError] = useState<string | null>(null)
   const [rejectTarget, setRejectTarget] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
 
@@ -73,14 +74,28 @@ export function AssetTransferPanel({ asset }: { asset: Asset }) {
     }
   }
 
+  // US-USR-06 (AC-USR-06-X): a self-approval SoD block comes back as a 403 with an
+  // actionable message ("route it to another approver, or record a waiver") - surfaced
+  // here rather than failing silently, so the approver understands why it was refused.
+  async function handleApprove(id: string) {
+    setDecisionError(null)
+    try {
+      await approveTransfer.mutateAsync(id)
+    } catch (err) {
+      setDecisionError(isApiProblem(err) ? err.detail : 'Failed to approve this transfer')
+    }
+  }
+
   async function handleReject() {
     if (!rejectTarget) return
+    setDecisionError(null)
     try {
       await rejectTransfer.mutateAsync({ id: rejectTarget, reason: rejectReason })
       setRejectTarget(null)
       setRejectReason('')
-    } catch {
-      // surfaced inline in the list on next render via refetch; dialog stays open on failure is unnecessary here
+    } catch (err) {
+      setRejectTarget(null)
+      setDecisionError(isApiProblem(err) ? err.detail : 'Failed to reject this transfer')
     }
   }
 
@@ -95,6 +110,12 @@ export function AssetTransferPanel({ asset }: { asset: Asset }) {
         )}
       </Stack>
 
+      {decisionError && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setDecisionError(null)}>
+          {decisionError}
+        </Alert>
+      )}
+
       <List dense>
         {(transfersQuery.data ?? []).map((transfer) => (
           <ListItem
@@ -104,7 +125,7 @@ export function AssetTransferPanel({ asset }: { asset: Asset }) {
               canApprove &&
               transfer.status === 'PENDING' && (
                 <Stack direction="row" spacing={0.5}>
-                  <Button size="small" color="success" onClick={() => approveTransfer.mutate(transfer.id)}>
+                  <Button size="small" color="success" onClick={() => handleApprove(transfer.id)}>
                     Approve
                   </Button>
                   <Button size="small" color="error" onClick={() => setRejectTarget(transfer.id)}>

@@ -21,6 +21,7 @@ import com.iams.lifecycle.domain.DisposalType;
 import com.iams.lifecycle.domain.LifecycleRequestStatus;
 import com.iams.usr.application.OrgScopeGuard;
 import com.iams.usr.domain.AppUserRepository;
+import com.iams.usr.domain.SodWaiverRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -32,12 +33,18 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * US-LIF-09/10/11/12/13: request → approve/reject a retirement/disposal/
  * donation with a mandatory reason, restorable within a configurable window.
+ * <p>
+ * US-USR-06 (AC-USR-06-X): the requester cannot approve their own disposal -
+ * blocked at approve() unless an active DISPOSAL_APPROVAL SoD waiver exists,
+ * reusing the same generic sod_waiver mechanism EPIC-AUD uses for AUDIT_APPROVAL.
  */
 @Service
 public class DisposalService {
 
     private static final String RETIRED_STATUS_CODE = "RETIRED";
     private static final String DISPOSED_STATUS_CODE = "DISPOSED";
+    /** The sod_waiver scope string a documented exception to disposal self-approval is recorded under. */
+    private static final String SOD_SCOPE = "DISPOSAL_APPROVAL";
 
     private final AssetDisposalRequestRepository disposalRepository;
     private final AssetRepository assetRepository;
@@ -51,13 +58,15 @@ public class DisposalService {
     private final OrgScopeGuard scopeGuard;
     private final LifecycleProperties lifecycleProperties;
     private final LegalHoldService legalHoldService;
+    private final SodWaiverRepository sodWaiverRepository;
 
     public DisposalService(AssetDisposalRequestRepository disposalRepository, AssetRepository assetRepository,
                             AssetStatusDefRepository statusDefRepository, AssetHistoryRecorder historyRecorder,
                             AssetHistoryEventRepository historyEventRepository, ApprovalRoutingService routingService,
                             AuditScopeChangeService auditScopeChangeService, AppUserRepository appUserRepository,
                             CurrentUserProvider currentUserProvider, OrgScopeGuard scopeGuard,
-                            LifecycleProperties lifecycleProperties, LegalHoldService legalHoldService) {
+                            LifecycleProperties lifecycleProperties, LegalHoldService legalHoldService,
+                            SodWaiverRepository sodWaiverRepository) {
         this.disposalRepository = disposalRepository;
         this.assetRepository = assetRepository;
         this.statusDefRepository = statusDefRepository;
@@ -70,6 +79,7 @@ public class DisposalService {
         this.scopeGuard = scopeGuard;
         this.lifecycleProperties = lifecycleProperties;
         this.legalHoldService = legalHoldService;
+        this.sodWaiverRepository = sodWaiverRepository;
     }
 
     @Transactional
@@ -119,6 +129,8 @@ public class DisposalService {
         AssetDisposalRequest request = requireStatus(id, LifecycleRequestStatus.PENDING);
         UUID actor = currentUserProvider.current().id();
         requireIsRoutedApprover(request, actor);
+        // AC-USR-06-X: the requester can't approve their own disposal without a recorded waiver.
+        requireNotSelfApproval(request.getRequestedBy(), actor);
         // AC-CMP-06-H: a legal hold on this asset blocks disposal until it's lifted.
         legalHoldService.requireNoActiveHold(LegalHoldScopeType.ASSET, request.getAsset().getId());
 
@@ -228,6 +240,18 @@ public class DisposalService {
                 : routingService.resolveEffectiveApprover(request.getNominalApproverId());
         if (!approver.equals(actor)) {
             throw new AccessDeniedException("Only this disposal request's routed approver may act on it");
+        }
+    }
+
+    /**
+     * US-USR-06 (AC-USR-06-X): separation of duties - a requester can't approve their own
+     * disposal. An active DISPOSAL_APPROVAL SoD waiver (a signed-off, documented exception)
+     * is the one way through, mirroring EPIC-AUD's AUDIT_APPROVAL handling.
+     */
+    private void requireNotSelfApproval(UUID requestedBy, UUID actor) {
+        if (actor.equals(requestedBy) && !sodWaiverRepository.existsByScopeAndActiveTrue(SOD_SCOPE)) {
+            throw new AccessDeniedException("Separation of duties: you cannot approve a disposal you requested "
+                    + "yourself. Route it to another approver, or record an active '" + SOD_SCOPE + "' SoD waiver first.");
         }
     }
 

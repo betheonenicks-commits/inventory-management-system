@@ -53,6 +53,7 @@ export function AssetDisposalPanel({ asset }: { asset: Asset }) {
   const [reason, setReason] = useState('')
   const [nominalApproverId, setNominalApproverId] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [decisionError, setDecisionError] = useState<string | null>(null)
   const [rejectTarget, setRejectTarget] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
 
@@ -74,14 +75,27 @@ export function AssetDisposalPanel({ asset }: { asset: Asset }) {
     }
   }
 
+  // US-USR-06 (AC-USR-06-X): a self-approval SoD block is a 403 with an actionable message,
+  // surfaced here rather than failing silently.
+  async function handleApprove(id: string) {
+    setDecisionError(null)
+    try {
+      await approveDisposal.mutateAsync(id)
+    } catch (err) {
+      setDecisionError(isApiProblem(err) ? err.detail : 'Failed to approve this disposal')
+    }
+  }
+
   async function handleReject() {
     if (!rejectTarget) return
+    setDecisionError(null)
     try {
       await rejectDisposal.mutateAsync({ id: rejectTarget, reason: rejectReason })
       setRejectTarget(null)
       setRejectReason('')
-    } catch {
-      // errors surface via the list state on refetch
+    } catch (err) {
+      setRejectTarget(null)
+      setDecisionError(isApiProblem(err) ? err.detail : 'Failed to reject this disposal')
     }
   }
 
@@ -96,6 +110,12 @@ export function AssetDisposalPanel({ asset }: { asset: Asset }) {
         )}
       </Stack>
 
+      {decisionError && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setDecisionError(null)}>
+          {decisionError}
+        </Alert>
+      )}
+
       <List dense>
         {(disposalsQuery.data ?? []).map((disposal) => (
           <ListItem
@@ -105,7 +125,7 @@ export function AssetDisposalPanel({ asset }: { asset: Asset }) {
               <Stack direction="row" spacing={0.5}>
                 {canApprove && disposal.status === 'PENDING' && (
                   <>
-                    <Button size="small" color="success" onClick={() => approveDisposal.mutate(disposal.id)}>
+                    <Button size="small" color="success" onClick={() => handleApprove(disposal.id)}>
                       Approve
                     </Button>
                     <Button size="small" color="error" onClick={() => setRejectTarget(disposal.id)}>

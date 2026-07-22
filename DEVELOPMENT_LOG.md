@@ -1378,3 +1378,19 @@ The story: the System Operator role should reach technical configuration (backup
 **Story-status effect:** US-USR-05 moves to **Built** (both ACs). Backup/LDAP settings screens remain genuinely unbuilt - but they're not what either AC tests, and AC-USR-05-H is satisfied by the system-health surface.
 
 **RTM tally so far this effort: 25 of the 50 original Partials cleared**, 25 remain. Continuing Batch E: USR-06 (SoD self-approval block on transfer/disposal), AST-04, AST-06.
+
+---
+
+## 2026-07-22, continued - Batch E (part 2): US-USR-06 (block self-approval of transfers and disposals)
+
+EPIC-AUD already blocks an audit submitter from being their own approver (`AuditWorkflowService.resolveApprover`, SoD scope `AUDIT_APPROVAL`), but the transfer and disposal approval paths had no such check - `TransferService`'s own javadoc even said so explicitly ("No SoD self-approval check ... inventing one would be scope no story asked for"). US-USR-06 is exactly the story that asks for it, across all three flows, so that comment is now resolved.
+
+**Design.** Both `TransferService.approve()` and `DisposalService.approve()` now call `requireNotSelfApproval(request.getRequestedBy(), actor)` right after the routed-approver check. The rule: if the actor is the original requester, block - unless an active SoD waiver for the relevant scope exists. This reuses the same generic `sod_waiver` mechanism EPIC-AUD already uses (an IT-Security-Officer-signed, `is_active` row via `SodWaiverRepository.existsByScopeAndActiveTrue`), just under two new free-form scope strings, `TRANSFER_APPROVAL` and `DISPOSAL_APPROVAL` - so the "with no active waiver" clause in AC-USR-06-X is honored exactly: a documented, signed exception is the one way a self-approval proceeds, and it's never silent. Gated at `approve()` (not `create()`) to match the AC's wording precisely - "when A attempts to *approve* their own submission ... it is refused" - so a request can still be *created* routed to oneself, it just can't be self-approved. Reject is deliberately left unguarded: rejecting your own request is a benign self-withdrawal, not the SoD conflict the story names. A denial reuses the existing `AccessDeniedException` -> 403 path with an actionable message ("route it to another approver, or record an active '...' SoD waiver first").
+
+**Frontend.** The transfer/disposal approve buttons were fire-and-forget `.mutate()` calls that swallowed any failure silently - so a self-approval block (and, incidentally, the pre-existing legal-hold 423 block too) produced no visible feedback. Both panels now route approve/reject through an async handler that surfaces the error in a dismissable banner, so the approver actually sees why it was refused and what to do.
+
+**Verification.** Backend: 4 new tests (self-approval blocked without a waiver, allowed with an active waiver, on each of Transfer and Disposal). Full suite 518/518. Frontend `tsc -b`/`oxlint` clean. **Live-verified** the transfer flow end to end on 8081: created a transfer with the requester routed as their own approver, confirmed self-approve returns 403 with the exact SoD message, then created a second transfer routed to a *different* DEPARTMENT_HEAD approver and confirmed they approve it successfully (200) - i.e. both AC-USR-06-X (self refused) and AC-USR-06-H (a distinct approver succeeds, recording their identity). Disposal shares the identical `requireNotSelfApproval` helper and is covered by its two unit tests rather than a duplicate live run.
+
+**Story-status effect:** US-USR-06 moves to **Built**.
+
+**RTM tally so far this effort: 26 of the 50 original Partials cleared**, 24 remain. Continuing Batch E: AST-04 (per-child disposition on transfer/dispose), AST-06 (custom-field filterable in search).

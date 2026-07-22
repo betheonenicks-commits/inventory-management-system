@@ -23,6 +23,7 @@ import com.iams.org.domain.OrgNode;
 import com.iams.org.domain.OrgNodeRepository;
 import com.iams.usr.application.OrgScopeGuard;
 import com.iams.usr.domain.AppUserRepository;
+import com.iams.usr.domain.SodWaiverRepository;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.Set;
@@ -49,6 +50,7 @@ class TransferServiceTest {
     @Mock private OrgScopeGuard scopeGuard;
     @Mock private LifecycleProperties lifecycleProperties;
     @Mock private LegalHoldService legalHoldService;
+    @Mock private SodWaiverRepository sodWaiverRepository;
 
     @Mock
     private org.springframework.context.ApplicationEventPublisher eventPublisher;
@@ -66,7 +68,7 @@ class TransferServiceTest {
     void setUp() {
         service = new TransferService(transferRepository, assetRepository, orgNodeRepository, historyRecorder,
                 assignmentService, routingService, auditScopeChangeService, appUserRepository, currentUserProvider,
-                scopeGuard, lifecycleProperties, legalHoldService, eventPublisher);
+                scopeGuard, lifecycleProperties, legalHoldService, eventPublisher, sodWaiverRepository);
         actorId = UUID.randomUUID();
         assetId = UUID.randomUUID();
         toOrgNodeId = UUID.randomUUID();
@@ -157,6 +159,41 @@ class TransferServiceTest {
         when(routingService.resolveEffectiveApprover(approverId)).thenReturn(approverId);
 
         assertThatThrownBy(() -> service.approve(request.getId())).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void approve_blocksSelfApproval_withoutWaiver() {
+        // AC-USR-06-X: the requester routed the transfer to themselves and tries to approve it.
+        AssetTransferRequest request = pendingRequest();
+        request.setNominalApproverId(actorId);
+        when(transferRepository.findByIdWithAssociations(request.getId())).thenReturn(Optional.of(request));
+        when(routingService.resolveEffectiveApprover(actorId)).thenReturn(actorId);
+        when(sodWaiverRepository.existsByScopeAndActiveTrue("TRANSFER_APPROVAL")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.approve(request.getId()))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Separation of duties");
+        assertThat(asset.getOrgNode()).isEqualTo(fromNode); // nothing moved
+    }
+
+    @Test
+    void approve_allowsSelfApproval_withActiveWaiver() {
+        // AC-USR-06-X converse: a recorded, active TRANSFER_APPROVAL waiver permits the self-approval.
+        AssetTransferRequest request = pendingRequest();
+        request.setNominalApproverId(actorId);
+        when(transferRepository.findByIdWithAssociations(request.getId())).thenReturn(Optional.of(request));
+        when(routingService.resolveEffectiveApprover(actorId)).thenReturn(actorId);
+        when(sodWaiverRepository.existsByScopeAndActiveTrue("TRANSFER_APPROVAL")).thenReturn(true);
+        when(assetRepository.saveAndFlush(asset)).thenReturn(asset);
+        when(historyRecorder.record(org.mockito.ArgumentMatchers.eq(asset), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(new AssetHistoryEvent());
+        when(transferRepository.saveAndFlush(request)).thenReturn(request);
+
+        AssetTransferRequest result = service.approve(request.getId());
+
+        assertThat(result.getStatus()).isEqualTo(LifecycleRequestStatus.APPROVED);
+        assertThat(asset.getOrgNode()).isEqualTo(toNode);
     }
 
     @Test
