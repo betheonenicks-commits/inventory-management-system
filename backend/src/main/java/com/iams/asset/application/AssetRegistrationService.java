@@ -6,6 +6,7 @@ import com.iams.asset.domain.AssetCategoryRepository;
 import com.iams.asset.domain.AssetCustomFieldDefinitionRepository;
 import com.iams.asset.domain.AssetHistoryEventType;
 import com.iams.asset.domain.AssetRepository;
+import com.iams.asset.domain.AssetStatusDef;
 import com.iams.asset.domain.AssetStatusDefRepository;
 import com.iams.asset.domain.service.AssetNumberGenerator;
 import com.iams.common.exception.NotFoundException;
@@ -70,30 +71,10 @@ public class AssetRegistrationService {
 
     @Transactional
     public Asset register(AssetRegisterCommand command) {
-        if (command.name() == null || command.name().isBlank()) {
-            throw ValidationFailedException.singleField("name", "This field is required");
-        }
-        if (command.categoryId() == null) {
-            throw ValidationFailedException.singleField("categoryId", "This field is required");
-        }
-        validatePurchaseCost(command.purchaseCost());
-        validateWarrantyDates(command.warrantyStartDate(), command.warrantyEndDate());
-
-        AssetCategory category = categoryRepository.findById(command.categoryId())
-                .orElseThrow(() -> NotFoundException.of("AssetCategory", command.categoryId()));
-
-        // Validated BEFORE anything is persisted - a missing required custom
-        // field must result in zero rows written (AC-AST-01-X).
-        customFieldValidationService.validate(
-                fieldDefinitionRepository.findByCategoryIdOrderByDisplayOrder(category.getId()),
-                command.customFields());
-
-        OrgNode orgNode = orgNodeRepository.findById(
-                        command.orgNodeId() != null ? command.orgNodeId() : DEFAULT_ORG_NODE_ID)
-                .orElseThrow(() -> NotFoundException.of("OrgNode", command.orgNodeId()));
-
-        var initialStatus = statusDefRepository.findByCode(INITIAL_STATUS_CODE)
-                .orElseThrow(() -> new IllegalStateException("Seed data missing: asset_status_def " + INITIAL_STATUS_CODE));
+        ResolvedRefs refs = resolveAndValidate(command);
+        AssetCategory category = refs.category();
+        OrgNode orgNode = refs.orgNode();
+        AssetStatusDef initialStatus = refs.initialStatus();
 
         UUID actor = currentUserProvider.current().id();
         String assetNumber = assetNumberGenerator.next();
@@ -193,6 +174,51 @@ public class AssetRegistrationService {
             Asset current = assetRepository.findByIdWithAssociations(assetId).orElseThrow(() -> NotFoundException.of("Asset", assetId));
             throw new OptimisticLockConflictException(command.version(), current.getVersion(), current);
         }
+    }
+
+    /**
+     * Runs exactly the pre-persist validation {@link #register} applies (required
+     * fields, purchase cost, warranty dates, category + org-node existence, custom
+     * fields), without writing anything. The bulk importer's dry run (US-MIG-03)
+     * calls this per row so its checks are, by construction, identical to what a
+     * real create enforces - the AC's "columns match exactly what the dry-run
+     * validator checks" holds because there is a single validation path, not two.
+     * Throws {@link ValidationFailedException}/{@link NotFoundException} on failure.
+     */
+    public void validate(AssetRegisterCommand command) {
+        resolveAndValidate(command);
+    }
+
+    private ResolvedRefs resolveAndValidate(AssetRegisterCommand command) {
+        if (command.name() == null || command.name().isBlank()) {
+            throw ValidationFailedException.singleField("name", "This field is required");
+        }
+        if (command.categoryId() == null) {
+            throw ValidationFailedException.singleField("categoryId", "This field is required");
+        }
+        validatePurchaseCost(command.purchaseCost());
+        validateWarrantyDates(command.warrantyStartDate(), command.warrantyEndDate());
+
+        AssetCategory category = categoryRepository.findById(command.categoryId())
+                .orElseThrow(() -> NotFoundException.of("AssetCategory", command.categoryId()));
+
+        // Validated BEFORE anything is persisted - a missing required custom
+        // field must result in zero rows written (AC-AST-01-X).
+        customFieldValidationService.validate(
+                fieldDefinitionRepository.findByCategoryIdOrderByDisplayOrder(category.getId()),
+                command.customFields());
+
+        OrgNode orgNode = orgNodeRepository.findById(
+                        command.orgNodeId() != null ? command.orgNodeId() : DEFAULT_ORG_NODE_ID)
+                .orElseThrow(() -> NotFoundException.of("OrgNode", command.orgNodeId()));
+
+        AssetStatusDef initialStatus = statusDefRepository.findByCode(INITIAL_STATUS_CODE)
+                .orElseThrow(() -> new IllegalStateException("Seed data missing: asset_status_def " + INITIAL_STATUS_CODE));
+
+        return new ResolvedRefs(category, orgNode, initialStatus);
+    }
+
+    private record ResolvedRefs(AssetCategory category, OrgNode orgNode, AssetStatusDef initialStatus) {
     }
 
     private void applyFieldChange(Asset asset, String fieldName, String oldValue, String newValue, java.util.function.Consumer<String> setter) {

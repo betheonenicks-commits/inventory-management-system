@@ -10,6 +10,9 @@ public interface OrgNodeRepository extends JpaRepository<OrgNode, UUID> {
 
     boolean existsByCode(String code);
 
+    /** US-MIG-03: the bulk importer resolves an org node from its human-facing code (a spreadsheet can't carry a UUID). */
+    Optional<OrgNode> findByCode(String code);
+
     /** US-ORG-01 delete-block AC: does this node still have children. */
     boolean existsByParentId(UUID parentId);
 

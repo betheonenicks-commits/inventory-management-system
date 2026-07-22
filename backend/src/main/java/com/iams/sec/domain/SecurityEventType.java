@@ -44,5 +44,7 @@ public enum SecurityEventType {
     /** US-SEC-09: a locked-out user requested a self-service unlock email. */
     ACCOUNT_UNLOCK_REQUESTED,
     /** US-SEC-06: a step-up-required action's password re-confirmation succeeded. */
-    STEP_UP_VERIFIED
+    STEP_UP_VERIFIED,
+    /** US-MIG-03: a bulk import run was committed - names the run, entity type, and its created/failed/skipped reconciliation. */
+    BULK_IMPORT_COMMITTED
 }
