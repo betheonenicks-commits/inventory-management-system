@@ -58,18 +58,18 @@ class SearchServiceTest {
 
     @Test
     void global_vendorGroupOnlySearchedWhenCallerHoldsInventoryRead() {
-        when(scopeGuard.currentScopePathPrefix()).thenReturn(null);
-        when(assetRepository.search(any(), any(), eq("acme"), any(), any(), any(), any(), any()))
-                .thenReturn(new PageImpl<>(List.of()));
+        // A Viewer (dashboards:read + reports:read) can see people (reports:read gates the
+        // employee-assets picker) but not assets or vendors.
         when(personService.list("acme")).thenReturn(List.of());
-        when(currentUserProvider.current()).thenReturn(
-                new CurrentUser(UUID.randomUUID(), "viewer", Set.of("VIEWER"), Set.of("dashboards:read")));
+        when(currentUserProvider.current()).thenReturn(new CurrentUser(UUID.randomUUID(), "viewer",
+                Set.of("VIEWER"), Set.of("dashboards:read", "reports:read")));
 
         SearchService.GlobalSearchResult result = service.global("acme");
 
         assertThat(result.vendorsSearched()).isFalse();
         assertThat(result.vendors()).isEmpty();
-        verifyNoInteractions(vendorRepository);
+        assertThat(result.assets()).isEmpty();
+        verifyNoInteractions(vendorRepository, assetRepository);
     }
 
     @Test
@@ -86,8 +86,9 @@ class SearchServiceTest {
         person.setId(UUID.randomUUID());
         person.setFullName("Latha K");
         when(personService.list("lat")).thenReturn(List.of(person));
-        when(currentUserProvider.current()).thenReturn(
-                new CurrentUser(UUID.randomUUID(), "im", Set.of("INVENTORY_MANAGER"), Set.of("inventory:read")));
+        when(currentUserProvider.current()).thenReturn(new CurrentUser(UUID.randomUUID(), "im",
+                Set.of("INVENTORY_MANAGER"),
+                Set.of("assets:read", "assets:write", "inventory:read", "reports:read")));
 
         SearchService.GlobalSearchResult result = service.global("lat");
 
@@ -95,6 +96,22 @@ class SearchServiceTest {
         assertThat(result.vendorsSearched()).isTrue();
         assertThat(result.vendors()).extracting(SearchService.VendorHit::name).containsExactly("Latitude Supplies");
         assertThat(result.people()).extracting(SearchService.PersonHit::fullName).containsExactly("Latha K");
+    }
+
+    @Test
+    void global_systemOperatorGetsEmptyResultsAndTouchesNoBusinessData() {
+        // US-USR-05 (AC-USR-05-X): SYSTEM_OPERATOR holds only system:read/write, so search
+        // must not be a side door to asset valuations or person PII - every group is empty and
+        // no asset/vendor/person repository is queried at all.
+        when(currentUserProvider.current()).thenReturn(new CurrentUser(UUID.randomUUID(), "sysop",
+                Set.of("SYSTEM_OPERATOR"), Set.of("system:read", "system:write")));
+
+        SearchService.GlobalSearchResult result = service.global("anything");
+
+        assertThat(result.assets()).isEmpty();
+        assertThat(result.vendors()).isEmpty();
+        assertThat(result.people()).isEmpty();
+        verifyNoInteractions(assetRepository, vendorRepository, personService);
     }
 
     @Test

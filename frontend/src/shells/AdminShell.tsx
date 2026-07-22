@@ -38,6 +38,7 @@ import AccountTreeIcon from '@mui/icons-material/AccountTree'
 import BusinessIcon from '@mui/icons-material/Business'
 import SecurityIcon from '@mui/icons-material/Security'
 import VpnKeyIcon from '@mui/icons-material/VpnKey'
+import MonitorHeartIcon from '@mui/icons-material/MonitorHeart'
 import { useAuthStore, hasPermission } from '../auth/authStore'
 import { logout as logoutApi } from '../api/authApi'
 
@@ -105,6 +106,8 @@ const NAV_ITEMS: NavItem[] = [
     icon: <VpnKeyIcon />,
     requiresPermission: 'security:write',
   },
+  // US-USR-05: the System Operator's one business-data-free surface (system:read).
+  { label: 'System Health', to: '/system/health', icon: <MonitorHeartIcon />, requiresPermission: 'system:read' },
 ]
 
 export function AdminShell() {

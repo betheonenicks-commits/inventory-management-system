@@ -71,7 +71,12 @@ public class AssetController {
         return ResponseEntity.created(URI.create("/api/v1/assets/" + asset.getId())).body(response);
     }
 
+    // US-USR-05 (AC-USR-05-X): asset records carry valuation data (purchaseCost), so reading
+    // them needs a real reason, not just authentication - OR-composed with assets:read:own so
+    // whichever role ends up scoped to "my assigned assets only" isn't newly blocked. Deliberately
+    // excludes SYSTEM_OPERATOR, which holds neither.
     @GetMapping("/assets")
+    @PreAuthorize("@perm.has('assets:read') or @perm.has('assets:read:own')")
     @TrackUsage(module = "assets", action = "list-register")
     public PageResponse<AssetResponse> list(@RequestParam(required = false) UUID categoryId,
                                              @RequestParam(required = false) UUID statusId,
@@ -91,6 +96,7 @@ public class AssetController {
     }
 
     @GetMapping("/assets/{id}")
+    @PreAuthorize("@perm.has('assets:read') or @perm.has('assets:read:own')")
     public AssetResponse get(@PathVariable UUID id) {
         return mapper.toResponse(queryService.get(id));
     }
@@ -114,6 +120,7 @@ public class AssetController {
     }
 
     @GetMapping("/assets/{id}/history")
+    @PreAuthorize("@perm.has('assets:read') or @perm.has('assets:read:own')")
     public PageResponse<AssetHistoryEventResponse> history(@PathVariable UUID id,
                                                              @PageableDefault(size = 20) Pageable pageable) {
         var page = queryService.history(id, pageable);
@@ -122,6 +129,7 @@ public class AssetController {
     }
 
     @GetMapping("/assets/{id}/movements")
+    @PreAuthorize("@perm.has('assets:read') or @perm.has('assets:read:own')")
     public PageResponse<AssetHistoryEventResponse> movements(@PathVariable UUID id,
                                                                @PageableDefault(size = 20) Pageable pageable) {
         var page = queryService.movements(id, pageable);

@@ -36,12 +36,19 @@ public class PersonController {
         this.mapper = mapper;
     }
 
+    // US-USR-05 (AC-USR-05-X): Person carries PII (name/email), so reading it needs a real
+    // reason, not just authentication. OR-composed across every legitimate current caller:
+    // org:read (Administrator managing people directly), assets:write (FR-LIF-04 assignment -
+    // AssetAssignmentController picks a person to assign to), reports:read (the employee-assets
+    // report's person picker). Deliberately excludes SYSTEM_OPERATOR, which holds none of these.
     @GetMapping
+    @PreAuthorize("@perm.has('org:read') or @perm.has('assets:write') or @perm.has('reports:read')")
     public List<PersonResponse> list(@RequestParam(required = false) String q) {
         return personService.list(q).stream().map(mapper::toResponse).toList();
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@perm.has('org:read') or @perm.has('assets:write') or @perm.has('reports:read')")
     public PersonResponse get(@PathVariable UUID id) {
         return mapper.toResponse(personService.get(id));
     }

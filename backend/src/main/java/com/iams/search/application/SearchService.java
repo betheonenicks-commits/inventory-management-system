@@ -19,13 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * EPIC-SRC (BR-03). Global search (US-SRC-01) is one query fanned across the
- * entity types the caller may see: assets ride the same org-scoped criteria
- * search GET /assets uses (deliberately ungated, per the permission-matrix
- * session's finding that asset reads carry no @PreAuthorize); people ride
- * PersonService.list()'s existing scope filter (PersonController.list is
- * likewise open to any authenticated user); the vendor group is included only
- * when the caller actually holds inventory:read - a group the caller can't
- * open in the UI is omitted, not teased.
+ * entity types the caller may see, and each group is included only when the
+ * caller holds the permission that group's own GET endpoint now requires -
+ * so search can't be a side door around US-USR-05 (AC-USR-05-X): assets need
+ * assets:read/assets:read:own (same gate as GET /assets), people need the
+ * PII gate GET /persons now carries (org:read / assets:write / reports:read),
+ * and vendors need inventory:read. A group the caller can't open in the UI
+ * is omitted, not teased - a SYSTEM_OPERATOR searching gets an empty result,
+ * not another route to asset valuations or person PII.
  * <p>
  * Code lookup (US-SRC-02) is exact-match across every unique identifying
  * code an asset carries - typed asset number, scanned barcode/QR payload, or
@@ -65,18 +66,26 @@ public class SearchService {
         if (q == null || q.isBlank()) {
             throw ValidationFailedException.singleField("q", "A search term is required");
         }
-        List<AssetHit> assets = assetRepository.search(null, null, q, null, scopeGuard.currentScopePathPrefix(),
+        var caller = currentUserProvider.current();
+        boolean assetsVisible = caller.hasPermission("assets:read") || caller.hasPermission("assets:read:own");
+        List<AssetHit> assets = assetsVisible
+                ? assetRepository.search(null, null, q, null, scopeGuard.currentScopePathPrefix(),
                         null, null, PageRequest.of(0, GROUP_LIMIT, Sort.by("name"))).getContent().stream()
-                .map(SearchService::toAssetHit).toList();
-        boolean vendorsVisible = currentUserProvider.current().hasPermission("inventory:read");
+                        .map(SearchService::toAssetHit).toList()
+                : List.of();
+        boolean vendorsVisible = caller.hasPermission("inventory:read");
         List<VendorHit> vendors = vendorsVisible
                 ? vendorRepository.findTop20ByNameContainingIgnoreCaseOrderByNameAsc(q).stream()
                         .map(v -> new VendorHit(v.getId(), v.getName(), v.isActive())).toList()
                 : List.of();
-        List<PersonHit> people = personService.list(q).stream().limit(GROUP_LIMIT)
-                .map(p -> new PersonHit(p.getId(), p.getFullName(),
-                        p.getOrgNode() != null ? p.getOrgNode().getName() : null))
-                .toList();
+        boolean peopleVisible = caller.hasPermission("org:read") || caller.hasPermission("assets:write")
+                || caller.hasPermission("reports:read");
+        List<PersonHit> people = peopleVisible
+                ? personService.list(q).stream().limit(GROUP_LIMIT)
+                        .map(p -> new PersonHit(p.getId(), p.getFullName(),
+                                p.getOrgNode() != null ? p.getOrgNode().getName() : null))
+                        .toList()
+                : List.of();
         return new GlobalSearchResult(assets, vendors, vendorsVisible, people);
     }
 

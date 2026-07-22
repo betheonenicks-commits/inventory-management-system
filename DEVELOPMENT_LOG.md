@@ -1357,3 +1357,24 @@ That second half **is** buildable today, so it got built: `IAMS_Vulnerability_Di
 **Batch D is now fully closed.** Final tally for this batch: SEC-11, SEC-04, SEC-05, SEC-10, SEC-09, SEC-06 moved to Built; SEC-13 moved from Not-started to a documented Partial.
 
 **RTM tally so far this effort: 24 of the 50 original Partials cleared** (SEC-13 doesn't count toward this, since it was Not-started, not Partial, going in). 26 Partials remain. Moving to Batch E: USR-05 (System Operator scoping + PII gate), USR-06 (SoD self-approval block on transfer/disposal), AST-04 (per-child disposition on transfer/dispose), AST-06 (custom-field filterable in search).
+
+---
+
+## 2026-07-22, continued - Batch E (part 1): US-USR-05 (scope System Operator to technical config only)
+
+The story: the System Operator role should reach technical configuration (backups, LDAP, system health) but never business or personal data.
+
+**The real gap wasn't what the RTM implied.** SYSTEM_OPERATOR's seeded permission set (`V15__create_role_definition.sql`) is already exactly `["system:read","system:write"]` - nothing business-related to strip. AC-USR-05-X failed for a different reason: `GET /persons` (PII: name/email) and `GET /assets` (valuation: purchaseCost) carried **no `@PreAuthorize` at all** - `SecurityConfig` defaults every non-whitelisted path to merely "authenticated", so *any* logged-in user, SYSTEM_OPERATOR included, could read both. So the fix is gating those reads, not editing the role.
+
+**AC-USR-05-X.** Added `@PreAuthorize` to the Person and Asset read endpoints:
+- `GET /persons`, `GET /persons/{id}`: `org:read or assets:write or reports:read` - OR-composed across every legitimate current caller (Administrator managing people; the FR-LIF-04 assignment picker which holds assets:write; the employee-assets report's person picker which holds reports:read). SYSTEM_OPERATOR holds none - refused.
+- `GET /assets`, `/assets/{id}`, `/assets/{id}/history`, `/assets/{id}/movements`: `assets:read or assets:read:own` (the latter so whichever role is scoped to "my assigned assets only" isn't newly blocked). SYSTEM_OPERATOR holds neither.
+- **Closed the search side-door too.** `SearchService.global()` fanned out to assets and people for any authenticated caller (its own comment even said asset reads were "deliberately ungated" - now stale). Each group is now gated by the same permission its own GET endpoint requires (mirroring the vendor group's pre-existing `inventory:read` gate), so a SYSTEM_OPERATOR search returns empty rather than leaking asset/PII data around the front door.
+
+**AC-USR-05-H.** The positive case needed something business-data-free to actually grant access *to*. Backup and LDAP have no underlying subsystem built anywhere in this codebase - stubbing endpoints for them would be fabricating functionality. System health is real: new `GET /system/health` (`SystemController`/`SystemHealthService`, `@perm.has('system:read')`) reuses Spring Boot Actuator's own `HealthEndpoint` bean (DB, disk, liveness, readiness) rather than hand-rolling checks - called as a bean, not the HTTP actuator path, so it's independent of `show-details: never`. Frontend: a `System Health` nav item (gated `system:read`, so only SYSTEM_OPERATOR/SUPER_ADMIN see it) + a `SystemHealthPage` showing overall + per-component status, auto-refreshing. Backup/LDAP config is flagged in the controller's javadoc as genuinely-not-built, not silently skipped.
+
+**Verification.** Backend: `SystemHealthServiceTest` (composite flattening + non-composite fallback), `SearchServiceTest` updated for the new per-group gating + a new SYSTEM_OPERATOR-gets-nothing case (verifies no asset/vendor/person repository is even queried). Full suite 514/514. Frontend `tsc -b`/`oxlint` clean. **Live-verified** on 8081: provisioned a real SYSTEM_OPERATOR, confirmed `GET /system/health` 200 (status UP, real components db/diskSpace/liveness/readiness/ping), `GET /assets` 403, `GET /persons` 403, and a global search returning assets:0 vendors:0 people:0; admin control still 200 on all three.
+
+**Story-status effect:** US-USR-05 moves to **Built** (both ACs). Backup/LDAP settings screens remain genuinely unbuilt - but they're not what either AC tests, and AC-USR-05-H is satisfied by the system-health surface.
+
+**RTM tally so far this effort: 25 of the 50 original Partials cleared**, 25 remain. Continuing Batch E: USR-06 (SoD self-approval block on transfer/disposal), AST-04, AST-06.
