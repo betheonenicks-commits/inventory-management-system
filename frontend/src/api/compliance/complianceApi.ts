@@ -29,6 +29,21 @@ export function purgeSecurityEventLog() {
   return httpClient.post<{ deletedCount: number }>('/compliance/retention-policies/security-event-log/purge').then((r) => r.data)
 }
 
+export interface EntityPurgeResult {
+  entityType: RetentionEntityType
+  purged: number
+  skipped: number
+  detail: string
+}
+
+// US-CMP-01: run the configured purge for an executable entity type (SECURITY_EVENT_LOG or PERSON).
+// US-CMP-06: for PERSON, records under a legal hold are reported in `skipped`, not anonymized.
+export function purgeEntityType(entityType: RetentionEntityType) {
+  return httpClient
+    .post<EntityPurgeResult>(`/compliance/retention-policies/${entityType}/purge`)
+    .then((r) => r.data)
+}
+
 // --- Legal holds (US-CMP-06) ---
 
 export function fetchLegalHolds(scopeType?: LegalHoldScopeType) {

@@ -7,12 +7,17 @@ import static org.mockito.Mockito.when;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUser;
 import com.iams.common.security.CurrentUserProvider;
+import com.iams.compliance.domain.LegalHoldScopeType;
 import com.iams.compliance.domain.RetentionEntityType;
 import com.iams.compliance.domain.RetentionExpiryAction;
 import com.iams.compliance.domain.RetentionPolicy;
 import com.iams.compliance.domain.RetentionPolicyRepository;
+import com.iams.org.domain.Person;
 import com.iams.sec.application.SecurityEventLogger;
 import com.iams.sec.domain.SecurityEventLogRepository;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -29,12 +34,14 @@ class RetentionPolicyServiceTest {
     @Mock private SecurityEventLogRepository securityEventLogRepository;
     @Mock private SecurityEventLogger securityEventLogger;
     @Mock private CurrentUserProvider currentUserProvider;
+    @Mock private PersonAnonymizationService personAnonymizationService;
 
     private RetentionPolicyService service;
 
     @BeforeEach
     void setUp() {
-        service = new RetentionPolicyService(policyRepository, securityEventLogRepository, securityEventLogger, currentUserProvider);
+        service = new RetentionPolicyService(policyRepository, securityEventLogRepository, securityEventLogger,
+                currentUserProvider, personAnonymizationService);
         org.mockito.Mockito.lenient().when(currentUserProvider.current())
                 .thenReturn(new CurrentUser(UUID.randomUUID(), "compliance1", Set.of("COMPLIANCE_OFFICER")));
     }
@@ -73,10 +80,73 @@ class RetentionPolicyServiceTest {
     }
 
     @Test
+    void save_rejectsBelowFloor_forAuditRecord() {
+        // BRD §5.4: "security/audit logs 7 years" - AUDIT_RECORD now carries the same 7yr floor.
+        assertThatThrownBy(() -> service.save(RetentionEntityType.AUDIT_RECORD, 365, RetentionExpiryAction.DELETE))
+                .isInstanceOf(ValidationFailedException.class)
+                .hasMessageContaining("2555");
+    }
+
+    @Test
     void runPurge_throws_whenNoPolicyConfigured() {
         when(policyRepository.findByEntityType(RetentionEntityType.SECURITY_EVENT_LOG)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.runPurge()).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.runPurge()).isInstanceOf(ValidationFailedException.class);
+    }
+
+    @Test
+    void purge_refuses_forAnEntityTypeWithNoExecutablePurge() {
+        RetentionPolicy policy = new RetentionPolicy();
+        policy.setEntityType(RetentionEntityType.ASSET_HISTORY_EVENT);
+        policy.setRetentionPeriodDays(365);
+        policy.setExpiryAction(RetentionExpiryAction.DELETE);
+        when(policyRepository.findByEntityType(RetentionEntityType.ASSET_HISTORY_EVENT)).thenReturn(Optional.of(policy));
+
+        assertThatThrownBy(() -> service.purge(RetentionEntityType.ASSET_HISTORY_EVENT))
+                .isInstanceOf(ValidationFailedException.class);
+    }
+
+    @Test
+    void purgePersons_anonymizesPastRetention_andSkipsHeldOnes() {
+        RetentionPolicy policy = new RetentionPolicy();
+        policy.setEntityType(RetentionEntityType.PERSON);
+        policy.setRetentionPeriodDays(30);
+        policy.setExpiryAction(RetentionExpiryAction.ANONYMIZE);
+        when(policyRepository.findByEntityType(RetentionEntityType.PERSON)).thenReturn(Optional.of(policy));
+
+        Instant longAgo = Instant.now().minus(400, ChronoUnit.DAYS);
+        Person pastRetention = person(longAgo);       // eligible + past retention -> anonymized
+        Person heldPerson = person(longAgo);          // eligible + past retention but under hold -> skipped
+        Person recent = person(Instant.now());        // eligible but not yet past retention -> untouched
+        when(personAnonymizationService.eligible()).thenReturn(List.of(pastRetention, heldPerson, recent));
+        when(personAnonymizationService.anonymize(pastRetention.getId())).thenReturn(pastRetention);
+        when(personAnonymizationService.anonymize(heldPerson.getId()))
+                .thenThrow(new LegalHoldActiveException(LegalHoldScopeType.AUDIT));
+
+        RetentionPolicyService.PurgeResult result = service.purge(RetentionEntityType.PERSON);
+
+        assertThat(result.purged()).isEqualTo(1);   // only pastRetention
+        assertThat(result.skipped()).isEqualTo(1);  // heldPerson
+        org.mockito.Mockito.verify(personAnonymizationService, org.mockito.Mockito.never()).anonymize(recent.getId());
+    }
+
+    @Test
+    void purgePersons_refusesWhenExpiryActionIsNotAnonymize() {
+        RetentionPolicy policy = new RetentionPolicy();
+        policy.setEntityType(RetentionEntityType.PERSON);
+        policy.setRetentionPeriodDays(30);
+        policy.setExpiryAction(RetentionExpiryAction.DELETE);
+        when(policyRepository.findByEntityType(RetentionEntityType.PERSON)).thenReturn(Optional.of(policy));
+
+        assertThatThrownBy(() -> service.purge(RetentionEntityType.PERSON))
+                .isInstanceOf(ValidationFailedException.class);
+    }
+
+    private Person person(Instant updatedAt) {
+        Person p = new Person();
+        p.setId(UUID.randomUUID());
+        p.setUpdatedAt(updatedAt);
+        return p;
     }
 
     @Test

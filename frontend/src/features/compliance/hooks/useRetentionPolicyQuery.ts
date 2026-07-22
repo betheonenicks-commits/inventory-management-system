@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchRetentionPolicies, purgeSecurityEventLog, saveRetentionPolicy } from '../../../api/compliance/complianceApi'
+import {
+  fetchRetentionPolicies,
+  purgeEntityType,
+  purgeSecurityEventLog,
+  saveRetentionPolicy,
+} from '../../../api/compliance/complianceApi'
 import type { RetentionEntityType, RetentionExpiryAction } from '../types'
 
 export function useRetentionPoliciesQuery() {
@@ -24,5 +29,14 @@ export function useSaveRetentionPolicyMutation() {
 export function usePurgeSecurityEventLogMutation() {
   return useMutation({
     mutationFn: purgeSecurityEventLog,
+  })
+}
+
+export function usePurgeEntityTypeMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (entityType: RetentionEntityType) => purgeEntityType(entityType),
+    // A PERSON purge anonymizes records, which changes the anonymization-eligible list.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['CMP', 'anonymizationEligible'] }),
   })
 }

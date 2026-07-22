@@ -1,9 +1,11 @@
 package com.iams.compliance.api;
 
+import com.iams.compliance.api.dto.EntityPurgeResultResponse;
 import com.iams.compliance.api.dto.PurgeResultResponse;
 import com.iams.compliance.api.dto.RetentionPolicyRequest;
 import com.iams.compliance.api.dto.RetentionPolicyResponse;
 import com.iams.compliance.application.RetentionPolicyService;
+import com.iams.compliance.domain.RetentionEntityType;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -51,5 +53,16 @@ public class RetentionPolicyController {
     @PreAuthorize("@perm.has('compliance:write')")
     public PurgeResultResponse purgeSecurityEventLog() {
         return new PurgeResultResponse(policyService.runPurge());
+    }
+
+    /**
+     * US-CMP-01: run the configured purge for any executable entity type (SECURITY_EVENT_LOG or
+     * PERSON today). US-CMP-06: for PERSON, records under an active legal hold are reported in
+     * {@code skipped}, not deleted/anonymized.
+     */
+    @PostMapping("/{entityType}/purge")
+    @PreAuthorize("@perm.has('compliance:write')")
+    public EntityPurgeResultResponse purge(@PathVariable RetentionEntityType entityType) {
+        return EntityPurgeResultResponse.from(policyService.purge(entityType));
     }
 }

@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import FormControl from '@mui/material/FormControl'
@@ -16,15 +15,23 @@ import Typography from '@mui/material/Typography'
 import { ErrorPanel } from '../../../components/common/ErrorPanel'
 import { LoadingSkeleton } from '../../../components/common/LoadingSkeleton'
 import { isApiProblem } from '../../../api/errors'
-import { useRetentionPoliciesQuery, useSaveRetentionPolicyMutation, usePurgeSecurityEventLogMutation } from '../hooks/useRetentionPolicyQuery'
+import {
+  useRetentionPoliciesQuery,
+  useSaveRetentionPolicyMutation,
+  usePurgeEntityTypeMutation,
+} from '../hooks/useRetentionPolicyQuery'
 import type { RetentionEntityType, RetentionExpiryAction } from '../types'
 
 const ENTITY_TYPES: RetentionEntityType[] = ['SECURITY_EVENT_LOG', 'DISPOSED_ASSET', 'PERSON', 'ASSET_HISTORY_EVENT', 'AUDIT_RECORD']
 const EXPIRY_ACTIONS: RetentionExpiryAction[] = ['DELETE', 'ANONYMIZE', 'HOLD_ELIGIBLE']
 
+// The entity types the backend can actually purge today (the rest can be configured but not run).
+const EXECUTABLE_TYPES: RetentionEntityType[] = ['SECURITY_EVENT_LOG', 'PERSON']
+
 // BRD §5.4 floors - shown as helper text only; the backend is the real enforcement.
 const FLOOR_DAYS: Partial<Record<RetentionEntityType, number>> = {
   SECURITY_EVENT_LOG: 2555,
+  AUDIT_RECORD: 2555,
   DISPOSED_ASSET: 1095,
 }
 
@@ -32,7 +39,7 @@ const FLOOR_DAYS: Partial<Record<RetentionEntityType, number>> = {
 export function RetentionPolicyPanel({ canWrite }: { canWrite: boolean }) {
   const policiesQuery = useRetentionPoliciesQuery()
   const savePolicy = useSaveRetentionPolicyMutation()
-  const purge = usePurgeSecurityEventLogMutation()
+  const purge = usePurgeEntityTypeMutation()
 
   const [entityType, setEntityType] = useState<RetentionEntityType>('SECURITY_EVENT_LOG')
   const [retentionPeriodDays, setRetentionPeriodDays] = useState('')
@@ -50,12 +57,17 @@ export function RetentionPolicyPanel({ canWrite }: { canWrite: boolean }) {
     }
   }
 
-  async function handlePurge() {
+  async function handlePurge(type: RetentionEntityType) {
     setError(null)
     setPurgeResult(null)
     try {
-      const result = await purge.mutateAsync()
-      setPurgeResult(`Purged ${result.deletedCount} security_event_log row(s) older than the configured retention period.`)
+      const result = await purge.mutateAsync(type)
+      // US-CMP-06: skipped > 0 means some records were left intact under an active legal hold.
+      setPurgeResult(
+        result.skipped > 0
+          ? `${result.detail}`
+          : `${type.replace(/_/g, ' ')} purge: ${result.purged} record(s) processed.`,
+      )
     } catch (err) {
       setError(isApiProblem(err) ? err.detail : 'Failed to run purge')
     }
@@ -141,11 +153,21 @@ export function RetentionPolicyPanel({ canWrite }: { canWrite: boolean }) {
             </Button>
           </Stack>
 
-          <Box>
-            <Button variant="outlined" color="warning" onClick={handlePurge} disabled={purge.isPending}>
-              Run security_event_log Purge Now
-            </Button>
-          </Box>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+            {(policiesQuery.data ?? [])
+              .filter((p) => EXECUTABLE_TYPES.includes(p.entityType))
+              .map((p) => (
+                <Button
+                  key={p.id}
+                  variant="outlined"
+                  color="warning"
+                  onClick={() => handlePurge(p.entityType)}
+                  disabled={purge.isPending}
+                >
+                  Run {p.entityType.replace(/_/g, ' ')} purge now
+                </Button>
+              ))}
+          </Stack>
         </>
       )}
     </Stack>
