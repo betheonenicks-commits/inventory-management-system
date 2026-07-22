@@ -1,6 +1,5 @@
 package com.iams.migration.application;
 
-import com.iams.asset.application.AssetRegisterCommand;
 import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.NotFoundException;
 import com.iams.common.exception.ValidationErrorItem;
@@ -15,6 +14,7 @@ import com.iams.sec.application.SecurityEventLogger;
 import com.iams.sec.domain.SecurityEventType;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,23 +27,28 @@ import org.springframework.transaction.annotation.Transactional;
  * explicitly commit only the valid rows with an idempotency key and a
  * reconciliation report; US-MIG-04: the run persists as one traceable record.
  * <p>
- * Only ASSET is executable in this first slice; other entity types are refused
- * with a clear message rather than silently no-op'd.
+ * Entity-agnostic: it dispatches to whichever {@link EntityImportProcessor} is
+ * registered for the requested type (Spring injects every processor bean). An
+ * entity type with no processor is refused with a clear message, not a silent
+ * no-op.
  */
 @Service
 public class BulkImportService {
 
     private final CsvParser csvParser;
-    private final AssetImportProcessor assetImportProcessor;
+    private final Map<ImportEntityType, EntityImportProcessor> processors;
     private final ImportRunRepository importRunRepository;
     private final CurrentUserProvider currentUserProvider;
     private final SecurityEventLogger securityEventLogger;
 
-    public BulkImportService(CsvParser csvParser, AssetImportProcessor assetImportProcessor,
+    public BulkImportService(CsvParser csvParser, List<EntityImportProcessor> processorBeans,
                              ImportRunRepository importRunRepository, CurrentUserProvider currentUserProvider,
                              SecurityEventLogger securityEventLogger) {
         this.csvParser = csvParser;
-        this.assetImportProcessor = assetImportProcessor;
+        this.processors = new EnumMap<>(ImportEntityType.class);
+        for (EntityImportProcessor processor : processorBeans) {
+            this.processors.put(processor.entityType(), processor);
+        }
         this.importRunRepository = importRunRepository;
         this.currentUserProvider = currentUserProvider;
         this.securityEventLogger = securityEventLogger;
@@ -56,13 +61,13 @@ public class BulkImportService {
      */
     @Transactional
     public ImportRun dryRun(ImportEntityType entityType, String filename, byte[] content) {
-        requireExecutable(entityType);
+        EntityImportProcessor processor = requireProcessor(entityType);
         List<List<String>> rows = csvParser.parse(content);
         if (rows.isEmpty() || isBlankRow(rows.get(0))) {
             throw ValidationFailedException.singleField("file", "The file is empty or has no header row");
         }
         List<String> headers = rows.get(0).stream().map(String::trim).toList();
-        requireRequiredColumns(headers);
+        requireRequiredColumns(processor, headers);
 
         List<Map<String, String>> validPayload = new ArrayList<>();
         List<ImportRowError> errors = new ArrayList<>();
@@ -76,8 +81,7 @@ public class BulkImportService {
             int rowNumber = dataRows; // 1-based over actual data rows, matching the user's mental model
             Map<String, String> row = toRowMap(headers, cells);
             try {
-                AssetRegisterCommand command = assetImportProcessor.buildCommand(row);
-                assetImportProcessor.validate(command);
+                processor.validate(row);
                 validPayload.add(row);
             } catch (ValidationFailedException e) {
                 for (ValidationErrorItem item : e.getErrors()) {
@@ -91,7 +95,7 @@ public class BulkImportService {
         ImportRun run = new ImportRun();
         run.setEntityType(entityType);
         run.setStatus(ImportRunStatus.VALIDATED);
-        run.setTemplateVersion(AssetImportProcessor.TEMPLATE_VERSION);
+        run.setTemplateVersion(processor.templateVersion());
         run.setOriginalFilename(filename);
         run.setTotalRows(dataRows);
         run.setValidRows(validPayload.size());
@@ -125,13 +129,13 @@ public class BulkImportService {
         importRunRepository.findByIdempotencyKey(idempotencyKey).ifPresent(other -> {
             throw new ConflictException("IDEMPOTENCY_KEY_REUSED", "This idempotency key was already used for a different import run");
         });
-        requireExecutable(run.getEntityType());
+        EntityImportProcessor processor = requireProcessor(run.getEntityType());
 
         int created = 0;
         int failed = 0;
         for (Map<String, String> row : run.getValidPayload()) {
             try {
-                assetImportProcessor.create(assetImportProcessor.buildCommand(row));
+                processor.create(row);
                 created++;
             } catch (RuntimeException e) {
                 failed++;
@@ -167,15 +171,17 @@ public class BulkImportService {
         return importRunRepository.findAllByOrderByCreatedAtDesc();
     }
 
-    private void requireExecutable(ImportEntityType entityType) {
-        if (entityType != ImportEntityType.ASSET) {
+    private EntityImportProcessor requireProcessor(ImportEntityType entityType) {
+        EntityImportProcessor processor = processors.get(entityType);
+        if (processor == null) {
             throw ValidationFailedException.singleField("entityType",
-                    entityType + " import is not available yet - only ASSET is supported in this release");
+                    entityType + " import is not available yet - no importer is registered for it in this release");
         }
+        return processor;
     }
 
-    private void requireRequiredColumns(List<String> headers) {
-        for (String required : List.of("name", "categoryCode")) {
+    private void requireRequiredColumns(EntityImportProcessor processor, List<String> headers) {
+        for (String required : processor.requiredColumns()) {
             if (!headers.contains(required)) {
                 throw ValidationFailedException.singleField("file",
                         "Missing required column '" + required + "'. Download the template to see the expected columns.");

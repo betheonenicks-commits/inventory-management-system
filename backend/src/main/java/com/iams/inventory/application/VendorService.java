@@ -27,11 +27,20 @@ public class VendorService {
         this.currentUserProvider = currentUserProvider;
     }
 
-    @Transactional
-    public Vendor create(String name, String contactEmail, String contactPhone) {
+    /**
+     * The field validation a create enforces, isolated so the bulk importer's
+     * dry run (US-MIG-03) can run exactly it per row - the import validator and a
+     * real create share this one path and cannot drift.
+     */
+    public void validate(String name) {
         if (name == null || name.isBlank()) {
             throw ValidationFailedException.singleField("name", "A vendor name is required");
         }
+    }
+
+    @Transactional
+    public Vendor create(String name, String contactEmail, String contactPhone) {
+        validate(name);
         UUID actor = currentUserProvider.current().id();
         Vendor vendor = new Vendor();
         vendor.setName(name);

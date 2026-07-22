@@ -7,7 +7,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.iams.asset.application.AssetRegisterCommand;
 import com.iams.common.exception.ConflictException;
 import com.iams.common.exception.ValidationFailedException;
 import com.iams.common.security.CurrentUser;
@@ -33,7 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class BulkImportServiceTest {
 
     @Mock private CsvParser csvParser;
-    @Mock private AssetImportProcessor processor;
+    @Mock private EntityImportProcessor processor;
     @Mock private ImportRunRepository importRunRepository;
     @Mock private CurrentUserProvider currentUserProvider;
     @Mock private SecurityEventLogger securityEventLogger;
@@ -42,18 +41,13 @@ class BulkImportServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new BulkImportService(csvParser, processor, importRunRepository, currentUserProvider, securityEventLogger);
+        org.mockito.Mockito.lenient().when(processor.entityType()).thenReturn(ImportEntityType.ASSET);
+        org.mockito.Mockito.lenient().when(processor.requiredColumns()).thenReturn(List.of("name", "categoryCode"));
+        service = new BulkImportService(csvParser, List.of(processor), importRunRepository, currentUserProvider, securityEventLogger);
         org.mockito.Mockito.lenient().when(currentUserProvider.current())
                 .thenReturn(new CurrentUser(UUID.randomUUID(), "im1", Set.of("INVENTORY_MANAGER")));
         org.mockito.Mockito.lenient().when(importRunRepository.save(any()))
                 .thenAnswer(inv -> inv.getArgument(0));
-        // buildCommand echoes the row's name so validate/create can key off it.
-        org.mockito.Mockito.lenient().when(processor.buildCommand(any()))
-                .thenAnswer(inv -> command(((Map<String, String>) inv.getArgument(0)).get("name")));
-    }
-
-    private static AssetRegisterCommand command(String name) {
-        return new AssetRegisterCommand(null, name, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     @Test
@@ -65,8 +59,8 @@ class BulkImportServiceTest {
                 List.of("good2", "IT-1")));
         // validate throws only for the row named "bad".
         org.mockito.Mockito.doAnswer(inv -> {
-            AssetRegisterCommand c = inv.getArgument(0);
-            if ("bad".equals(c.name())) {
+            Map<String, String> row = inv.getArgument(0);
+            if ("bad".equals(row.get("name"))) {
                 throw ValidationFailedException.singleField("purchaseCost", "Expected a number");
             }
             return null;
@@ -132,8 +126,8 @@ class BulkImportServiceTest {
         when(importRunRepository.findById(run.getId())).thenReturn(Optional.of(run));
         when(importRunRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
         org.mockito.Mockito.doAnswer(inv -> {
-            AssetRegisterCommand c = inv.getArgument(0);
-            if ("fail".equals(c.name())) {
+            Map<String, String> row = inv.getArgument(0);
+            if ("fail".equals(row.get("name"))) {
                 throw new IllegalStateException("category vanished");
             }
             return null;

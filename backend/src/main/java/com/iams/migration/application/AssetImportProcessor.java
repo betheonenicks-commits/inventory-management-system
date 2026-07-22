@@ -4,6 +4,7 @@ import com.iams.asset.application.AssetRegisterCommand;
 import com.iams.asset.application.AssetRegistrationService;
 import com.iams.asset.domain.AssetCategoryRepository;
 import com.iams.common.exception.ValidationFailedException;
+import com.iams.migration.domain.ImportEntityType;
 import com.iams.org.domain.OrgNodeRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -27,7 +28,7 @@ import org.springframework.stereotype.Component;
  * POST /assets create runs, so the two can never drift.
  */
 @Component
-public class AssetImportProcessor {
+public class AssetImportProcessor implements EntityImportProcessor {
 
     public static final String TEMPLATE_VERSION = "1.0";
 
@@ -52,6 +53,31 @@ public class AssetImportProcessor {
         this.categoryRepository = categoryRepository;
         this.orgNodeRepository = orgNodeRepository;
         this.assetRegistrationService = assetRegistrationService;
+    }
+
+    @Override
+    public ImportEntityType entityType() {
+        return ImportEntityType.ASSET;
+    }
+
+    @Override
+    public List<String> columns() {
+        return COLUMNS;
+    }
+
+    @Override
+    public List<String> requiredColumns() {
+        return List.of("name", "categoryCode");
+    }
+
+    @Override
+    public List<String> sampleRow() {
+        return SAMPLE_ROW;
+    }
+
+    @Override
+    public String templateVersion() {
+        return TEMPLATE_VERSION;
     }
 
     /**
@@ -99,13 +125,15 @@ public class AssetImportProcessor {
     }
 
     /** Dry-run validation for one row: exactly what a create would enforce, nothing written. */
-    public void validate(AssetRegisterCommand command) {
-        assetRegistrationService.validate(command);
+    @Override
+    public void validate(Map<String, String> row) {
+        assetRegistrationService.validate(buildCommand(row));
     }
 
     /** Commit one row: the real create (its own transaction inside AssetRegistrationService). */
-    public void create(AssetRegisterCommand command) {
-        assetRegistrationService.register(command);
+    @Override
+    public void create(Map<String, String> row) {
+        assetRegistrationService.register(buildCommand(row));
     }
 
     private static String trimToNull(String value) {

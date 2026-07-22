@@ -9,9 +9,9 @@ import { httpClient } from '../httpClient'
 export type ImportEntityType = 'ASSET' | 'PERSON' | 'VENDOR' | 'INVENTORY_ITEM'
 export type ImportRunStatus = 'VALIDATED' | 'COMMITTED' | 'FAILED'
 
-// Only ASSET has an executable importer in this release; the rest are declared
-// so the selector is stable as they're built, and disabled in the UI until then.
-export const EXECUTABLE_ENTITY_TYPES: ImportEntityType[] = ['ASSET']
+// The entity types with an executable importer today; the rest are declared so
+// the selector is stable as they're built, and disabled in the UI until then.
+export const EXECUTABLE_ENTITY_TYPES: ImportEntityType[] = ['ASSET', 'VENDOR']
 
 export interface ImportRowError {
   rowNumber: number
