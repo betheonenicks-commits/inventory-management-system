@@ -28,7 +28,8 @@ public class AssetRepositoryImpl implements AssetRepositoryCustom {
 
     @Override
     public Page<Asset> search(UUID categoryId, UUID statusId, String query, String locationPathPrefix,
-                               String scopePathPrefix, LocalDate purchasedFrom, LocalDate purchasedTo, Pageable pageable) {
+                               String scopePathPrefix, LocalDate purchasedFrom, LocalDate purchasedTo,
+                               String customFieldKey, String customFieldValue, Pageable pageable) {
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
 
         CriteriaQuery<Asset> dataQuery = cb.createQuery(Asset.class);
@@ -42,7 +43,7 @@ public class AssetRepositoryImpl implements AssetRepositoryCustom {
         root.fetch("orgNode", JoinType.INNER);
         root.fetch("parentAsset", JoinType.LEFT);
         dataQuery.select(root).distinct(true).where(buildPredicates(cb, root, categoryId, statusId, query,
-                locationPathPrefix, scopePathPrefix, purchasedFrom, purchasedTo));
+                locationPathPrefix, scopePathPrefix, purchasedFrom, purchasedTo, customFieldKey, customFieldValue));
         if (pageable.getSort().isSorted()) {
             List<jakarta.persistence.criteria.Order> orders = new ArrayList<>();
             for (Sort.Order order : pageable.getSort()) {
@@ -62,7 +63,7 @@ public class AssetRepositoryImpl implements AssetRepositoryCustom {
         CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
         Root<Asset> countRoot = countQuery.from(Asset.class);
         countQuery.select(cb.count(countRoot)).where(buildPredicates(cb, countRoot, categoryId, statusId, query,
-                locationPathPrefix, scopePathPrefix, purchasedFrom, purchasedTo));
+                locationPathPrefix, scopePathPrefix, purchasedFrom, purchasedTo, customFieldKey, customFieldValue));
         long total = entityManager.createQuery(countQuery).getSingleResult();
 
         return new PageImpl<>(content, pageable, total);
@@ -70,7 +71,8 @@ public class AssetRepositoryImpl implements AssetRepositoryCustom {
 
     private Predicate[] buildPredicates(CriteriaBuilder cb, Root<Asset> root, UUID categoryId, UUID statusId,
                                          String query, String locationPathPrefix, String scopePathPrefix,
-                                         LocalDate purchasedFrom, LocalDate purchasedTo) {
+                                         LocalDate purchasedFrom, LocalDate purchasedTo,
+                                         String customFieldKey, String customFieldValue) {
         List<Predicate> predicates = new ArrayList<>();
         if (categoryId != null) {
             predicates.add(cb.equal(root.get("category").get("id"), categoryId));
@@ -102,6 +104,16 @@ public class AssetRepositoryImpl implements AssetRepositoryCustom {
         }
         if (purchasedTo != null) {
             predicates.add(cb.lessThanOrEqualTo(root.get("purchaseDate"), purchasedTo));
+        }
+        if (customFieldKey != null && !customFieldKey.isBlank() && customFieldValue != null && !customFieldValue.isBlank()) {
+            // US-AST-06 (AC-AST-06-H): match a value inside the custom_attributes jsonb by its
+            // top-level key. jsonb_extract_path_text(...) returns the value's text form (dates
+            // are stored as ISO strings, numbers as their text), so an equality compare works
+            // across every custom-field type. The field key is a literal expression (Hibernate
+            // parameterizes it) - it's a schema-defined field_key, never free-form SQL.
+            var extracted = cb.function("jsonb_extract_path_text", String.class,
+                    root.get("customAttributes"), cb.literal(customFieldKey));
+            predicates.add(cb.equal(extracted, customFieldValue));
         }
         return predicates.toArray(new Predicate[0]);
     }

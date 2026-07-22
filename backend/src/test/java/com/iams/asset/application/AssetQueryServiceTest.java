@@ -180,12 +180,12 @@ class AssetQueryServiceTest {
 
         Pageable pageable = PageRequest.of(0, 20);
         Page<Asset> emptyPage = new PageImpl<>(java.util.List.of());
-        when(assetRepository.search(isNull(), isNull(), isNull(), isNull(), eq(scopePath), isNull(), isNull(), any(Pageable.class)))
+        when(assetRepository.search(isNull(), isNull(), isNull(), isNull(), eq(scopePath), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(emptyPage);
 
-        service.list(null, null, null, null, null, null, pageable);
+        service.list(null, null, null, null, null, null, null, null, pageable);
 
-        verify(assetRepository).search(isNull(), isNull(), isNull(), isNull(), eq(scopePath), isNull(), isNull(), any(Pageable.class));
+        verify(assetRepository).search(isNull(), isNull(), isNull(), isNull(), eq(scopePath), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -196,12 +196,12 @@ class AssetQueryServiceTest {
 
         Pageable pageable = PageRequest.of(0, 20);
         Page<Asset> emptyPage = new PageImpl<>(java.util.List.of());
-        when(assetRepository.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(assetRepository.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(emptyPage);
 
-        service.list(null, null, null, null, null, null, pageable);
+        service.list(null, null, null, null, null, null, null, null, pageable);
 
-        verify(assetRepository).search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+        verify(assetRepository).search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -211,7 +211,7 @@ class AssetQueryServiceTest {
         Pageable pageable = PageRequest.of(0, 20, org.springframework.data.domain.Sort.by("customAttributes"));
 
         org.assertj.core.api.Assertions.assertThatThrownBy(
-                        () -> service.list(null, null, null, null, null, null, pageable))
+                        () -> service.list(null, null, null, null, null, null, null, null, pageable))
                 .isInstanceOf(com.iams.common.exception.ValidationFailedException.class);
         org.mockito.Mockito.verifyNoInteractions(assetRepository);
     }
@@ -221,7 +221,7 @@ class AssetQueryServiceTest {
         Pageable pageable = PageRequest.of(0, 20);
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.list(null, null, null, null,
-                        java.time.LocalDate.of(2026, 7, 10), java.time.LocalDate.of(2026, 7, 1), pageable))
+                        java.time.LocalDate.of(2026, 7, 10), java.time.LocalDate.of(2026, 7, 1), null, null, pageable))
                 .isInstanceOf(com.iams.common.exception.ValidationFailedException.class);
     }
 }

@@ -52,10 +52,23 @@ export function AssetListPage() {
   const orgNodeId = searchParams.get('orgNodeId') ?? undefined
   const purchasedFrom = searchParams.get('purchasedFrom') ?? undefined
   const purchasedTo = searchParams.get('purchasedTo') ?? undefined
+  // US-AST-06 (AC-AST-06-H): a category-defined custom field value filter.
+  const customFieldKey = searchParams.get('customFieldKey') ?? undefined
+  const customFieldValue = searchParams.get('customFieldValue') ?? undefined
 
   const filters = useMemo(
-    () => ({ q: debouncedQuery || undefined, categoryId, statusId, orgNodeId, purchasedFrom, purchasedTo }),
-    [debouncedQuery, categoryId, statusId, orgNodeId, purchasedFrom, purchasedTo],
+    () => ({
+      q: debouncedQuery || undefined,
+      categoryId,
+      statusId,
+      orgNodeId,
+      purchasedFrom,
+      purchasedTo,
+      // Only send the pair when both are set - a key with no value filters nothing.
+      customFieldKey: customFieldKey && customFieldValue ? customFieldKey : undefined,
+      customFieldValue: customFieldKey && customFieldValue ? customFieldValue : undefined,
+    }),
+    [debouncedQuery, categoryId, statusId, orgNodeId, purchasedFrom, purchasedTo, customFieldKey, customFieldValue],
   )
 
   const assetsQuery = useAssetsQuery(filters, page, size)
@@ -172,7 +185,19 @@ export function AssetListPage() {
     setSearchParams(params)
   }
 
-  const hasFilters = !!debouncedQuery || !!categoryId || !!statusId || !!orgNodeId || !!purchasedFrom || !!purchasedTo
+  const hasFilters =
+    !!debouncedQuery ||
+    !!categoryId ||
+    !!statusId ||
+    !!orgNodeId ||
+    !!purchasedFrom ||
+    !!purchasedTo ||
+    (!!customFieldKey && !!customFieldValue)
+
+  // US-AST-06: the selected category's custom-field schema drives the filter's field dropdown.
+  const selectedCategory = (categoriesQuery.data ?? []).find((c) => c.id === categoryId)
+  const customFields = selectedCategory?.customFields ?? []
+  const selectedField = customFields.find((f) => f.fieldKey === customFieldKey)
 
   return (
     <Box>
@@ -203,7 +228,10 @@ export function AssetListPage() {
           size="small"
           select
           value={categoryId ?? ''}
-          onChange={(e) => updateParams({ categoryId: e.target.value, page: '0' })}
+          onChange={(e) =>
+            // Clear any custom-field filter when the category changes - its fields no longer apply.
+            updateParams({ categoryId: e.target.value, customFieldKey: undefined, customFieldValue: undefined, page: '0' })
+          }
           sx={{ minWidth: 180 }}
         >
           <MenuItem value="">All categories</MenuItem>
@@ -262,6 +290,56 @@ export function AssetListPage() {
           slotProps={{ inputLabel: { shrink: true } }}
           sx={{ minWidth: 160 }}
         />
+        {/* US-AST-06 (AC-AST-06-H): a custom-field value filter, offered once a category with custom fields is chosen. */}
+        {customFields.length > 0 && (
+          <>
+            <TextField
+              label="Custom field"
+              size="small"
+              select
+              value={customFieldKey ?? ''}
+              onChange={(e) =>
+                updateParams({ customFieldKey: e.target.value, customFieldValue: undefined, page: '0' })
+              }
+              sx={{ minWidth: 180 }}
+            >
+              <MenuItem value="">None</MenuItem>
+              {customFields.map((f) => (
+                <MenuItem key={f.fieldKey} value={f.fieldKey}>
+                  {f.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            {selectedField &&
+              (selectedField.dataType === 'ENUM' ? (
+                <TextField
+                  label={`${selectedField.label} value`}
+                  size="small"
+                  select
+                  value={customFieldValue ?? ''}
+                  onChange={(e) => updateParams({ customFieldValue: e.target.value, page: '0' })}
+                  sx={{ minWidth: 160 }}
+                >
+                  <MenuItem value="">Any</MenuItem>
+                  {(selectedField.enumOptions ?? []).map((opt) => (
+                    <MenuItem key={opt} value={opt}>
+                      {opt}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              ) : (
+                <TextField
+                  label={`${selectedField.label} value`}
+                  size="small"
+                  type={selectedField.dataType === 'DATE' ? 'date' : selectedField.dataType === 'NUMBER' ? 'number' : 'text'}
+                  value={customFieldValue ?? ''}
+                  onChange={(e) => updateParams({ customFieldValue: e.target.value, page: '0' })}
+                  slotProps={selectedField.dataType === 'DATE' ? { inputLabel: { shrink: true } } : undefined}
+                  sx={{ minWidth: 160 }}
+                />
+              ))}
+          </>
+        )}
         <Button
           size="small"
           startIcon={<BookmarkAddIcon />}
@@ -352,6 +430,8 @@ export function AssetListPage() {
                   orgNodeId: undefined,
                   purchasedFrom: undefined,
                   purchasedTo: undefined,
+                  customFieldKey: undefined,
+                  customFieldValue: undefined,
                   page: '0',
                 })
               }}

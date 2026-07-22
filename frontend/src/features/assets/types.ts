@@ -99,6 +99,9 @@ export interface AssetListFilters {
   orgNodeId?: string
   purchasedFrom?: string
   purchasedTo?: string
+  // US-AST-06 (AC-AST-06-H): filter by a category-defined custom field value.
+  customFieldKey?: string
+  customFieldValue?: string
 }
 
 export interface AssetInsurance {

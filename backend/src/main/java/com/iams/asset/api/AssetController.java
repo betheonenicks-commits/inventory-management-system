@@ -88,8 +88,12 @@ public class AssetController {
                                              @RequestParam(required = false)
                                              @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
                                              java.time.LocalDate purchasedTo,
+                                             // US-AST-06 (AC-AST-06-H): filter by a category-defined custom field value.
+                                             @RequestParam(required = false) String customFieldKey,
+                                             @RequestParam(required = false) String customFieldValue,
                                              @PageableDefault(size = 20) Pageable pageable) {
-        var page = queryService.list(categoryId, statusId, q, orgNodeId, purchasedFrom, purchasedTo, pageable);
+        var page = queryService.list(categoryId, statusId, q, orgNodeId, purchasedFrom, purchasedTo,
+                customFieldKey, customFieldValue, pageable);
         List<AssetResponse> data = page.getContent().stream().map(mapper::toResponse).collect(Collectors.toList());
         List<String> sort = pageable.getSort().stream().map(o -> o.getProperty() + "," + o.getDirection()).toList();
         return new PageResponse<>(data, new PageResponse.PageMeta(page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages()), sort);

@@ -151,7 +151,7 @@ class AdHocReportServiceTest {
         Person person = new Person();
         person.setId(personId);
         person.setFullName("Jo Smith");
-        when(assetRepository.search(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(assetRepository.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(asset)));
         when(personRepository.findAllById(any())).thenReturn(List.of(person));
 
@@ -166,7 +166,7 @@ class AdHocReportServiceTest {
     void run_removedCustomField_isOmittedWithANote_neverAHardFailure() {
         AdHocReport definition = ownDefinition(List.of("assetNumber", "custom:goneField"));
         // No definitions exist anymore - the field was removed after saving.
-        when(assetRepository.search(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(assetRepository.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(asset("A-1", "Laptop"))));
 
         TabularReport report = service.run(definition.getId());
@@ -182,13 +182,13 @@ class AdHocReportServiceTest {
         UUID deadCategory = UUID.randomUUID();
         definition.setCategoryId(deadCategory);
         when(categoryRepository.existsById(deadCategory)).thenReturn(false);
-        when(assetRepository.search(isNull(), any(), any(), any(), any(), any(), any(), any()))
+        when(assetRepository.search(isNull(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(asset("A-1", "Laptop"))));
 
         TabularReport report = service.run(definition.getId());
 
         // The dead filter must reach the search as null, not the dead id.
-        verify(assetRepository).search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any());
+        verify(assetRepository).search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any());
         assertThat(report.title()).contains("Category filter dropped");
         assertThat(report.rows()).hasSize(1);
     }

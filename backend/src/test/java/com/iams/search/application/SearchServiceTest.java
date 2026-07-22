@@ -75,7 +75,7 @@ class SearchServiceTest {
     @Test
     void global_groupsPopulateForAPermittedCaller() {
         when(scopeGuard.currentScopePathPrefix()).thenReturn("/root/bldg-b");
-        when(assetRepository.search(any(), any(), eq("lat"), any(), eq("/root/bldg-b"), any(), any(), any()))
+        when(assetRepository.search(any(), any(), eq("lat"), any(), eq("/root/bldg-b"), any(), any(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(asset("AST-1", "Latitude"))));
         Vendor vendor = new Vendor();
         vendor.setId(UUID.randomUUID());

@@ -170,7 +170,7 @@ public class AuditService {
             // and content disagreed for scopes with child assets - that was a false alarm
             // from a test-harness parsing bug, since retracted; see DEVELOPMENT_LOG.md.)
             population = assetRepository.search(scopeCategoryId, null, null, null, pathPrefix, null, null,
-                    PageRequest.of(0, 1)).getTotalElements();
+                    null, null, PageRequest.of(0, 1)).getTotalElements();
         }
         long sampleSize = SampleSizeCalculator.sampleSize(population, confidenceLevel, margin);
         return new SampleSizePreview(population, confidenceLevel, margin, sampleSize);
@@ -192,7 +192,7 @@ public class AuditService {
         // Pageable.unpaged() throws UnsupportedOperationException from AssetRepositoryImpl's
         // getOffset()/getPageSize() calls - a large explicit page stands in for "all matching".
         Page<Asset> page = assetRepository.search(command.scopeCategoryId(), null, null, null, pathPrefix,
-                null, null, PageRequest.of(0, Integer.MAX_VALUE));
+                null, null, null, null, PageRequest.of(0, Integer.MAX_VALUE));
         return page.getContent();
     }
 

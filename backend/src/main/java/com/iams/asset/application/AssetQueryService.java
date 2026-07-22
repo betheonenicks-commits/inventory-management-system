@@ -58,7 +58,8 @@ public class AssetQueryService {
 
     @Transactional(readOnly = true)
     public Page<Asset> list(UUID categoryId, UUID statusId, String query, UUID orgNodeId,
-                             LocalDate purchasedFrom, LocalDate purchasedTo, Pageable pageable) {
+                             LocalDate purchasedFrom, LocalDate purchasedTo,
+                             String customFieldKey, String customFieldValue, Pageable pageable) {
         for (Sort.Order order : pageable.getSort()) {
             if (!SORTABLE.contains(order.getProperty())) {
                 throw ValidationFailedException.singleField("sort",
@@ -77,7 +78,7 @@ public class AssetQueryService {
                     .orElseThrow(() -> NotFoundException.of("OrgNode", orgNodeId));
         }
         return assetRepository.search(categoryId, statusId, query, locationPrefix,
-                scopeGuard.currentScopePathPrefix(), purchasedFrom, purchasedTo, pageable);
+                scopeGuard.currentScopePathPrefix(), purchasedFrom, purchasedTo, customFieldKey, customFieldValue, pageable);
     }
 
     @Transactional(readOnly = true)

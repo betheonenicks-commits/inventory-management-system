@@ -22,7 +22,14 @@ public interface AssetRepositoryCustom {
      * filter, applied alongside (AND) the scope prefix - two independent
      * subtree restrictions compose correctly whether or not one nests inside
      * the other. purchasedFrom/purchasedTo bound purchaseDate inclusively.
+     * <p>
+     * US-AST-06 (AC-AST-06-H): customFieldKey/customFieldValue, when both
+     * present, filter on a category-defined custom field value stored in the
+     * asset's custom_attributes jsonb - an equality match on the field's text
+     * form, so a date field like "warrantyExpiry" is searchable in advanced
+     * filters. Both null means no custom-field filter.
      */
     Page<Asset> search(UUID categoryId, UUID statusId, String query, String locationPathPrefix,
-                        String scopePathPrefix, LocalDate purchasedFrom, LocalDate purchasedTo, Pageable pageable);
+                        String scopePathPrefix, LocalDate purchasedFrom, LocalDate purchasedTo,
+                        String customFieldKey, String customFieldValue, Pageable pageable);
 }

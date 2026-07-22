@@ -70,7 +70,7 @@ public class SearchService {
         boolean assetsVisible = caller.hasPermission("assets:read") || caller.hasPermission("assets:read:own");
         List<AssetHit> assets = assetsVisible
                 ? assetRepository.search(null, null, q, null, scopeGuard.currentScopePathPrefix(),
-                        null, null, PageRequest.of(0, GROUP_LIMIT, Sort.by("name"))).getContent().stream()
+                        null, null, null, null, PageRequest.of(0, GROUP_LIMIT, Sort.by("name"))).getContent().stream()
                         .map(SearchService::toAssetHit).toList()
                 : List.of();
         boolean vendorsVisible = caller.hasPermission("inventory:read");

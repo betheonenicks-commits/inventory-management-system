@@ -1413,3 +1413,19 @@ Frontend: a shared `ChildDispositionFields` component renders one selector per c
 **Story-status effect:** US-AST-04 moves to **Built** (both bullets - the audit bullet was already met, the transfer/dispose bullet is now built).
 
 **RTM tally so far this effort: 27 of the 50 original Partials cleared**, 23 remain. Finishing Batch E with AST-06 (custom-field filterable in search), then Batch F.
+
+---
+
+## 2026-07-22, continued - Batch E (part 4): US-AST-06 (custom-field value filterable in advanced search)
+
+US-AST-06's per-category custom-field schemas, type validation, and persistence were already built - `AssetCustomFieldDefinition`, `CustomFieldValidationService`, the `custom_attributes` jsonb column. AC-AST-06-X (a text value in a date-typed field -> 400 citing `customFields.<name>`) was already fully working. The one unbuilt clause was AC-AST-06-H's tail: "the value ... is searchable in advanced filters." The asset search (`AssetRepositoryImpl.search`) filtered on category/status/text/location/purchase-date only - it never touched `custom_attributes`, so a custom field value could be stored but not searched.
+
+**What was built.** Threaded a `customFieldKey`/`customFieldValue` pair through the four search layers (`AssetRepositoryCustom` interface, `AssetRepositoryImpl`, `AssetQueryService.list`, `AssetController` `GET /assets`), and added a jsonb predicate in `buildPredicates`: `jsonb_extract_path_text(custom_attributes, :key) = :value`. This was the codebase's *first* in-column jsonb query - everything prior used `@JdbcTypeCode(SqlTypes.JSON)` for whole-map read/write only. Extracting as text and comparing works uniformly across every custom-field type (dates are stored as ISO strings, numbers as their text form), so a date field like `warrantyExpiry` is searchable exactly as the AC's example needs. The field key is a schema-defined `field_key` passed as a Criteria literal (Hibernate parameterizes it), never free-form SQL. The other five existing `assetRepository.search(...)` callers (SearchService, AuditService x2, ReportService x2, AdHocReportService) were updated to pass `null, null`.
+
+Frontend: the asset list's advanced filters now offer a "Custom field" dropdown once a category with custom fields is selected - populated from that category's own schema - plus a type-aware value input (a date picker for DATE fields, a select for ENUM options, number/text otherwise). Changing category or clearing filters resets the custom-field pair so it never lingers against a category that doesn't define it.
+
+**Verification.** Backend: the existing suite (524/524) passes with the widened signatures updated across all callers and test stubs; the jsonb predicate itself is only meaningfully testable against a real Postgres (no `@SpringBootTest` in this project), so it was **live-verified** on 8081 rather than unit-mocked. Frontend `tsc -b`/`oxlint` clean. Live run: created a category with a required DATE field `warrantyExpiry`; confirmed AC-AST-06-X still holds (a text value -> 400 `VALIDATION_FAILED`, field cited `customFields.warrantyExpiry`); created two assets with different valid warranty dates; confirmed `GET /assets?categoryId=...&customFieldKey=warrantyExpiry&customFieldValue=2027-01-15` returns exactly the one matching asset (total 1), a non-matching value returns 0, and no custom filter returns both - the jsonb filter is real and correct end to end.
+
+**Story-status effect:** US-AST-06 moves to **Built** (both ACs - X was already built, H's search clause is now built).
+
+**RTM tally so far this effort: 28 of the 50 original Partials cleared**, 22 remain. Batch E is now complete (USR-05, USR-06, AST-04, AST-06 all Built). Next: Batch F - CMP-01 (retention purge beyond one entity type), CMP-06 (wire legal hold into retention purge).

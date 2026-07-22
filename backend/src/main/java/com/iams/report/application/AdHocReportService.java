@@ -235,7 +235,7 @@ public class AdHocReportService {
         while (true) {
             var slice = assetRepository.search(categoryId, statusId, definition.getQuery(), locationPrefix,
                     scopeGuard.currentScopePathPrefix(), definition.getPurchasedFrom(), definition.getPurchasedTo(),
-                    page);
+                    null, null, page);
             assets.addAll(slice.getContent());
             if (!slice.hasNext()) {
                 break;

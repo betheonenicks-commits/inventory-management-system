@@ -71,7 +71,7 @@ class ReportServiceTest {
         when(scopeGuard.currentScopePathPrefix()).thenReturn(null);
         Asset a1 = asset("AST-1", "Laptop");
         Asset a2 = asset("AST-2", "Projector");
-        when(assetRepository.search(eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), any()))
+        when(assetRepository.search(eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), any()))
                 .thenReturn(new PageImpl<>(List.of(a1), PageRequest.of(0, 500), 501))
                 .thenReturn(new PageImpl<>(List.of(a2), PageRequest.of(1, 500), 501));
 
@@ -101,13 +101,13 @@ class ReportServiceTest {
         node.setName("Building A");
         node.setPath("/root/bldg-a/");
         when(orgNodeRepository.findById(nodeId)).thenReturn(Optional.of(node));
-        when(assetRepository.search(any(), any(), any(), any(), eq("/root/bldg-a/"), any(), any(), any()))
+        when(assetRepository.search(any(), any(), any(), any(), eq("/root/bldg-a/"), any(), any(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of()));
 
         TabularReport report = service.assetRegister(nodeId, null, null);
 
         assertThat(report.title()).contains("Building A");
-        verify(assetRepository).search(eq(null), eq(null), eq(null), eq(null), eq("/root/bldg-a/"), eq(null), eq(null), any());
+        verify(assetRepository).search(eq(null), eq(null), eq(null), eq(null), eq("/root/bldg-a/"), eq(null), eq(null), eq(null), eq(null), any());
     }
 
     @Test
@@ -234,7 +234,7 @@ class ReportServiceTest {
         Asset computed = asset("AST-1", "Laptop");
         Asset unconfigured = asset("AST-2", "Whiteboard");
         Asset unsupported = asset("AST-3", "Vehicle");
-        when(assetRepository.search(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(assetRepository.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(computed, unconfigured, unsupported)));
         LocalDate asOf = LocalDate.of(2026, 7, 15);
         when(depreciationService.compute(computed.getId(), asOf)).thenReturn(new com.iams.asset.application.DepreciationResult(
