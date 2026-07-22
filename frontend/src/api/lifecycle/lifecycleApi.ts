@@ -1,5 +1,11 @@
 import { httpClient } from '../httpClient'
-import type { Disposal, DisposalType, LifecycleRequestStatus, Transfer } from '../../features/lifecycle/types'
+import type {
+  ChildDisposition,
+  Disposal,
+  DisposalType,
+  LifecycleRequestStatus,
+  Transfer,
+} from '../../features/lifecycle/types'
 
 // --- Transfers (US-LIF-05/10/11/13) ---
 
@@ -7,8 +13,19 @@ export function fetchTransfers(assetId?: string, status?: LifecycleRequestStatus
   return httpClient.get<Transfer[]>('/transfers', { params: { assetId, status } }).then((r) => r.data)
 }
 
-export function createTransfer(assetId: string, toOrgNodeId: string, toPersonId: string | undefined, reason: string, nominalApproverId: string) {
-  return httpClient.post<Transfer>('/transfers', { assetId, toOrgNodeId, toPersonId, reason, nominalApproverId }).then((r) => r.data)
+// US-AST-04: childDispositions maps each component asset id to how it's handled; required only
+// when the asset has children (the backend blocks a request that omits any).
+export function createTransfer(
+  assetId: string,
+  toOrgNodeId: string,
+  toPersonId: string | undefined,
+  reason: string,
+  nominalApproverId: string,
+  childDispositions?: Record<string, ChildDisposition>,
+) {
+  return httpClient
+    .post<Transfer>('/transfers', { assetId, toOrgNodeId, toPersonId, reason, nominalApproverId, childDispositions })
+    .then((r) => r.data)
 }
 
 export function approveTransfer(id: string) {
@@ -29,8 +46,16 @@ export function fetchDisposals(assetId?: string, status?: LifecycleRequestStatus
   return httpClient.get<Disposal[]>('/disposals', { params: { assetId, status } }).then((r) => r.data)
 }
 
-export function createDisposal(assetId: string, disposalType: DisposalType, reason: string, nominalApproverId: string) {
-  return httpClient.post<Disposal>('/disposals', { assetId, disposalType, reason, nominalApproverId }).then((r) => r.data)
+export function createDisposal(
+  assetId: string,
+  disposalType: DisposalType,
+  reason: string,
+  nominalApproverId: string,
+  childDispositions?: Record<string, ChildDisposition>,
+) {
+  return httpClient
+    .post<Disposal>('/disposals', { assetId, disposalType, reason, nominalApproverId, childDispositions })
+    .then((r) => r.data)
 }
 
 export function approveDisposal(id: string) {

@@ -96,7 +96,7 @@ class TransferServiceTest {
         when(appUserRepository.existsById(approverId)).thenReturn(true);
         when(transferRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> inv.getArgument(0));
 
-        AssetTransferRequest result = service.create(new TransferCreateCommand(assetId, toOrgNodeId, null, "Relocation", approverId));
+        AssetTransferRequest result = service.create(new TransferCreateCommand(assetId, toOrgNodeId, null, "Relocation", approverId, java.util.Map.of()));
 
         assertThat(result.getStatus()).isEqualTo(LifecycleRequestStatus.PENDING);
         assertThat(result.getFromOrgNode()).isEqualTo(fromNode);
@@ -106,7 +106,7 @@ class TransferServiceTest {
 
     @Test
     void create_rejectsBlankReason() {
-        assertThatThrownBy(() -> service.create(new TransferCreateCommand(assetId, toOrgNodeId, null, " ", approverId)))
+        assertThatThrownBy(() -> service.create(new TransferCreateCommand(assetId, toOrgNodeId, null, " ", approverId, java.util.Map.of())))
                 .isInstanceOf(ValidationFailedException.class);
     }
 
@@ -116,8 +116,98 @@ class TransferServiceTest {
         when(orgNodeRepository.findById(toOrgNodeId)).thenReturn(Optional.of(toNode));
         when(appUserRepository.existsById(approverId)).thenReturn(false);
 
-        assertThatThrownBy(() -> service.create(new TransferCreateCommand(assetId, toOrgNodeId, null, "Relocation", approverId)))
+        assertThatThrownBy(() -> service.create(new TransferCreateCommand(assetId, toOrgNodeId, null, "Relocation", approverId, java.util.Map.of())))
                 .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void create_blocksWhenAParentHasAnUndispositionedChild() {
+        // US-AST-04: the asset has a child, but no disposition was supplied for it - the request is blocked.
+        Asset child = new Asset();
+        child.setId(UUID.randomUUID());
+        child.setAssetNumber("AST-CHILD-1");
+        when(assetRepository.findByIdWithAssociations(assetId)).thenReturn(Optional.of(asset));
+        when(orgNodeRepository.findById(toOrgNodeId)).thenReturn(Optional.of(toNode));
+        when(appUserRepository.existsById(approverId)).thenReturn(true);
+        when(assetRepository.findByParentAssetIdWithAssociationsOrderByCreatedAtAsc(assetId))
+                .thenReturn(java.util.List.of(child));
+
+        assertThatThrownBy(() -> service.create(
+                new TransferCreateCommand(assetId, toOrgNodeId, null, "Relocation", approverId, java.util.Map.of())))
+                .isInstanceOf(ValidationFailedException.class)
+                .hasMessageContaining("AST-CHILD-1");
+    }
+
+    @Test
+    void create_succeeds_whenEveryChildIsDispositioned() {
+        Asset child = new Asset();
+        UUID childId = UUID.randomUUID();
+        child.setId(childId);
+        child.setAssetNumber("AST-CHILD-1");
+        when(assetRepository.findByIdWithAssociations(assetId)).thenReturn(Optional.of(asset));
+        when(orgNodeRepository.findById(toOrgNodeId)).thenReturn(Optional.of(toNode));
+        when(appUserRepository.existsById(approverId)).thenReturn(true);
+        when(assetRepository.findByParentAssetIdWithAssociationsOrderByCreatedAtAsc(assetId))
+                .thenReturn(java.util.List.of(child));
+        when(transferRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AssetTransferRequest result = service.create(new TransferCreateCommand(assetId, toOrgNodeId, null,
+                "Relocation", approverId,
+                java.util.Map.of(childId, com.iams.lifecycle.domain.ChildDisposition.MOVE_WITH_PARENT)));
+
+        assertThat(result.getChildDispositions()).containsEntry(childId.toString(), "MOVE_WITH_PARENT");
+    }
+
+    @Test
+    void approve_appliesMoveWithParentToChild() {
+        // US-AST-04: a child dispositioned MOVE_WITH_PARENT relocates to the parent's new org node on approval.
+        AssetTransferRequest request = pendingRequest();
+        Asset child = new Asset();
+        UUID childId = UUID.randomUUID();
+        child.setId(childId);
+        child.setAssetNumber("AST-CHILD-1");
+        child.setOrgNode(fromNode);
+        child.setParentAsset(asset);
+        request.getChildDispositions().put(childId.toString(), "MOVE_WITH_PARENT");
+        when(transferRepository.findByIdWithAssociations(request.getId())).thenReturn(Optional.of(request));
+        when(currentUserProvider.current()).thenReturn(new CurrentUser(approverId, "depthead", Set.of("DEPARTMENT_HEAD")));
+        when(routingService.resolveEffectiveApprover(approverId)).thenReturn(approverId);
+        when(assetRepository.saveAndFlush(asset)).thenReturn(asset);
+        when(assetRepository.findByIdWithAssociations(childId)).thenReturn(Optional.of(child));
+        when(assetRepository.saveAndFlush(child)).thenReturn(child);
+        when(historyRecorder.record(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(new AssetHistoryEvent());
+        when(transferRepository.saveAndFlush(request)).thenReturn(request);
+
+        service.approve(request.getId());
+
+        assertThat(child.getOrgNode()).isEqualTo(toNode);
+    }
+
+    @Test
+    void approve_appliesDetachToChild() {
+        AssetTransferRequest request = pendingRequest();
+        Asset child = new Asset();
+        UUID childId = UUID.randomUUID();
+        child.setId(childId);
+        child.setAssetNumber("AST-CHILD-1");
+        child.setOrgNode(fromNode);
+        child.setParentAsset(asset);
+        request.getChildDispositions().put(childId.toString(), "DETACH");
+        when(transferRepository.findByIdWithAssociations(request.getId())).thenReturn(Optional.of(request));
+        when(currentUserProvider.current()).thenReturn(new CurrentUser(approverId, "depthead", Set.of("DEPARTMENT_HEAD")));
+        when(routingService.resolveEffectiveApprover(approverId)).thenReturn(approverId);
+        when(assetRepository.saveAndFlush(asset)).thenReturn(asset);
+        when(assetRepository.findByIdWithAssociations(childId)).thenReturn(Optional.of(child));
+        when(assetRepository.saveAndFlush(child)).thenReturn(child);
+        when(historyRecorder.record(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(new AssetHistoryEvent());
+        when(transferRepository.saveAndFlush(request)).thenReturn(request);
+
+        service.approve(request.getId());
+
+        assertThat(child.getParentAsset()).isNull();
+        assertThat(child.getOrgNode()).isEqualTo(fromNode); // detached in place, not moved
     }
 
     @Test

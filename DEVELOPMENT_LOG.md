@@ -1394,3 +1394,22 @@ EPIC-AUD already blocks an audit submitter from being their own approver (`Audit
 **Story-status effect:** US-USR-06 moves to **Built**.
 
 **RTM tally so far this effort: 26 of the 50 original Partials cleared**, 24 remain. Continuing Batch E: AST-04 (per-child disposition on transfer/dispose), AST-06 (custom-field filterable in search).
+
+---
+
+## 2026-07-22, continued - Batch E (part 3): US-AST-04 (per-child disposition on transfer/dispose)
+
+Parent-child asset relationships already existed (the `Asset.parentAsset` self-relation, `AssetHierarchyService`, the Components panel), and US-AST-04's second bullet - "each child appears as its own distinct expected item" in an audit - was already satisfied: audit expected-assets are built one row per asset from a location scope, and a child is just an asset with its own org node, so it's already a distinct expected row (never merged into the parent's line). The gap was the first bullet: transferring or disposing a parent silently ignored its children, orphaning them at the old location / leaving them active.
+
+**What was built.** A new `ChildDisposition` enum (`MOVE_WITH_PARENT` / `DETACH`), a V53 migration adding a `child_dispositions` jsonb column to both `asset_transfer_request` and `asset_disposal_request` (mirroring how `asset.custom_attributes` stores a per-row map rather than a side table), and the field threaded through both create-commands and API request DTOs. The decisions are captured at **request** time and applied at **approval** - they persist on the request between those two steps, which is why they live on the request row.
+
+- `create()` (both services): if the asset has children, every child must have a disposition supplied - a missing one throws `ValidationFailedException` naming the undispositioned children. This is the story's "block" option, enforced rather than offered as a stored value: you can't complete the request without dispositioning each child.
+- `approve()` (both services): `MOVE_WITH_PARENT` relocates the child to the parent's new org node (transfer) or disposes it under the same RETIRED/DISPOSED status (disposal); `DETACH` unlinks the child (`parentAsset = null`), leaving it in place and active. Each records its own asset-history event, and a child that was removed or already detached since the request is skipped gracefully.
+
+Frontend: a shared `ChildDispositionFields` component renders one selector per child in both the transfer and disposal request dialogs, and the Submit button stays disabled until every child has a disposition - the UI expression of the "block."
+
+**Verification.** Backend: 6 new tests across the two services (create blocks on an undispositioned child; create succeeds and stores the map when all children are dispositioned; approve applies MOVE_WITH_PARENT and DETACH on transfer; disposal blocks on an undispositioned child and applies MOVE_WITH_PARENT by disposing the child too). Full suite 524/524. Frontend `tsc -b`/`oxlint` clean. **Live-verified** on 8081 (with the V53 migration applied cleanly on boot): built a real parent+child, confirmed a transfer request that omits the child's disposition is refused (400, validation), then a transfer with the child set to MOVE_WITH_PARENT approves (200) and the child's org node actually followed the parent to the new node; a childless asset still transfers with no prompt (201, no regression).
+
+**Story-status effect:** US-AST-04 moves to **Built** (both bullets - the audit bullet was already met, the transfer/dispose bullet is now built).
+
+**RTM tally so far this effort: 27 of the 50 original Partials cleared**, 23 remain. Finishing Batch E with AST-06 (custom-field filterable in search), then Batch F.

@@ -17,6 +17,7 @@ import com.iams.compliance.application.LegalHoldService;
 import com.iams.compliance.domain.LegalHoldScopeType;
 import com.iams.lifecycle.domain.AssetDisposalRequest;
 import com.iams.lifecycle.domain.AssetDisposalRequestRepository;
+import com.iams.lifecycle.domain.ChildDisposition;
 import com.iams.lifecycle.domain.DisposalType;
 import com.iams.lifecycle.domain.LifecycleRequestStatus;
 import com.iams.usr.application.OrgScopeGuard;
@@ -24,7 +25,10 @@ import com.iams.usr.domain.AppUserRepository;
 import com.iams.usr.domain.SodWaiverRepository;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -105,6 +109,7 @@ public class DisposalService {
         request.setRequestedBy(actor);
         request.setRequestedAt(Instant.now());
         request.setCreatedBy(actor);
+        request.setChildDispositions(resolveChildDispositions(asset.getId(), command.childDispositions()));
         return disposalRepository.save(request);
     }
 
@@ -145,6 +150,9 @@ public class DisposalService {
         asset = assetRepository.saveAndFlush(asset);
         AssetHistoryEvent event = historyRecorder.record(asset, AssetHistoryEventType.LIFECYCLE_EVENT, "status",
                 previousStatusCode, targetStatusCode + " (" + request.getDisposalType() + ": " + request.getReason() + ")");
+
+        // US-AST-04: apply the per-child decisions captured at request time.
+        applyChildDispositions(request.getChildDispositions(), targetStatus, targetStatusCode, actor);
 
         request.setStatus(LifecycleRequestStatus.APPROVED);
         request.setDecidedBy(actor);
@@ -232,6 +240,60 @@ public class DisposalService {
         request.setRestoredBy(actor);
         request.setUpdatedBy(actor);
         return disposalRepository.saveAndFlush(request);
+    }
+
+    /**
+     * US-AST-04: every child of the parent must be explicitly dispositioned at request time -
+     * a missing one blocks the request. Returns the childId->disposition-name map to persist.
+     */
+    private Map<String, String> resolveChildDispositions(UUID parentId, Map<UUID, ChildDisposition> provided) {
+        List<Asset> children = assetRepository.findByParentAssetIdWithAssociationsOrderByCreatedAtAsc(parentId);
+        if (children.isEmpty()) {
+            return new HashMap<>();
+        }
+        Map<UUID, ChildDisposition> supplied = provided != null ? provided : Map.of();
+        Map<String, String> resolved = new HashMap<>();
+        List<String> missing = new ArrayList<>();
+        for (Asset child : children) {
+            ChildDisposition disposition = supplied.get(child.getId());
+            if (disposition == null) {
+                missing.add(child.getAssetNumber());
+            } else {
+                resolved.put(child.getId().toString(), disposition.name());
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw ValidationFailedException.singleField("childDispositions",
+                    "This asset has component assets that must each be dispositioned (move with parent / detach) "
+                            + "before it can be disposed: " + String.join(", ", missing));
+        }
+        return resolved;
+    }
+
+    /** US-AST-04: MOVE_WITH_PARENT disposes the child under the same status; DETACH unlinks it, leaving it active. */
+    private void applyChildDispositions(Map<String, String> dispositions, AssetStatusDef targetStatus,
+                                        String targetStatusCode, UUID actor) {
+        for (Map.Entry<String, String> entry : dispositions.entrySet()) {
+            Asset child = assetRepository.findByIdWithAssociations(UUID.fromString(entry.getKey())).orElse(null);
+            if (child == null || child.getParentAsset() == null) {
+                continue;
+            }
+            ChildDisposition disposition = ChildDisposition.valueOf(entry.getValue());
+            if (disposition == ChildDisposition.MOVE_WITH_PARENT) {
+                String previousStatusCode = child.getStatus() != null ? child.getStatus().getCode() : null;
+                child.setStatus(targetStatus);
+                child.setUpdatedBy(actor);
+                assetRepository.saveAndFlush(child);
+                historyRecorder.record(child, AssetHistoryEventType.LIFECYCLE_EVENT, "status",
+                        previousStatusCode, targetStatusCode + " (disposed with parent)");
+            } else {
+                String previousParentNumber = child.getParentAsset().getAssetNumber();
+                child.setParentAsset(null);
+                child.setUpdatedBy(actor);
+                assetRepository.saveAndFlush(child);
+                historyRecorder.record(child, AssetHistoryEventType.FIELD_UPDATE, "parentAssetId", previousParentNumber, null);
+            }
+        }
     }
 
     private void requireIsRoutedApprover(AssetDisposalRequest request, UUID actor) {

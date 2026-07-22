@@ -7,7 +7,7 @@ import {
   rejectDisposal,
   restoreDisposal,
 } from '../../../api/lifecycle/lifecycleApi'
-import type { DisposalType } from '../types'
+import type { ChildDisposition, DisposalType } from '../types'
 
 export function useDisposalsQuery(assetId?: string) {
   return useQuery({
@@ -25,8 +25,12 @@ function invalidate(queryClient: ReturnType<typeof useQueryClient>, assetId: str
 export function useCreateDisposalMutation(assetId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ disposalType, reason, nominalApproverId }: { disposalType: DisposalType; reason: string; nominalApproverId: string }) =>
-      createDisposal(assetId, disposalType, reason, nominalApproverId),
+    mutationFn: ({ disposalType, reason, nominalApproverId, childDispositions }: {
+      disposalType: DisposalType
+      reason: string
+      nominalApproverId: string
+      childDispositions?: Record<string, ChildDisposition>
+    }) => createDisposal(assetId, disposalType, reason, nominalApproverId, childDispositions),
     onSuccess: () => invalidate(queryClient, assetId),
   })
 }

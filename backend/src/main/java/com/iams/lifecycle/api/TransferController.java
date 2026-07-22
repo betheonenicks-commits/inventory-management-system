@@ -45,7 +45,7 @@ public class TransferController {
     @PreAuthorize("@perm.has('assets:write')")
     public ResponseEntity<TransferResponse> create(@Valid @RequestBody TransferCreateRequest request) {
         var created = transferService.create(new TransferCreateCommand(request.assetId(), request.toOrgNodeId(),
-                request.toPersonId(), request.reason(), request.nominalApproverId()));
+                request.toPersonId(), request.reason(), request.nominalApproverId(), request.childDispositions()));
         return ResponseEntity.created(URI.create("/api/v1/transfers/" + created.getId())).body(mapper.toResponse(created));
     }
 

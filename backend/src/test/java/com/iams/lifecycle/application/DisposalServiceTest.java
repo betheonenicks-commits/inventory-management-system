@@ -77,7 +77,7 @@ class DisposalServiceTest {
 
     @Test
     void create_rejectsBlankReason() {
-        assertThatThrownBy(() -> service.create(new DisposalCreateCommand(asset.getId(), DisposalType.RETIRE, " ", approverId)))
+        assertThatThrownBy(() -> service.create(new DisposalCreateCommand(asset.getId(), DisposalType.RETIRE, " ", approverId, java.util.Map.of())))
                 .isInstanceOf(ValidationFailedException.class);
     }
 
@@ -87,7 +87,7 @@ class DisposalServiceTest {
         when(appUserRepository.existsById(approverId)).thenReturn(true);
         when(disposalRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> inv.getArgument(0));
 
-        AssetDisposalRequest result = service.create(new DisposalCreateCommand(asset.getId(), DisposalType.DONATE, "End of life", approverId));
+        AssetDisposalRequest result = service.create(new DisposalCreateCommand(asset.getId(), DisposalType.DONATE, "End of life", approverId, java.util.Map.of()));
 
         assertThat(result.getStatus()).isEqualTo(LifecycleRequestStatus.PENDING);
         assertThat(result.getDisposalType()).isEqualTo(DisposalType.DONATE);
@@ -122,6 +122,55 @@ class DisposalServiceTest {
         when(routingService.resolveEffectiveApprover(approverId)).thenReturn(approverId);
 
         assertThatThrownBy(() -> service.approve(request.getId())).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void create_blocksWhenAParentHasAnUndispositionedChild() {
+        // US-AST-04: a child with no disposition blocks the disposal request.
+        Asset child = new Asset();
+        child.setId(UUID.randomUUID());
+        child.setAssetNumber("AST-CHILD-9");
+        when(assetRepository.findByIdWithAssociations(asset.getId())).thenReturn(Optional.of(asset));
+        when(appUserRepository.existsById(approverId)).thenReturn(true);
+        when(assetRepository.findByParentAssetIdWithAssociationsOrderByCreatedAtAsc(asset.getId()))
+                .thenReturn(java.util.List.of(child));
+
+        assertThatThrownBy(() -> service.create(
+                new DisposalCreateCommand(asset.getId(), DisposalType.DISPOSE, "End of life", approverId, java.util.Map.of())))
+                .isInstanceOf(ValidationFailedException.class)
+                .hasMessageContaining("AST-CHILD-9");
+    }
+
+    @Test
+    void approve_appliesMoveWithParentToChild_disposingItToo() {
+        // US-AST-04: MOVE_WITH_PARENT disposes the child under the same status.
+        AssetDisposalRequest request = pendingRequest(DisposalType.RETIRE);
+        Asset child = new Asset();
+        UUID childId = UUID.randomUUID();
+        child.setId(childId);
+        child.setAssetNumber("AST-CHILD-9");
+        child.setParentAsset(asset);
+        var childStatus = new AssetStatusDef();
+        childStatus.setCode("IN_USE");
+        child.setStatus(childStatus);
+        request.getChildDispositions().put(childId.toString(), "MOVE_WITH_PARENT");
+        when(disposalRepository.findByIdWithAsset(request.getId())).thenReturn(Optional.of(request));
+        when(currentUserProvider.current()).thenReturn(new CurrentUser(approverId, "depthead", Set.of("DEPARTMENT_HEAD")));
+        when(routingService.resolveEffectiveApprover(approverId)).thenReturn(approverId);
+        AssetStatusDef retired = new AssetStatusDef();
+        retired.setCode("RETIRED");
+        when(statusDefRepository.findByCode("RETIRED")).thenReturn(Optional.of(retired));
+        when(assetRepository.saveAndFlush(asset)).thenReturn(asset);
+        when(assetRepository.findByIdWithAssociations(childId)).thenReturn(Optional.of(child));
+        when(assetRepository.saveAndFlush(child)).thenReturn(child);
+        when(historyRecorder.record(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new AssetHistoryEvent());
+        when(disposalRepository.saveAndFlush(request)).thenReturn(request);
+
+        service.approve(request.getId());
+
+        assertThat(child.getStatus()).isEqualTo(retired);
     }
 
     @Test

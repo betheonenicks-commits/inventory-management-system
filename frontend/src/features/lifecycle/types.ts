@@ -2,6 +2,8 @@
 
 export type LifecycleRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 export type DisposalType = 'RETIRE' | 'DISPOSE' | 'DONATE'
+// US-AST-04: how a component (child) asset is handled when its parent is transferred/disposed.
+export type ChildDisposition = 'MOVE_WITH_PARENT' | 'DETACH'
 export type RepairEventStatus = 'OPEN' | 'CLOSED'
 export type MaintenanceType = 'PREVENTIVE' | 'CORRECTIVE'
 

@@ -12,6 +12,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
@@ -82,4 +84,9 @@ public class AssetDisposalRequest extends BaseEntity {
     @JdbcTypeCode(SqlTypes.UUID)
     @Column(name = "restored_by")
     private UUID restoredBy;
+
+    /** US-AST-04: childAssetId (as string) -> ChildDisposition name, captured at request time, applied at approval. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "child_dispositions", nullable = false)
+    private Map<String, String> childDispositions = new HashMap<>();
 }

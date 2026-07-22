@@ -21,14 +21,16 @@ import { isApiProblem } from '../../../api/errors'
 import { useAuthStore, hasPermission } from '../../../auth/authStore'
 import { usePickableUsersQuery } from '../../users/hooks/useUsersQuery'
 import { useOrgNodesQuery } from '../../audits/hooks/useOrgNodesQuery'
+import { useAssetChildrenQuery } from '../hooks/useAssetHierarchy'
 import {
   useApproveTransferMutation,
   useCreateTransferMutation,
   useRejectTransferMutation,
   useTransfersQuery,
 } from '../../lifecycle/hooks/useTransfersQuery'
+import { ChildDispositionFields } from './ChildDispositionFields'
 import type { Asset } from '../types'
-import type { LifecycleRequestStatus } from '../../lifecycle/types'
+import type { ChildDisposition, LifecycleRequestStatus } from '../../lifecycle/types'
 
 const STATUS_COLOR: Record<LifecycleRequestStatus, 'warning' | 'success' | 'error'> = {
   PENDING: 'warning',
@@ -48,9 +50,12 @@ export function AssetTransferPanel({ asset }: { asset: Asset }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const orgNodesQuery = useOrgNodesQuery()
   const usersQuery = usePickableUsersQuery(dialogOpen)
+  const childrenQuery = useAssetChildrenQuery(asset.id)
+  const childAssets = childrenQuery.data ?? []
   const [toOrgNodeId, setToOrgNodeId] = useState('')
   const [reason, setReason] = useState('')
   const [nominalApproverId, setNominalApproverId] = useState('')
+  const [childDispositions, setChildDispositions] = useState<Record<string, ChildDisposition>>({})
   const [error, setError] = useState<string | null>(null)
   const [decisionError, setDecisionError] = useState<string | null>(null)
   const [rejectTarget, setRejectTarget] = useState<string | null>(null)
@@ -60,6 +65,7 @@ export function AssetTransferPanel({ asset }: { asset: Asset }) {
     setToOrgNodeId('')
     setReason('')
     setNominalApproverId('')
+    setChildDispositions({})
     setError(null)
     setDialogOpen(true)
   }
@@ -67,7 +73,7 @@ export function AssetTransferPanel({ asset }: { asset: Asset }) {
   async function handleCreate() {
     setError(null)
     try {
-      await createTransfer.mutateAsync({ toOrgNodeId, reason, nominalApproverId })
+      await createTransfer.mutateAsync({ toOrgNodeId, reason, nominalApproverId, childDispositions })
       setDialogOpen(false)
     } catch (err) {
       setError(isApiProblem(err) ? err.detail : 'Failed to request transfer')
@@ -205,6 +211,12 @@ export function AssetTransferPanel({ asset }: { asset: Asset }) {
               value={reason}
               onChange={(e) => setReason(e.target.value)}
             />
+            <ChildDispositionFields
+              childAssets={childAssets}
+              value={childDispositions}
+              onChange={setChildDispositions}
+              verb="transfer"
+            />
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -212,7 +224,13 @@ export function AssetTransferPanel({ asset }: { asset: Asset }) {
           <Button
             variant="contained"
             onClick={handleCreate}
-            disabled={!toOrgNodeId || !reason || !nominalApproverId || createTransfer.isPending}
+            disabled={
+              !toOrgNodeId ||
+              !reason ||
+              !nominalApproverId ||
+              !childAssets.every((c) => !!childDispositions[c.id]) ||
+              createTransfer.isPending
+            }
           >
             Submit Request
           </Button>

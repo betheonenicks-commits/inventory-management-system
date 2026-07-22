@@ -6,6 +6,7 @@ import {
   fetchTransfers,
   rejectTransfer,
 } from '../../../api/lifecycle/lifecycleApi'
+import type { ChildDisposition } from '../types'
 
 export function useTransfersQuery(assetId?: string) {
   return useQuery({
@@ -23,12 +24,13 @@ function invalidate(queryClient: ReturnType<typeof useQueryClient>, assetId: str
 export function useCreateTransferMutation(assetId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ toOrgNodeId, toPersonId, reason, nominalApproverId }: {
+    mutationFn: ({ toOrgNodeId, toPersonId, reason, nominalApproverId, childDispositions }: {
       toOrgNodeId: string
       toPersonId?: string
       reason: string
       nominalApproverId: string
-    }) => createTransfer(assetId, toOrgNodeId, toPersonId, reason, nominalApproverId),
+      childDispositions?: Record<string, ChildDisposition>
+    }) => createTransfer(assetId, toOrgNodeId, toPersonId, reason, nominalApproverId, childDispositions),
     onSuccess: () => invalidate(queryClient, assetId),
   })
 }

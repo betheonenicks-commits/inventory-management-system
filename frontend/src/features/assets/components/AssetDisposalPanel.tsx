@@ -20,6 +20,7 @@ import Typography from '@mui/material/Typography'
 import { isApiProblem } from '../../../api/errors'
 import { useAuthStore, hasPermission } from '../../../auth/authStore'
 import { usePickableUsersQuery } from '../../users/hooks/useUsersQuery'
+import { useAssetChildrenQuery } from '../hooks/useAssetHierarchy'
 import {
   useApproveDisposalMutation,
   useCreateDisposalMutation,
@@ -27,8 +28,9 @@ import {
   useRejectDisposalMutation,
   useRestoreDisposalMutation,
 } from '../../lifecycle/hooks/useDisposalsQuery'
+import { ChildDispositionFields } from './ChildDispositionFields'
 import type { Asset } from '../types'
-import type { DisposalType, LifecycleRequestStatus } from '../../lifecycle/types'
+import type { ChildDisposition, DisposalType, LifecycleRequestStatus } from '../../lifecycle/types'
 
 const STATUS_COLOR: Record<LifecycleRequestStatus, 'warning' | 'success' | 'error'> = {
   PENDING: 'warning',
@@ -49,9 +51,12 @@ export function AssetDisposalPanel({ asset }: { asset: Asset }) {
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const usersQuery = usePickableUsersQuery(dialogOpen)
+  const childrenQuery = useAssetChildrenQuery(asset.id)
+  const childAssets = childrenQuery.data ?? []
   const [disposalType, setDisposalType] = useState<DisposalType>('RETIRE')
   const [reason, setReason] = useState('')
   const [nominalApproverId, setNominalApproverId] = useState('')
+  const [childDispositions, setChildDispositions] = useState<Record<string, ChildDisposition>>({})
   const [error, setError] = useState<string | null>(null)
   const [decisionError, setDecisionError] = useState<string | null>(null)
   const [rejectTarget, setRejectTarget] = useState<string | null>(null)
@@ -61,6 +66,7 @@ export function AssetDisposalPanel({ asset }: { asset: Asset }) {
     setDisposalType('RETIRE')
     setReason('')
     setNominalApproverId('')
+    setChildDispositions({})
     setError(null)
     setDialogOpen(true)
   }
@@ -68,7 +74,7 @@ export function AssetDisposalPanel({ asset }: { asset: Asset }) {
   async function handleCreate() {
     setError(null)
     try {
-      await createDisposal.mutateAsync({ disposalType, reason, nominalApproverId })
+      await createDisposal.mutateAsync({ disposalType, reason, nominalApproverId, childDispositions })
       setDialogOpen(false)
     } catch (err) {
       setError(isApiProblem(err) ? err.detail : 'Failed to request disposal')
@@ -206,11 +212,26 @@ export function AssetDisposalPanel({ asset }: { asset: Asset }) {
               value={reason}
               onChange={(e) => setReason(e.target.value)}
             />
+            <ChildDispositionFields
+              childAssets={childAssets}
+              value={childDispositions}
+              onChange={setChildDispositions}
+              verb="dispose"
+            />
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleCreate} disabled={!reason || !nominalApproverId || createDisposal.isPending}>
+          <Button
+            variant="contained"
+            onClick={handleCreate}
+            disabled={
+              !reason ||
+              !nominalApproverId ||
+              !childAssets.every((c) => !!childDispositions[c.id]) ||
+              createDisposal.isPending
+            }
+          >
             Submit Request
           </Button>
         </DialogActions>

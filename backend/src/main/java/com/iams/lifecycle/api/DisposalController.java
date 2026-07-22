@@ -37,7 +37,7 @@ public class DisposalController {
     @PreAuthorize("@perm.has('assets:write')")
     public ResponseEntity<DisposalResponse> create(@Valid @RequestBody DisposalCreateRequest request) {
         var created = disposalService.create(new DisposalCreateCommand(request.assetId(), request.disposalType(),
-                request.reason(), request.nominalApproverId()));
+                request.reason(), request.nominalApproverId(), request.childDispositions()));
         return ResponseEntity.created(URI.create("/api/v1/disposals/" + created.getId())).body(mapper.toResponse(created));
     }
 
