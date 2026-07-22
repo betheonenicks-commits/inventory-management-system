@@ -69,7 +69,7 @@
         <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
-            <version>8.5.12</version>
+            <version>9.0.3</version>
         </dependency>
 
         <!-- Excel export (US-RPT-12) -->
