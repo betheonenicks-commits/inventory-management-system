@@ -1516,3 +1516,25 @@ Extended the bulk-import feature from one hardcoded entity (Asset) to a pluggabl
 **Story-status effect:** US-MIG-01/03 now cover **two** entities (Asset + Vendor) end to end; MIG-04 history is entity-generic already. EPIC-MIG progress unchanged at the story level (still 3 Built / 0 Partial / 2 Not-started of 5) but MIG-01's four-entity scope is now half-covered and the remaining two (Person, Inventory Item) are each a single new `EntityImportProcessor` bean + enabling them in the frontend list.
 
 **Next session:** the Person and Inventory-Item importers (same pattern - a processor bean + a `validate()` extraction in `PersonService`/`InventoryItemService`), then US-MIG-02 (bulk export - reuses the EPIC-RPT exporters) and US-MIG-05 (cutover runbook doc) to reach the EPIC-MIG gate; or open EPIC-SCN. Standing follow-ups unchanged (optimistic-lock `currentResource` DTO, person-management UI, first `@SpringBootTest` smoke test).
+
+---
+
+## 2026-07-23 - Full 180-story reconciliation; regenerated the Development RTM (v1.0 → v2.0)
+
+The `IAMS_Development_RTM_v1.0.md` had drifted badly - its content was frozen at a 2026-07-13 snapshot (42 Built / 10 Partial / 128 Not-started) and never refreshed, while the running `DEVELOPMENT_LOG.md` tally (last full figure ~130 Built at 2026-07-21) had itself drifted conservatively. Ran the full reconciliation the log has flagged as owed for ~8 sessions: every one of the 180 ratified stories checked against the **current codebase** (48 controllers, 54 migrations, the `com.iams.*` tree, the frontend routes/features), not inferred from prior log claims.
+
+**Result: 142 Built / 15 Partial / 23 Not-started** (sums to 180; every story has a stated basis). Written up as **`IAMS_Development_RTM_v2.0.md`** with an epic overview, a full enumeration of the 38 not-fully-built stories (each with its exact gap), the 142 Built grouped by epic, and an honest caveats section.
+
+**Why it's higher than the running ~130:** the gap is almost entirely **EPIC-PLAT**. The running tally counted only 2 PLAT stories Built (the two that got dedicated sessions), but optimistic locking (PLAT-04, tested), atomic inventory concurrency (PLAT-05, tested in the INV gate), correlated logging (PLAT-06, `CorrelationIdFilter`), metrics + status page (PLAT-07, actuator + System Health), and standardized UI states (PLAT-12) are all genuinely implemented - they were built as cross-cutting infrastructure during other epics and never counted as their own stories. The reconciliation credits them (7 Built / 6 Partial / 3 Not-started for PLAT).
+
+**Headline picture:** 8 epics complete (ORG, USR, CMP, SRC, DSH, RPT, ANL, INV); 6 substantially built with short tails (AST, SEC, LIF, AUD, NTF, PLAT); MIG partly open (3/5); INT built only in fragments (0 Built / 2 Partial / 4 Not-started); **SCN the only epic with zero dedicated code** (7 Not-started - though audit/label scan mechanics could be promoted to satisfy several).
+
+**Key code findings that corrected prior assumptions:**
+- **US-AST-05 (asset attachments) is Not-started**, not Built - `AttachmentOwnerType` only has `AUDIT_FINDING`; the PLAT-02 object-store infra was never wired to assets.
+- **US-AST-08 is Partial** - warranty dates are modeled, but there is no AMC-coverage field.
+- MFA (SEC-03/17), LDAP (SEC-02), IP-range (SEC-07), break-glass (SEC-16), rate-limit (PLAT-08), webhooks (INT-04/06), backup (PLAT-03), PWA (PLAT-13) all confirmed as having **no code** by targeted search.
+- INV-10 multi-currency FX confirmed **Built** (`StockInCommand.currencyCode/fxRate`, non-reporting currency requires an FX rate).
+
+**Caveat carried in the doc:** the NFR/platform Built-vs-Partial calls (PLAT-06/09/10, SEC-08) carry real subjectivity; 2–3 stories could shift between Built and Partial without changing the headline. Unlike v1.0, the count sums to 180 and is code-grounded.
+
+**"Not built" answer of record:** 23 stories have no code; 38 are not fully done (23 Not-started + 15 Partial); 142 (78.9%) are Built.
